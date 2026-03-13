@@ -102,7 +102,7 @@ export default function InquiriesTab() {
   }
 
   async function handleCreateAccountSubmit() {
-    if (!pendingInquiry) return
+    if (!pendingInquiry || approving) return
 
     // Validate
     const errors: Record<string, string> = {}
@@ -127,10 +127,10 @@ export default function InquiriesTab() {
       setShowCreateForm(false)
       setPendingInquiry(null)
 
-      // Show credentials modal
-      setCredentials({ email: createFormData.email.trim(), password: result.generatedPassword })
+      // Show credentials/verification modal
+      setCredentials({ email: createFormData.email.trim(), password: result.generatedPassword || '' })
       setShowCredentials(true)
-      toast.success('Inquiry approved — owner account created!')
+      toast.success('Inquiry approved — owner invitation sent for email verification!')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to approve inquiry'
       toast.error(message)
@@ -602,30 +602,34 @@ export default function InquiriesTab() {
                 </button>
               </div>
 
-              <div className={`flex items-center justify-between rounded-lg p-3 ${isDark ? 'bg-[#0A1628] border border-[#1E293B]' : 'bg-gray-50 border border-gray-200'}`}>
-                <div>
-                  <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Password</p>
-                  <p className={`text-sm font-mono mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{credentials.password}</p>
+              {credentials.password && (
+                <div className={`flex items-center justify-between rounded-lg p-3 ${isDark ? 'bg-[#0A1628] border border-[#1E293B]' : 'bg-gray-50 border border-gray-200'}`}>
+                  <div>
+                    <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Password</p>
+                    <p className={`text-sm font-mono mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{credentials.password}</p>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(credentials.password, 'Password')}
+                    className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-200 text-gray-500'}`}
+                  >
+                    {copiedField === 'Password' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
                 </div>
-                <button
-                  onClick={() => copyToClipboard(credentials.password, 'Password')}
-                  className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-200 text-gray-500'}`}
-                >
-                  {copiedField === 'Password' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                </button>
-              </div>
+              )}
             </div>
 
-            <div className={`mt-4 rounded-lg p-3 ${isDark ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-yellow-50 border border-yellow-200'}`}>
-              <p className={`text-xs ${isDark ? 'text-yellow-400' : 'text-yellow-700'}`}>
-                ⚠️ Save these credentials now. The password cannot be retrieved after closing this dialog.
-              </p>
-            </div>
+            {credentials.password && (
+              <div className={`mt-4 rounded-lg p-3 ${isDark ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-yellow-50 border border-yellow-200'}`}>
+                <p className={`text-xs ${isDark ? 'text-yellow-400' : 'text-yellow-700'}`}>
+                  ⚠️ Save these credentials now. The password cannot be retrieved after closing this dialog.
+                </p>
+              </div>
+            )}
 
             {/* Email Send Section */}
             <div className="mt-5 space-y-3">
               <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                Send credentials via Email
+                Send account details via Email
               </p>
               <div className="flex gap-2">
                 <div className="relative flex-1">

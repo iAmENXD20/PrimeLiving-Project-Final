@@ -92,8 +92,12 @@ export async function getClients() {
 }
 
 export async function createClient(client: { name: string; email: string; phone?: string }) {
-  const result = await api.post<Client & { generatedPassword: string }>('/clients', client)
-  return { client: result, generatedPassword: result.generatedPassword }
+  const result = await api.post<Client & { generatedPassword?: string; requiresEmailVerification?: boolean }>('/clients', client)
+  return {
+    client: result,
+    generatedPassword: result.generatedPassword,
+    requiresEmailVerification: result.requiresEmailVerification,
+  }
 }
 
 export async function updateClient(id: string, updates: Partial<Client>) {
@@ -192,17 +196,22 @@ export async function approveInquiry(
   inquiry: Inquiry,
   overrides?: { name?: string; email?: string; phone?: string }
 ) {
-  // 1. Mark inquiry as approved
-  const updated = await updateInquiryStatus(inquiry.id, 'approved')
-
-  // 2. Create client + auth account (reuses createClient logic)
+  // 1. Create client + auth account
   const result = await createClient({
     name: overrides?.name || inquiry.name,
     email: overrides?.email || inquiry.email,
     phone: overrides?.phone || inquiry.phone || undefined,
   })
 
-  return { inquiry: updated, client: result.client, generatedPassword: result.generatedPassword }
+  // 2. Mark inquiry as approved only after account creation succeeds
+  const updated = await updateInquiryStatus(inquiry.id, 'approved')
+
+  return {
+    inquiry: updated,
+    client: result.client,
+    generatedPassword: result.generatedPassword,
+    requiresEmailVerification: result.requiresEmailVerification,
+  }
 }
 
 // ── Tenants per Client (for charts) ─────────────────────

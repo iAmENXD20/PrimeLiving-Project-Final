@@ -1,7 +1,8 @@
 import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
+import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError, generateRandomPassword } from "../utils/helpers";
+import { sendSuccess, sendError } from "../utils/helpers";
 
 /**
  * GET /api/clients
@@ -94,15 +95,45 @@ export async function createClient(
 ): Promise<void> {
   try {
     const { name, email, phone, apartment_address } = req.body;
+    const normalizedEmail = String(email || "").trim().toLowerCase();
 
-    // Create auth user with random password
-    const password = generateRandomPassword();
-    const { data: authData, error: authError } =
-      await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { role: "owner", name },
+    if (!normalizedEmail) {
+      sendError(res, "Email is required", 400);
+      return;
+    }
+
+    const { data: existingClient, error: existingClientError } = await supabaseAdmin
+      .from("clients")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (existingClientError) {
+      sendError(res, existingClientError.message, 500);
+      return;
+    }
+
+    if (existingClient) {
+      sendError(res, "Owner account with this email already exists", 409);
+      return;
+    }
+
+    const requestOrigin = req.headers.origin;
+    const redirectTo =
+      requestOrigin && /^https?:\/\//i.test(requestOrigin)
+        ? requestOrigin
+        : env.FRONTEND_URL;
+
+    // Invite owner via email verification flow
+    const { data: inviteData, error: authError } =
+      await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail, {
+        redirectTo,
+        data: {
+          role: "owner",
+          name,
+          login_email: normalizedEmail,
+          app_name: "PrimeLiving",
+        },
       });
 
     if (authError) {
@@ -110,13 +141,18 @@ export async function createClient(
       return;
     }
 
+    if (!inviteData.user?.id) {
+      sendError(res, "Failed to create owner auth account", 500);
+      return;
+    }
+
     // Create client record linked to auth user
     const { data, error } = await supabaseAdmin
       .from("clients")
       .insert({
-        auth_user_id: authData.user.id,
+        auth_user_id: inviteData.user.id,
         name,
-        email,
+        email: normalizedEmail,
         phone,
         apartment_address,
         status: "active",
@@ -126,12 +162,17 @@ export async function createClient(
 
     if (error) {
       // Cleanup: delete the auth user if client record fails
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      await supabaseAdmin.auth.admin.deleteUser(inviteData.user.id);
       sendError(res, error.message, 500);
       return;
     }
 
-    sendSuccess(res, { ...data, generatedPassword: password }, "Client created successfully", 201);
+    sendSuccess(
+      res,
+      { ...data, requiresEmailVerification: true },
+      "Client created successfully. Verification email sent.",
+      201
+    );
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
