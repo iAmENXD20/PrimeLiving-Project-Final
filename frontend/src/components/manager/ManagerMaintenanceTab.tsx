@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Search, Filter, ChevronDown } from 'lucide-react'
+import { Search, Filter, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { getManagerMaintenanceRequests, type MaintenanceRequest } from '../../lib/managerApi'
 
@@ -48,6 +48,9 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
   const [statusOpen, setStatusOpen] = useState(false)
   const [priorityOpen, setPriorityOpen] = useState(false)
+  const [photoModalOpen, setPhotoModalOpen] = useState(false)
+  const [photoModalUrls, setPhotoModalUrls] = useState<string[]>([])
+  const [photoModalIndex, setPhotoModalIndex] = useState(0)
   const statusRef = useRef<HTMLDivElement>(null)
   const priorityRef = useRef<HTMLDivElement>(null)
 
@@ -60,6 +63,26 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  const openPhotoModal = (urls: string[], index: number) => {
+    setPhotoModalUrls(urls)
+    setPhotoModalIndex(index)
+    setPhotoModalOpen(true)
+  }
+
+  const closePhotoModal = () => {
+    setPhotoModalOpen(false)
+    setPhotoModalUrls([])
+    setPhotoModalIndex(0)
+  }
+
+  const showPrevPhoto = () => {
+    setPhotoModalIndex((prev) => (prev <= 0 ? photoModalUrls.length - 1 : prev - 1))
+  }
+
+  const showNextPhoto = () => {
+    setPhotoModalIndex((prev) => (prev >= photoModalUrls.length - 1 ? 0 : prev + 1))
+  }
 
   async function loadRequests() {
     try {
@@ -249,13 +272,13 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
                       return urls.length > 0 ? (
                         <div className="flex gap-1.5">
                           {urls.map((url, i) => (
-                            <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                            <button key={i} type="button" onClick={() => openPhotoModal(urls, i)}>
                               <img
                                 src={url}
                                 alt={`Evidence ${i + 1}`}
                                 className="w-10 h-10 object-cover rounded-lg border border-gray-200 dark:border-[#1E293B] hover:opacity-80 transition-opacity"
                               />
-                            </a>
+                            </button>
                           ))}
                         </div>
                       ) : (
@@ -295,6 +318,63 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
         <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
           Showing {filtered.length} of {requests.length} requests
         </p>
+      )}
+
+      {photoModalOpen && photoModalUrls.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={closePhotoModal} />
+          <div className={`relative w-full max-w-3xl rounded-xl border overflow-hidden ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#1E293B]">
+              <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Photo {photoModalIndex + 1} of {photoModalUrls.length}
+              </p>
+              <button onClick={closePhotoModal} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="relative bg-black/80 flex items-center justify-center min-h-[420px]">
+              <img
+                src={photoModalUrls[photoModalIndex]}
+                alt={`Maintenance photo ${photoModalIndex + 1}`}
+                className="max-h-[70vh] w-auto object-contain"
+              />
+
+              {photoModalUrls.length > 1 && (
+                <>
+                  <button
+                    onClick={showPrevPhoto}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 text-white hover:bg-black/70"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={showNextPhoto}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 text-white hover:bg-black/70"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+            </div>
+
+            {photoModalUrls.length > 1 && (
+              <div className={`flex gap-2 p-3 overflow-x-auto ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
+                {photoModalUrls.map((url, index) => (
+                  <button
+                    key={`${url}-${index}`}
+                    onClick={() => setPhotoModalIndex(index)}
+                    className={`rounded-lg overflow-hidden border-2 ${
+                      index === photoModalIndex ? 'border-primary' : isDark ? 'border-[#1E293B]' : 'border-gray-200'
+                    }`}
+                  >
+                    <img src={url} alt={`Thumbnail ${index + 1}`} className="w-14 h-14 object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

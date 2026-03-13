@@ -3,6 +3,42 @@ import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 
+const MAINTENANCE_PHOTO_BUCKET = "maintenance-photos";
+
+async function ensureMaintenancePhotoBucket(): Promise<void> {
+  const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+  const exists = (buckets || []).some((bucket) => bucket.name === MAINTENANCE_PHOTO_BUCKET);
+  if (exists) return;
+
+  await supabaseAdmin.storage.createBucket(MAINTENANCE_PHOTO_BUCKET, {
+    public: true,
+    fileSizeLimit: "5MB",
+    allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "image/jpg"],
+  });
+}
+
+function parseMaintenanceDataUrl(dataUrl: string): { mime: string; buffer: Buffer; extension: string } | null {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) return null;
+
+  const mime = match[1].toLowerCase();
+  const extMap: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+  };
+
+  const extension = extMap[mime];
+  if (!extension) return null;
+
+  return {
+    mime,
+    buffer: Buffer.from(match[2], "base64"),
+    extension,
+  };
+}
+
 /**
  * GET /api/maintenance
  * Get maintenance requests (filtered by client_id or tenant_id)
@@ -162,6 +198,61 @@ export async function getPendingMaintenanceCount(
     }
 
     sendSuccess(res, { count });
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/maintenance/photos
+ * Upload maintenance request photo to Supabase Storage
+ */
+export async function uploadMaintenancePhoto(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { tenant_id, data_url } = req.body as {
+      tenant_id?: string;
+      data_url?: string;
+    };
+
+    if (!tenant_id || !data_url) {
+      sendError(res, "tenant_id and data_url are required", 400);
+      return;
+    }
+
+    const parsed = parseMaintenanceDataUrl(data_url);
+    if (!parsed) {
+      sendError(res, "Invalid image data", 400);
+      return;
+    }
+
+    await ensureMaintenancePhotoBucket();
+
+    const objectPath = `${tenant_id}/${Date.now()}.${parsed.extension}`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(MAINTENANCE_PHOTO_BUCKET)
+      .upload(objectPath, parsed.buffer, {
+        contentType: parsed.mime,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      sendError(res, uploadError.message, 500);
+      return;
+    }
+
+    const { data: publicData } = supabaseAdmin.storage
+      .from(MAINTENANCE_PHOTO_BUCKET)
+      .getPublicUrl(objectPath);
+
+    sendSuccess(
+      res,
+      { photo_url: publicData.publicUrl, path: objectPath },
+      "Maintenance photo uploaded successfully",
+      201
+    );
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

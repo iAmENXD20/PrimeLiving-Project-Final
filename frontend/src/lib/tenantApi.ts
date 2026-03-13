@@ -114,25 +114,23 @@ export async function createTenantMaintenanceRequest(request: {
 }
 
 // ── Upload Maintenance Photo ───────────────────────────────
-// File uploads go directly to Supabase Storage (not routed through backend)
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+// File uploads are routed through backend for centralized storage handling
 export async function uploadMaintenancePhoto(file: File, tenantId: string): Promise<string> {
-  const ext = file.name.split('.').pop()
-  const fileName = `${tenantId}/${Date.now()}.${ext}`
-
-  const { error: uploadError } = await supabase.storage
-    .from('maintenance-photos')
-    .upload(fileName, file, {
-      cacheControl: '3600',
-      upsert: false,
-    })
-
-  if (uploadError) throw uploadError
-
-  const { data } = supabase.storage
-    .from('maintenance-photos')
-    .getPublicUrl(fileName)
-
-  return data.publicUrl
+  const dataUrl = await fileToDataUrl(file)
+  const result = await api.post<{ photo_url: string }>('/maintenance/photos', {
+    tenant_id: tenantId,
+    data_url: dataUrl,
+  })
+  return result.photo_url
 }
 
 // ── Payments ───────────────────────────────────────────────
