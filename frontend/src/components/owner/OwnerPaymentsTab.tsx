@@ -48,8 +48,22 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
   const yearDropdownRef = useRef<HTMLDivElement>(null)
 
   async function load() {
+    setLoading(true)
     try {
-      const data = await getOwnerPayments(clientId)
+      const [paymentsResult, qrResult] = await Promise.allSettled([
+        getOwnerPayments(clientId),
+        getPaymentQrUrl(clientId),
+      ])
+
+      if (qrResult.status === 'fulfilled') {
+        setQrUrl(qrResult.value)
+      }
+
+      if (paymentsResult.status !== 'fulfilled') {
+        throw paymentsResult.reason
+      }
+
+      const data = paymentsResult.value
 
       // Auto-update: mark pending payments past due date as overdue
       const today = new Date()
@@ -66,8 +80,6 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
       }
 
       setPayments(data)
-      const currentQrUrl = await getPaymentQrUrl(clientId)
-      setQrUrl(currentQrUrl)
     } catch (err) {
       console.error('Failed to load payments:', err)
     } finally {

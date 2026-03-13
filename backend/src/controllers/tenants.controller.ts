@@ -12,6 +12,7 @@ export async function getTenants(
   res: Response
 ): Promise<void> {
   try {
+    const clientId = req.query.client_id as string | undefined;
     let query = supabaseAdmin
       .from("tenants")
       .select("*")
@@ -20,8 +21,27 @@ export async function getTenants(
     if (req.query.apartment_id) {
       query = query.eq("apartment_id", req.query.apartment_id as string);
     }
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+
+    if (clientId) {
+      const { data: apartments, error: apartmentsError } = await supabaseAdmin
+        .from("apartments")
+        .select("id")
+        .eq("client_id", clientId);
+
+      if (apartmentsError) {
+        sendError(res, apartmentsError.message, 500);
+        return;
+      }
+
+      const apartmentIds = (apartments || []).map((a: any) => a.id).filter(Boolean);
+
+      if (apartmentIds.length > 0) {
+        query = query.or(
+          `client_id.eq.${clientId},apartment_id.in.(${apartmentIds.join(",")})`
+        );
+      } else {
+        query = query.eq("client_id", clientId);
+      }
     }
 
     const { data, error } = await query;

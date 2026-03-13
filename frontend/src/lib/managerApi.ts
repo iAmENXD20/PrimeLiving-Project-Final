@@ -36,7 +36,18 @@ export async function getCurrentManager(): Promise<ManagerProfile | null> {
   if (!user) return null
 
   try {
-    return await api.get<ManagerProfile>(`/managers/by-auth/${user.id}`)
+    const manager = await api.get<ManagerProfile>(`/managers/by-auth/${user.id}`)
+
+    if (manager && !manager.client_id) {
+      const apartments = await api.get<any[]>(`/apartments?manager_id=${manager.id}`).catch(() => [])
+      const fallbackClientId = apartments?.[0]?.client_id || null
+      return {
+        ...manager,
+        client_id: fallbackClientId,
+      }
+    }
+
+    return manager
   } catch {
     return null
   }
@@ -270,12 +281,43 @@ export async function recordCashPayment(payment: {
 }
 
 // ── Get Active Tenants (for SMS notifications) ─────────────
-export async function getActiveTenants(clientId: string): Promise<{ id: string; name: string; phone: string | null }[]> {
-  const data = await api.get<any[]>(`/tenants?client_id=${clientId}`)
-  // Filter to active tenants with name and phone
-  return (data || [])
-    .filter((t: any) => t.status === 'active')
-    .map((t: any) => ({ id: t.id, name: t.name, phone: t.phone }))
+export async function getActiveTenants(
+  clientId: string,
+  managerId?: string,
+): Promise<{ id: string; name: string; phone: string | null }[]> {
+  let effectiveClientId = clientId
+
+  if (managerId) {
+    const units = await api
+      .get<any[]>(`/apartments/with-tenants?manager_id=${managerId}`)
+      .catch(() => [] as any[])
+
+    const managerTenants = (units || [])
+      .filter((u: any) => u.tenant_id)
+      .map((u: any) => ({
+        id: u.tenant_id,
+        name: u.tenant_name || 'Unknown',
+        phone: u.tenant_phone || null,
+      }))
+
+    if (managerTenants.length > 0) {
+      const deduped = new Map<string, { id: string; name: string; phone: string | null }>()
+      managerTenants.forEach((t) => deduped.set(t.id, t))
+      return Array.from(deduped.values())
+    }
+
+    if (!effectiveClientId) {
+      const manager = await api.get<any>(`/managers/${managerId}`).catch(() => null)
+      effectiveClientId = manager?.client_id || ''
+    }
+  }
+
+  if (!effectiveClientId) {
+    return []
+  }
+
+  const data = await api.get<any[]>(`/tenants?client_id=${effectiveClientId}`)
+  return (data || []).map((t: any) => ({ id: t.id, name: t.name, phone: t.phone }))
 }
 
 // ── Documents ──────────────────────────────────────────────

@@ -302,6 +302,19 @@ export async function updateOwnerPaymentStatus(id: string, status: 'paid' | 'pen
 }
 
 // ── Payment QR Code ────────────────────────────────────────
+const QR_CACHE_KEY = 'primeliving_payment_qr_cache'
+
+function getQrCache(clientId: string): string | null {
+  return localStorage.getItem(`${QR_CACHE_KEY}_${clientId}`)
+}
+
+function setQrCache(clientId: string, url: string): void {
+  localStorage.setItem(`${QR_CACHE_KEY}_${clientId}`, url)
+}
+
+function clearQrCache(clientId: string): void {
+  localStorage.removeItem(`${QR_CACHE_KEY}_${clientId}`)
+}
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -314,22 +327,25 @@ function fileToDataUrl(file: File): Promise<string> {
 
 export async function uploadPaymentQr(clientId: string, file: File): Promise<string> {
   const dataUrl = await fileToDataUrl(file)
+  setQrCache(clientId, dataUrl)
   const result = await api.post<{ qr_url: string }>('/payments/qr', {
     client_id: clientId,
     data_url: dataUrl,
   })
-  return result.qr_url
+  return result.qr_url || dataUrl
 }
 
 export async function getPaymentQrUrl(clientId: string): Promise<string | null> {
   try {
     const result = await api.get<{ qr_url: string }>(`/payments/qr/${clientId}`)
+    if (result.qr_url) setQrCache(clientId, result.qr_url)
     return result.qr_url || null
   } catch {
-    return null
+    return getQrCache(clientId)
   }
 }
 
 export async function deletePaymentQr(clientId: string): Promise<void> {
   await api.delete(`/payments/qr/${clientId}`)
+  clearQrCache(clientId)
 }

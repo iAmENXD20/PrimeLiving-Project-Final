@@ -62,7 +62,7 @@ export default function ManagerManageApartmentTab({ clientId, managerName, manag
       {/* Sub-Tab Content */}
       {activeSubTab === 'units' && <ManagerApartmentsTab clientId={clientId} />}
       {activeSubTab === 'tenants' && <ManagerTenantsTab clientId={clientId} />}
-      {activeSubTab === 'announcements' && <ManagerAnnouncementsTab clientId={clientId} managerName={managerName} />}
+      {activeSubTab === 'announcements' && <ManagerAnnouncementsTab clientId={clientId} managerId={managerId} managerName={managerName} />}
       {activeSubTab === 'documents' && <ManagerDocumentsTab clientId={clientId} managerId={managerId} />}
     </div>
   )

@@ -221,11 +221,16 @@ export async function getUnreadNotificationCount(clientId: string): Promise<numb
 }
 
 // ── Payment QR Code (fetch from owner/client) ──────────
+const QR_CACHE_KEY = 'primeliving_payment_qr_cache'
+
 export async function getClientPaymentQrUrl(clientId: string): Promise<string | null> {
   try {
     const result = await api.get<{ qr_url: string }>(`/payments/qr/${clientId}`)
+    if (result.qr_url) {
+      localStorage.setItem(`${QR_CACHE_KEY}_${clientId}`, result.qr_url)
+    }
     return result.qr_url || null
   } catch {
-    return null
+    return localStorage.getItem(`${QR_CACHE_KEY}_${clientId}`) || null
   }
 }
