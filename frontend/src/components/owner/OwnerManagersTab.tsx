@@ -99,8 +99,11 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
         setManagers((prev) => [result.manager, ...prev])
         setShowModal(false)
         // Show credentials modal
-        setCredentials({ email: form.email, password: result.generatedPassword })
+        setCredentials({ email: form.email, password: result.generatedPassword || '' })
         setShowCredentials(true)
+        if (!result.generatedPassword) {
+          toast.error('Manager created, but password was not returned. Please reset password for this manager.')
+        }
         toast.success('Manager account created successfully')
       }
     } catch (err: unknown) {

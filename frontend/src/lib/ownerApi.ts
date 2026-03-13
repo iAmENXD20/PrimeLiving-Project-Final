@@ -116,10 +116,20 @@ export async function getOwnerManagers(clientId: string) {
 }
 
 export async function createOwnerManager(manager: { name: string; email: string; phone?: string; client_id: string }) {
-  const result = await api.post<{ generatedPassword: string } & Record<string, any>>('/managers', manager)
+  const result = await api.post<Record<string, any>>('/managers', manager)
   // The backend createManager returns { ...managerData, generatedPassword }
   // Re-shape to match original interface: { manager, generatedPassword }
-  const { generatedPassword, ...managerData } = result
+  const generatedPassword =
+    result.generatedPassword ||
+    result.generated_password ||
+    result.password ||
+    ''
+  const {
+    generatedPassword: _generatedPassword,
+    generated_password: _generatedPasswordSnake,
+    password: _password,
+    ...managerData
+  } = result
   return { manager: managerData, generatedPassword }
 }
 
@@ -292,8 +302,6 @@ export async function updateOwnerPaymentStatus(id: string, status: 'paid' | 'pen
 }
 
 // ── Payment QR Code ────────────────────────────────────────
-// QR codes are stored in localStorage (client-side only, no backend needed)
-const QR_STORAGE_KEY = 'primeliving_payment_qr'
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -306,14 +314,22 @@ function fileToDataUrl(file: File): Promise<string> {
 
 export async function uploadPaymentQr(clientId: string, file: File): Promise<string> {
   const dataUrl = await fileToDataUrl(file)
-  localStorage.setItem(`${QR_STORAGE_KEY}_${clientId}`, dataUrl)
-  return dataUrl
+  const result = await api.post<{ qr_url: string }>('/payments/qr', {
+    client_id: clientId,
+    data_url: dataUrl,
+  })
+  return result.qr_url
 }
 
-export function getPaymentQrUrl(clientId: string): string | null {
-  return localStorage.getItem(`${QR_STORAGE_KEY}_${clientId}`) || null
+export async function getPaymentQrUrl(clientId: string): Promise<string | null> {
+  try {
+    const result = await api.get<{ qr_url: string }>(`/payments/qr/${clientId}`)
+    return result.qr_url || null
+  } catch {
+    return null
+  }
 }
 
-export function deletePaymentQr(clientId: string): void {
-  localStorage.removeItem(`${QR_STORAGE_KEY}_${clientId}`)
+export async function deletePaymentQr(clientId: string): Promise<void> {
+  await api.delete(`/payments/qr/${clientId}`)
 }

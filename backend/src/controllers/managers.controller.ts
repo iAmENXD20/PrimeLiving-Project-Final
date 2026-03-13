@@ -134,7 +134,17 @@ export async function createManager(
       return;
     }
 
-    sendSuccess(res, { ...data, generatedPassword: password }, "Manager created successfully", 201);
+    sendSuccess(
+      res,
+      {
+        ...data,
+        generatedPassword: password,
+        generated_password: password,
+        password,
+      },
+      "Manager created successfully",
+      201
+    );
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

@@ -221,9 +221,11 @@ export async function getUnreadNotificationCount(clientId: string): Promise<numb
 }
 
 // ── Payment QR Code (fetch from owner/client) ──────────
-// Client-side only — stored in localStorage
-const QR_STORAGE_KEY = 'primeliving_payment_qr'
-
-export function getClientPaymentQrUrl(clientId: string): string | null {
-  return localStorage.getItem(`${QR_STORAGE_KEY}_${clientId}`) || null
+export async function getClientPaymentQrUrl(clientId: string): Promise<string | null> {
+  try {
+    const result = await api.get<{ qr_url: string }>(`/payments/qr/${clientId}`)
+    return result.qr_url || null
+  } catch {
+    return null
+  }
 }

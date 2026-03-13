@@ -66,7 +66,8 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
       }
 
       setPayments(data)
-      setQrUrl(getPaymentQrUrl(clientId))
+      const currentQrUrl = await getPaymentQrUrl(clientId)
+      setQrUrl(currentQrUrl)
     } catch (err) {
       console.error('Failed to load payments:', err)
     } finally {
@@ -115,10 +116,14 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
     }
   }
 
-  function handleQrDelete() {
-    deletePaymentQr(clientId)
-    setQrUrl(null)
-    toast.success('Payment QR code removed')
+  async function handleQrDelete() {
+    try {
+      await deletePaymentQr(clientId)
+      setQrUrl(null)
+      toast.success('Payment QR code removed')
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to remove QR code')
+    }
   }
 
   const filtered = payments.filter((p) => {

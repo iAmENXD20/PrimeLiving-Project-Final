@@ -3,6 +3,28 @@ import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 
+const PAYMENT_QR_BUCKET = "payment-qr-codes";
+
+async function ensurePaymentQrBucket(): Promise<void> {
+  const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+  const exists = (buckets || []).some((bucket) => bucket.name === PAYMENT_QR_BUCKET);
+  if (exists) return;
+
+  await supabaseAdmin.storage.createBucket(PAYMENT_QR_BUCKET, {
+    public: false,
+    fileSizeLimit: "5MB",
+    allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "image/jpg"],
+  });
+}
+
+function parseDataUrl(dataUrl: string): { mime: string; buffer: Buffer } | null {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) return null;
+  const mime = match[1].toLowerCase();
+  const base64 = match[2];
+  return { mime, buffer: Buffer.from(base64, "base64") };
+}
+
 /**
  * GET /api/payments
  * Get payments (filtered by client_id or tenant_id)
@@ -363,6 +385,136 @@ export async function getPendingVerifications(
     }));
 
     sendSuccess(res, results);
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/payments/qr
+ * Upload or replace owner's payment QR image in Supabase Storage
+ */
+export async function uploadPaymentQr(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { client_id, data_url } = req.body as {
+      client_id?: string;
+      data_url?: string;
+    };
+
+    if (!client_id || !data_url) {
+      sendError(res, "client_id and data_url are required", 400);
+      return;
+    }
+
+    const parsed = parseDataUrl(data_url);
+    if (!parsed) {
+      sendError(res, "Invalid image data format", 400);
+      return;
+    }
+
+    const allowed = ["image/png", "image/jpeg", "image/webp", "image/jpg"];
+    if (!allowed.includes(parsed.mime)) {
+      sendError(res, "Unsupported image type", 400);
+      return;
+    }
+
+    await ensurePaymentQrBucket();
+
+    const objectPath = `${client_id}/payment-qr`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(PAYMENT_QR_BUCKET)
+      .upload(objectPath, parsed.buffer, {
+        contentType: parsed.mime,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      sendError(res, uploadError.message, 500);
+      return;
+    }
+
+    const { data: signedData, error: signedError } = await supabaseAdmin.storage
+      .from(PAYMENT_QR_BUCKET)
+      .createSignedUrl(objectPath, 60 * 60);
+
+    if (signedError) {
+      sendError(res, signedError.message, 500);
+      return;
+    }
+
+    sendSuccess(
+      res,
+      { client_id, path: objectPath, qr_url: signedData.signedUrl },
+      "Payment QR uploaded successfully"
+    );
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * GET /api/payments/qr/:clientId
+ * Get signed URL for owner's payment QR image
+ */
+export async function getPaymentQr(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { clientId } = req.params;
+    if (!clientId) {
+      sendError(res, "clientId is required", 400);
+      return;
+    }
+
+    await ensurePaymentQrBucket();
+    const objectPath = `${clientId}/payment-qr`;
+
+    const { data: signedData, error: signedError } = await supabaseAdmin.storage
+      .from(PAYMENT_QR_BUCKET)
+      .createSignedUrl(objectPath, 60 * 60);
+
+    if (signedError) {
+      sendError(res, "QR code not found", 404);
+      return;
+    }
+
+    sendSuccess(res, { client_id: clientId, qr_url: signedData.signedUrl });
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * DELETE /api/payments/qr/:clientId
+ * Remove owner's payment QR image from Supabase Storage
+ */
+export async function deletePaymentQr(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { clientId } = req.params;
+    if (!clientId) {
+      sendError(res, "clientId is required", 400);
+      return;
+    }
+
+    await ensurePaymentQrBucket();
+    const objectPath = `${clientId}/payment-qr`;
+    const { error } = await supabaseAdmin.storage
+      .from(PAYMENT_QR_BUCKET)
+      .remove([objectPath]);
+
+    if (error) {
+      sendError(res, error.message, 500);
+      return;
+    }
+
+    sendSuccess(res, { client_id: clientId }, "Payment QR removed successfully");
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

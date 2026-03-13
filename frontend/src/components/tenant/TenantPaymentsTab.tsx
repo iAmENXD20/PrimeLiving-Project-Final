@@ -49,7 +49,8 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
         setPayments(data)
         // Load Payment QR
         if (clientId) {
-          setQrUrl(getClientPaymentQrUrl(clientId))
+          const clientQrUrl = await getClientPaymentQrUrl(clientId)
+          setQrUrl(clientQrUrl)
         }
         // Load saved receipt
         const savedReceipt = localStorage.getItem(`primeliving_receipt_${tenantId}`)
