@@ -1,3 +1,4 @@
+import api from './apiClient'
 import { supabase } from './supabase'
 
 // ── Types ──────────────────────────────────────────────────
@@ -59,67 +60,42 @@ export async function getCurrentTenant(): Promise<TenantProfile | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data, error } = await supabase
-    .from('tenants')
-    .select('*')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (error) return null
-  return data
+  try {
+    return await api.get<TenantProfile>(`/tenants/by-auth/${user.id}`)
+  } catch {
+    return null
+  }
 }
 
 // ── Tenant Dashboard Stats ─────────────────────────────────
-export async function getTenantDashboardStats(tenantId: string, apartmentId: string | null) {
-  const [maintenance, payments] = await Promise.all([
-    supabase
-      .from('maintenance_requests')
-      .select('id, status')
-      .eq('tenant_id', tenantId),
-    supabase
-      .from('payments')
-      .select('amount, status')
-      .eq('tenant_id', tenantId),
-  ])
-
-  const maintenanceData = maintenance.data || []
-  const paymentData = payments.data || []
-
-  const pendingMaintenance = maintenanceData.filter(m => m.status === 'pending' || m.status === 'in_progress').length
-  const resolvedMaintenance = maintenanceData.filter(m => m.status === 'resolved' || m.status === 'closed').length
-  const totalPaid = paymentData.filter(p => p.status === 'paid').reduce((sum, p) => sum + Number(p.amount), 0)
-  const pendingPayments = paymentData.filter(p => p.status === 'pending' || p.status === 'overdue').length
-
-  return {
-    pendingMaintenance,
-    resolvedMaintenance,
-    totalPaid,
-    pendingPayments,
-  }
+export async function getTenantDashboardStats(tenantId: string, _apartmentId: string | null) {
+  return api.get<{
+    pendingMaintenance: number
+    resolvedMaintenance: number
+    totalPaid: number
+    pendingPayments: number
+  }>(`/analytics/tenant/${tenantId}`)
 }
 
 // ── Get Apartment Info ─────────────────────────────────────
 export async function getTenantApartmentInfo(apartmentId: string) {
-  const { data, error } = await supabase
-    .from('apartments')
-    .select('name, address, monthly_rent, client_id')
-    .eq('id', apartmentId)
-    .single()
-
-  if (error) return null
-  return data
+  try {
+    const data = await api.get<any>(`/apartments/${apartmentId}`)
+    if (!data) return null
+    return {
+      name: data.name,
+      address: data.address,
+      monthly_rent: data.monthly_rent,
+      client_id: data.client_id,
+    }
+  } catch {
+    return null
+  }
 }
 
 // ── Maintenance Requests ───────────────────────────────────
 export async function getTenantMaintenanceRequests(tenantId: string): Promise<TenantMaintenanceRequest[]> {
-  const { data, error } = await supabase
-    .from('maintenance_requests')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data || []
+  return api.get<TenantMaintenanceRequest[]>(`/maintenance?tenant_id=${tenantId}`)
 }
 
 export async function createTenantMaintenanceRequest(request: {
@@ -131,17 +107,14 @@ export async function createTenantMaintenanceRequest(request: {
   priority: 'low' | 'medium' | 'high' | 'urgent'
   photo_url?: string | null
 }) {
-  const { data, error } = await supabase
-    .from('maintenance_requests')
-    .insert(request)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  return api.post<TenantMaintenanceRequest>('/maintenance', {
+    ...request,
+    photo_url: request.photo_url || null,
+  })
 }
 
 // ── Upload Maintenance Photo ───────────────────────────────
+// File uploads go directly to Supabase Storage (not routed through backend)
 export async function uploadMaintenancePhoto(file: File, tenantId: string): Promise<string> {
   const ext = file.name.split('.').pop()
   const fileName = `${tenantId}/${Date.now()}.${ext}`
@@ -164,17 +137,11 @@ export async function uploadMaintenancePhoto(file: File, tenantId: string): Prom
 
 // ── Payments ───────────────────────────────────────────────
 export async function getTenantPayments(tenantId: string): Promise<TenantPayment[]> {
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .order('payment_date', { ascending: false })
-
-  if (error) throw error
-  return data || []
+  return api.get<TenantPayment[]>(`/payments?tenant_id=${tenantId}`)
 }
 
 // ── Upload Payment Receipt to Supabase Storage ─────────────
+// File uploads go directly to Supabase Storage (not routed through backend)
 export async function uploadPaymentReceipt(file: File, tenantId: string): Promise<string> {
   const ext = file.name.split('.').pop()
   const fileName = `${tenantId}/${Date.now()}.${ext}`
@@ -206,42 +173,29 @@ export async function submitCashPaymentVerification(params: {
   period_to: string
   description?: string
 }) {
-  const { data, error } = await supabase
-    .from('payments')
-    .insert({
-      tenant_id: params.tenant_id,
-      client_id: params.client_id,
-      apartment_id: params.apartment_id,
-      amount: params.amount,
-      payment_date: new Date().toISOString(),
-      status: 'pending',
-      payment_mode: 'cash',
-      receipt_url: params.receipt_url,
-      verification_status: 'pending_verification',
-      period_from: params.period_from,
-      period_to: params.period_to,
-      description: params.description || 'Cash Payment - Pending Verification',
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  return api.post<any>('/payments', {
+    tenant_id: params.tenant_id,
+    client_id: params.client_id,
+    apartment_id: params.apartment_id,
+    amount: params.amount,
+    payment_date: new Date().toISOString(),
+    status: 'pending',
+    payment_mode: 'cash',
+    receipt_url: params.receipt_url,
+    verification_status: 'pending_verification',
+    period_from: params.period_from,
+    period_to: params.period_to,
+    description: params.description || 'Cash Payment - Pending Verification',
+  })
 }
 
 // ── Announcements / Notifications ──────────────────────────
 export async function getTenantAnnouncements(clientId: string): Promise<TenantAnnouncement[]> {
-  const { data, error } = await supabase
-    .from('announcements')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data || []
+  return api.get<TenantAnnouncement[]>(`/announcements?client_id=${clientId}`)
 }
 
 // ── Notification Read Tracking (localStorage) ──────────────
+// Client-side only — no backend needed
 const READ_KEY = 'primeliving_read_notifications'
 
 function getReadIds(): Set<string> {
@@ -267,6 +221,7 @@ export async function getUnreadNotificationCount(clientId: string): Promise<numb
 }
 
 // ── Payment QR Code (fetch from owner/client) ──────────
+// Client-side only — stored in localStorage
 const QR_STORAGE_KEY = 'primeliving_payment_qr'
 
 export function getClientPaymentQrUrl(clientId: string): string | null {

@@ -1,3 +1,4 @@
+import api from './apiClient'
 import { supabase } from './supabase'
 
 // ── Types ──────────────────────────────────────────────────
@@ -33,104 +34,63 @@ export async function getCurrentOwner() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data, error } = await supabase
-    .from('clients')
-    .select('*')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (error) return null
-  return data
+  try {
+    return await api.get<any>(`/clients/by-auth/${user.id}`)
+  } catch {
+    return null
+  }
 }
 
 // ── Get Owner Apartment Address ─────────────────────────────
 export async function getOwnerApartmentAddress(clientId: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('clients')
-    .select('apartment_address')
-    .eq('id', clientId)
-    .single()
-
-  if (error) return null
-  return data?.apartment_address || null
+  try {
+    const data = await api.get<any>(`/clients/${clientId}`)
+    return data?.apartment_address || null
+  } catch {
+    return null
+  }
 }
 
 // ── Get Client Apartment Name ──────────────────────────────
 export async function getClientApartmentName(clientId: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('apartments')
-    .select('name')
-    .eq('client_id', clientId)
-    .limit(1)
-    .single()
-
-  if (error) return null
-  return data?.name || null
+  try {
+    const data = await api.get<any[]>(`/apartments?client_id=${clientId}`)
+    return data?.[0]?.name || null
+  } catch {
+    return null
+  }
 }
 
 // ── Update Owner Apartment Address ──────────────────────────
 export async function updateOwnerApartmentAddress(clientId: string, address: string) {
-  const { error } = await supabase
-    .from('clients')
-    .update({ apartment_address: address, updated_at: new Date().toISOString() })
-    .eq('id', clientId)
-
-  if (error) throw error
+  await api.put(`/clients/${clientId}`, { apartment_address: address, updated_at: new Date().toISOString() })
 }
 
 // ── Owner Dashboard Stats ──────────────────────────────────
 export async function getOwnerDashboardStats(clientId: string) {
-  const [apartments, tenants, maintenance, revenues] = await Promise.all([
-    supabase.from('apartments').select('id', { count: 'exact' }).eq('client_id', clientId).eq('status', 'active'),
-    supabase
-      .from('tenants')
-      .select('id, apartment_id', { count: 'exact' })
-      .eq('status', 'active')
-      .in('apartment_id', (
-        await supabase.from('apartments').select('id').eq('client_id', clientId)
-      ).data?.map(a => a.id) || []),
-    supabase.from('maintenance_requests').select('id', { count: 'exact' }).eq('client_id', clientId).eq('status', 'pending'),
-    supabase.from('revenues').select('amount').eq('client_id', clientId),
-  ])
-
-  const totalRevenue = (revenues.data || []).reduce((sum, r) => sum + Number(r.amount), 0)
-
-  return {
-    apartments: apartments.count ?? 0,
-    activeTenants: tenants.count ?? 0,
-    pendingMaintenance: maintenance.count ?? 0,
-    totalRevenue,
-  }
+  return api.get<{
+    apartments: number
+    activeTenants: number
+    pendingMaintenance: number
+    totalRevenue: number
+  }>(`/analytics/owner/${clientId}`)
 }
 
 // ── Maintenance Requests ───────────────────────────────────
 export async function getOwnerMaintenanceRequests(clientId: string) {
-  const { data, error } = await supabase
-    .from('maintenance_requests')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-
-  // Fetch tenant and apartment names
-  const tenantIds = [...new Set((data || []).filter(m => m.tenant_id).map(m => m.tenant_id))]
-  const apartmentIds = [...new Set((data || []).filter(m => m.apartment_id).map(m => m.apartment_id))]
-
-  const [tenantsRes, apartmentsRes] = await Promise.all([
-    tenantIds.length > 0
-      ? supabase.from('tenants').select('id, name').in('id', tenantIds)
-      : { data: [] },
-    apartmentIds.length > 0
-      ? supabase.from('apartments').select('id, name').in('id', apartmentIds)
-      : { data: [] },
+  // Fetch maintenance requests + tenants + apartments for this client in parallel
+  const [data, allTenants, allApts] = await Promise.all([
+    api.get<any[]>(`/maintenance?client_id=${clientId}`),
+    api.get<any[]>(`/tenants?client_id=${clientId}`).catch(() => [] as any[]),
+    api.get<any[]>(`/apartments?client_id=${clientId}`).catch(() => [] as any[]),
   ])
 
+  // Build lookup maps for name enrichment
   const tenantMap: Record<string, string> = {}
-  tenantsRes.data?.forEach((t: { id: string; name: string }) => { tenantMap[t.id] = t.name })
+  ;(allTenants || []).forEach((t: any) => { tenantMap[t.id] = t.name })
 
   const aptMap: Record<string, string> = {}
-  apartmentsRes.data?.forEach((a: { id: string; name: string }) => { aptMap[a.id] = a.name })
+  ;(allApts || []).forEach((a: any) => { aptMap[a.id] = a.name })
 
   return (data || []).map(m => ({
     ...m,
@@ -140,104 +100,35 @@ export async function getOwnerMaintenanceRequests(clientId: string) {
 }
 
 export async function updateOwnerMaintenanceStatus(id: string, status: MaintenanceRequest['status']) {
-  const { error } = await supabase
-    .from('maintenance_requests')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id)
-
-  if (error) throw error
+  await api.put(`/maintenance/${id}/status`, { status })
 }
 
 // ── Maintenance Requests per Month (for chart) ─────────────
 export async function getMaintenanceRequestsByMonth(clientId: string) {
-  const { data, error } = await supabase
-    .from('maintenance_requests')
-    .select('created_at, status')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: true })
-
-  if (error) throw error
-
-  const monthMap: Record<string, { pending: number; resolved: number }> = {}
-
-  ;(data || []).forEach(req => {
-    const date = new Date(req.created_at)
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-    if (!monthMap[key]) monthMap[key] = { pending: 0, resolved: 0 }
-    if (req.status === 'resolved' || req.status === 'closed') {
-      monthMap[key].resolved++
-    } else {
-      monthMap[key].pending++
-    }
-  })
-
-  return Object.entries(monthMap).map(([month, counts]) => ({
-    month,
-    pending: counts.pending,
-    resolved: counts.resolved,
-  }))
+  return api.get<{ month: string; pending: number; resolved: number }[]>(
+    `/analytics/maintenance-by-month?client_id=${clientId}`
+  )
 }
 
 // ── Owner Managers CRUD ────────────────────────────────────
 export async function getOwnerManagers(clientId: string) {
-  const { data, error } = await supabase
-    .from('managers')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data
+  return api.get<any[]>(`/managers?client_id=${clientId}`)
 }
 
 export async function createOwnerManager(manager: { name: string; email: string; phone?: string; client_id: string }) {
-  // 1. Generate a random password
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%'
-  let password = ''
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-
-  // 2. Create Supabase Auth user
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email: manager.email,
-    password,
-    options: {
-      data: { name: manager.name, role: 'manager' },
-    },
-  })
-
-  if (authError) throw authError
-
-  // 3. Create manager record linked to auth user
-  const { data, error } = await supabase
-    .from('managers')
-    .insert({
-      ...manager,
-      auth_user_id: authData.user?.id || null,
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  return { manager: data, generatedPassword: password }
+  const result = await api.post<{ generatedPassword: string } & Record<string, any>>('/managers', manager)
+  // The backend createManager returns { ...managerData, generatedPassword }
+  // Re-shape to match original interface: { manager, generatedPassword }
+  const { generatedPassword, ...managerData } = result
+  return { manager: managerData, generatedPassword }
 }
 
 export async function updateOwnerManager(id: string, updates: { name?: string; email?: string; phone?: string; status?: string }) {
-  const { data, error } = await supabase
-    .from('managers')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  return api.put<any>(`/managers/${id}`, { ...updates, updated_at: new Date().toISOString() })
 }
 
 export async function deleteOwnerManager(id: string) {
-  const { error } = await supabase.from('managers').delete().eq('id', id)
-  if (error) throw error
+  await api.delete(`/managers/${id}`)
 }
 
 // ── Owner Units (Apartments) CRUD ──────────────────────────
@@ -255,58 +146,12 @@ export interface UnitWithTenant {
 }
 
 export async function getOwnerUnits(clientId: string): Promise<UnitWithTenant[]> {
-  // Get all apartments (units) for this owner
-  const { data: apartments, error: aptError } = await supabase
-    .from('apartments')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('name', { ascending: true })
-
-  if (aptError) throw aptError
-
-  const aptIds = (apartments || []).map(a => a.id)
-  if (aptIds.length === 0) return []
-
-  // Get active tenants for these apartments
-  const { data: tenants, error: tenError } = await supabase
-    .from('tenants')
-    .select('id, name, phone, apartment_id')
-    .eq('status', 'active')
-    .in('apartment_id', aptIds)
-
-  if (tenError) throw tenError
-
-  // Map tenant to apartment
-  const tenantMap: Record<string, { id: string; name: string; phone: string | null }> = {}
-  ;(tenants || []).forEach(t => {
-    if (t.apartment_id) {
-      tenantMap[t.apartment_id] = { id: t.id, name: t.name, phone: t.phone }
-    }
-  })
-
-  return (apartments || []).map(apt => ({
-    id: apt.id,
-    name: apt.name,
-    monthly_rent: Number(apt.monthly_rent) || 0,
-    client_id: apt.client_id,
-    manager_id: apt.manager_id,
-    status: apt.status,
-    created_at: apt.created_at,
-    tenant_name: tenantMap[apt.id]?.name || null,
-    tenant_phone: tenantMap[apt.id]?.phone || null,
-    tenant_id: tenantMap[apt.id]?.id || null,
-  }))
+  // The backend /apartments/with-tenants endpoint does the join for us
+  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?client_id=${clientId}`)
 }
 
 export async function getOwnerApartments(clientId: string) {
-  const { data, error } = await supabase
-    .from('apartments')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data
+  return api.get<any[]>(`/apartments?client_id=${clientId}`)
 }
 
 export async function createOwnerApartment(apartment: {
@@ -317,14 +162,7 @@ export async function createOwnerApartment(apartment: {
   client_id: string
   manager_id?: string
 }) {
-  const { data, error } = await supabase
-    .from('apartments')
-    .insert(apartment)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  return api.post<any>('/apartments', apartment)
 }
 
 export async function updateOwnerApartment(id: string, updates: {
@@ -335,22 +173,12 @@ export async function updateOwnerApartment(id: string, updates: {
   manager_id?: string
   status?: string
 }) {
-  const { data, error } = await supabase
-    .from('apartments')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  return api.put<any>(`/apartments/${id}`, { ...updates, updated_at: new Date().toISOString() })
 }
 
 export async function deleteOwnerApartment(id: string) {
-  // Also delete tenants in this unit
-  await supabase.from('tenants').delete().eq('apartment_id', id)
-  const { error } = await supabase.from('apartments').delete().eq('id', id)
-  if (error) throw error
+  // The backend deleteApartment handler already deletes tenants first
+  await api.delete(`/apartments/${id}`)
 }
 
 // ── Create multiple units at once ──────────────────────────
@@ -366,104 +194,38 @@ export async function createBulkUnits(clientId: string, count: number, startNumb
     })
   }
 
-  const { data, error } = await supabase
-    .from('apartments')
-    .insert(units)
-    .select()
-
-  if (error) throw error
-  return data
+  return api.post<any[]>('/apartments/bulk', { apartments: units })
 }
 
 // ── Assign tenant to a unit ────────────────────────────────
 export async function assignTenantToUnit(unitId: string, tenant: { name: string; phone?: string }, monthlyRent?: number) {
-  // Remove any existing active tenant from this unit
-  await supabase
-    .from('tenants')
-    .update({ status: 'inactive', updated_at: new Date().toISOString() })
-    .eq('apartment_id', unitId)
-    .eq('status', 'active')
-
-  // Create new tenant
-  const { data, error } = await supabase
-    .from('tenants')
-    .insert({
-      name: tenant.name,
-      phone: tenant.phone || null,
-      apartment_id: unitId,
-      status: 'active',
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-
-  // Update monthly rent if provided
-  if (monthlyRent !== undefined) {
-    await supabase
-      .from('apartments')
-      .update({ monthly_rent: monthlyRent, updated_at: new Date().toISOString() })
-      .eq('id', unitId)
-  }
-
-  return data
+  return api.post<any>('/tenants/assign-unit', {
+    unit_id: unitId,
+    name: tenant.name,
+    phone: tenant.phone || null,
+    monthly_rent: monthlyRent,
+  })
 }
 
 // ── Remove tenant from unit (make available) ───────────────
 export async function removeTenantFromUnit(unitId: string) {
-  const { error } = await supabase
-    .from('tenants')
-    .update({ status: 'inactive', updated_at: new Date().toISOString() })
-    .eq('apartment_id', unitId)
-    .eq('status', 'active')
-
-  if (error) throw error
+  await api.post('/tenants/remove-from-unit', { unit_id: unitId })
 }
 
 // ── Update unit details ────────────────────────────────────
 export async function updateUnit(unitId: string, updates: { name?: string; monthly_rent?: number }) {
-  const { data, error } = await supabase
-    .from('apartments')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', unitId)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  return api.put<any>(`/apartments/${unitId}`, { ...updates, updated_at: new Date().toISOString() })
 }
 
 // ── Revenue ────────────────────────────────────────────────
 export async function getOwnerRevenues(clientId: string) {
-  const { data, error } = await supabase
-    .from('revenues')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('month', { ascending: false })
-
-  if (error) throw error
-  return data as Revenue[]
+  return api.get<Revenue[]>(`/revenues?client_id=${clientId}`)
 }
 
 export async function getRevenueByMonth(clientId: string) {
-  const { data, error } = await supabase
-    .from('revenues')
-    .select('amount, month')
-    .eq('client_id', clientId)
-    .order('month', { ascending: true })
-
-  if (error) throw error
-
-  const monthMap: Record<string, number> = {}
-  ;(data || []).forEach(r => {
-    const key = r.month.slice(0, 7) // YYYY-MM
-    monthMap[key] = (monthMap[key] || 0) + Number(r.amount)
-  })
-
-  return Object.entries(monthMap).map(([month, total]) => ({
-    month,
-    revenue: total,
-  }))
+  return api.get<{ month: string; revenue: number }[]>(
+    `/revenues/by-month?client_id=${clientId}`
+  )
 }
 
 // ── Announcements ──────────────────────────────────────────
@@ -477,31 +239,15 @@ export interface Announcement {
 }
 
 export async function getOwnerAnnouncements(clientId: string): Promise<Announcement[]> {
-  const { data, error } = await supabase
-    .from('announcements')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data || []
+  return api.get<Announcement[]>(`/announcements?client_id=${clientId}`)
 }
 
 export async function createOwnerAnnouncement(clientId: string, title: string, message: string, createdBy: string) {
-  const { error } = await supabase
-    .from('announcements')
-    .insert({ client_id: clientId, title, message, created_by: createdBy })
-
-  if (error) throw error
+  await api.post('/announcements', { client_id: clientId, title, message, created_by: createdBy })
 }
 
 export async function deleteOwnerAnnouncement(id: string) {
-  const { error } = await supabase
-    .from('announcements')
-    .delete()
-    .eq('id', id)
-
-  if (error) throw error
+  await api.delete(`/announcements/${id}`)
 }
 
 // ── Payments ───────────────────────────────────────────────
@@ -520,17 +266,12 @@ export interface OwnerPayment {
 }
 
 export async function getOwnerPayments(clientId: string): Promise<OwnerPayment[]> {
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*, tenants:tenant_id(name), apartments:apartment_id(name)')
-    .eq('client_id', clientId)
-    .order('payment_date', { ascending: false })
-
-  if (error) throw error
+  const data = await api.get<any[]>(`/payments?client_id=${clientId}`)
+  // The backend getPayments joins tenants(name, email) and apartments(name)
   return (data || []).map((p: any) => ({
     ...p,
-    tenant_name: p.tenants?.name || '—',
-    apartment_name: p.apartments?.name || '—',
+    tenant_name: p.tenants?.name || '\u2014',
+    apartment_name: p.apartments?.name || '\u2014',
   }))
 }
 
@@ -543,23 +284,15 @@ export async function createOwnerPayment(payment: {
   status: 'paid' | 'pending' | 'overdue'
   description: string | null
 }) {
-  const { error } = await supabase
-    .from('payments')
-    .insert(payment)
-
-  if (error) throw error
+  await api.post('/payments', payment)
 }
 
 export async function updateOwnerPaymentStatus(id: string, status: 'paid' | 'pending' | 'overdue') {
-  const { error } = await supabase
-    .from('payments')
-    .update({ status })
-    .eq('id', id)
-
-  if (error) throw error
+  await api.put(`/payments/${id}`, { status })
 }
 
 // ── Payment QR Code ────────────────────────────────────────
+// QR codes are stored in localStorage (client-side only, no backend needed)
 const QR_STORAGE_KEY = 'primeliving_payment_qr'
 
 function fileToDataUrl(file: File): Promise<string> {

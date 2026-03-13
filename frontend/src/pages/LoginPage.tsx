@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
+import api from '@/lib/apiClient'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -17,6 +18,18 @@ const loginSchema = z.object({
 })
 
 type LoginForm = z.infer<typeof loginSchema>
+
+function normalizeRole(rawRole: unknown): 'admin' | 'owner' | 'manager' | 'tenant' {
+  if (typeof rawRole !== 'string') return 'admin'
+
+  const normalized = rawRole.toLowerCase().trim()
+  if (normalized === 'client') return 'owner'
+  if (normalized === 'owner' || normalized === 'manager' || normalized === 'tenant' || normalized === 'admin') {
+    return normalized
+  }
+
+  return 'admin'
+}
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -56,8 +69,20 @@ export default function LoginPage() {
       sessionStorage.setItem('primeliving-session-active', 'true')
     }
 
-    // Route based on user role
-    const role = authData.user?.user_metadata?.role
+    // Route based on normalized role from backend (with metadata fallback)
+    let role = normalizeRole(
+      authData.user?.user_metadata?.role ??
+      authData.user?.app_metadata?.role ??
+      authData.user?.app_metadata?.user_role,
+    )
+
+    try {
+      const me = await api.get<{ user: { role: string } }>('/auth/me')
+      role = normalizeRole(me.user?.role)
+    } catch {
+      // Keep metadata-derived fallback role
+    }
+
     if (role === 'owner') {
       navigate('/owner')
     } else if (role === 'manager') {

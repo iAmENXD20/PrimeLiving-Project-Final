@@ -1,3 +1,4 @@
+import api from './apiClient'
 import { supabase } from './supabase'
 
 // ── Types ──────────────────────────────────────────────────
@@ -34,113 +35,49 @@ export async function getCurrentManager(): Promise<ManagerProfile | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data, error } = await supabase
-    .from('managers')
-    .select('*')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (error) return null
-  return data
+  try {
+    return await api.get<ManagerProfile>(`/managers/by-auth/${user.id}`)
+  } catch {
+    return null
+  }
 }
 
 // ── Manager Dashboard Stats ────────────────────────────────
 export async function getManagerDashboardStats(managerId: string, clientId: string) {
-  // Get apartments managed by this manager
-  const { data: managedApartments } = await supabase
-    .from('apartments')
-    .select('id')
-    .eq('manager_id', managerId)
-    .eq('status', 'active')
-
-  const apartmentIds = managedApartments?.map(a => a.id) || []
-
-  const [tenants, pendingMaintenance, allMaintenance] = await Promise.all([
-    supabase
-      .from('tenants')
-      .select('id', { count: 'exact' })
-      .eq('status', 'active')
-      .in('apartment_id', apartmentIds.length ? apartmentIds : ['none']),
-    supabase
-      .from('maintenance_requests')
-      .select('id', { count: 'exact' })
-      .eq('status', 'pending')
-      .eq('client_id', clientId),
-    supabase
-      .from('maintenance_requests')
-      .select('id', { count: 'exact' })
-      .eq('client_id', clientId),
-  ])
-
-  // Get paid / unpaid tenant counts from payments for current month
-  const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
-
-  const { data: paidPayments } = await supabase
-    .from('payments')
-    .select('tenant_id')
-    .eq('client_id', clientId)
-    .eq('status', 'paid')
-    .gte('payment_date', startOfMonth)
-    .lte('payment_date', endOfMonth)
-
-  const paidTenantIds = new Set((paidPayments || []).map(p => p.tenant_id).filter(Boolean))
-  const totalActiveTenants = tenants.count ?? 0
-  const paidTenants = paidTenantIds.size
-  const unpaidTenants = Math.max(0, totalActiveTenants - paidTenants)
-
-  return {
-    managedApartments: apartmentIds.length,
-    activeTenants: totalActiveTenants,
-    pendingMaintenance: pendingMaintenance.count ?? 0,
-    totalMaintenance: allMaintenance.count ?? 0,
-    paidTenants,
-    unpaidTenants,
-  }
+  return api.get<{
+    managedApartments: number
+    activeTenants: number
+    pendingMaintenance: number
+    totalMaintenance: number
+    paidTenants: number
+    unpaidTenants: number
+  }>(`/analytics/manager/${managerId}?client_id=${clientId}`)
 }
 
 // ── Get Maintenance Requests ───────────────────────────────
 export async function getManagerMaintenanceRequests(clientId: string): Promise<MaintenanceRequest[]> {
-  const { data: requests, error } = await supabase
-    .from('maintenance_requests')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-
-  if (error || !requests) return []
-
-  // Fetch related tenant & apartment names
-  const tenantIds = [...new Set(requests.filter(r => r.tenant_id).map(r => r.tenant_id))]
-  const apartmentIds = [...new Set(requests.filter(r => r.apartment_id).map(r => r.apartment_id))]
-
-  const [tenantsRes, apartmentsRes] = await Promise.all([
-    tenantIds.length
-      ? supabase.from('tenants').select('id, name').in('id', tenantIds)
-      : Promise.resolve({ data: [] }),
-    apartmentIds.length
-      ? supabase.from('apartments').select('id, name').in('id', apartmentIds)
-      : Promise.resolve({ data: [] }),
+  // Fetch maintenance requests + tenants + apartments for this client in parallel
+  const [requests, allTenants, allApts] = await Promise.all([
+    api.get<any[]>(`/maintenance?client_id=${clientId}`).catch(() => [] as any[]),
+    api.get<any[]>(`/tenants?client_id=${clientId}`).catch(() => [] as any[]),
+    api.get<any[]>(`/apartments?client_id=${clientId}`).catch(() => [] as any[]),
   ])
 
-  const tenantMap = new Map((tenantsRes.data || []).map(t => [t.id, t.name]))
-  const apartmentMap = new Map((apartmentsRes.data || []).map(a => [a.id, a.name]))
+  if (!requests || requests.length === 0) return []
+
+  const tenantMap = new Map((allTenants || []).map((t: any) => [t.id, t.name]))
+  const apartmentMap = new Map((allApts || []).map((a: any) => [a.id, a.name]))
 
   return requests.map(r => ({
     ...r,
-    tenant_name: r.tenant_id ? tenantMap.get(r.tenant_id) || 'Unknown' : '—',
-    apartment_name: r.apartment_id ? apartmentMap.get(r.apartment_id) || 'Unknown' : '—',
+    tenant_name: r.tenant_id ? tenantMap.get(r.tenant_id) || 'Unknown' : '\u2014',
+    apartment_name: r.apartment_id ? apartmentMap.get(r.apartment_id) || 'Unknown' : '\u2014',
   }))
 }
 
 // ── Update Maintenance Request Status ──────────────────────
 export async function updateMaintenanceStatus(id: string, status: MaintenanceRequest['status']) {
-  const { error } = await supabase
-    .from('maintenance_requests')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id)
-
-  if (error) throw error
+  await api.put(`/maintenance/${id}/status`, { status })
 }
 
 // ── Get Managed Apartments (Units with Tenant info) ────────
@@ -158,55 +95,12 @@ export interface UnitWithTenant {
 }
 
 export async function getManagerUnits(clientId: string): Promise<UnitWithTenant[]> {
-  const { data: apartments, error: aptError } = await supabase
-    .from('apartments')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('name', { ascending: true })
-
-  if (aptError) throw aptError
-
-  const aptIds = (apartments || []).map(a => a.id)
-  if (aptIds.length === 0) return []
-
-  const { data: tenants, error: tenError } = await supabase
-    .from('tenants')
-    .select('id, name, phone, apartment_id')
-    .eq('status', 'active')
-    .in('apartment_id', aptIds)
-
-  if (tenError) throw tenError
-
-  const tenantMap: Record<string, { id: string; name: string; phone: string | null }> = {}
-  ;(tenants || []).forEach(t => {
-    if (t.apartment_id) {
-      tenantMap[t.apartment_id] = { id: t.id, name: t.name, phone: t.phone }
-    }
-  })
-
-  return (apartments || []).map(apt => ({
-    id: apt.id,
-    name: apt.name,
-    monthly_rent: Number(apt.monthly_rent) || 0,
-    client_id: apt.client_id,
-    manager_id: apt.manager_id,
-    status: apt.status,
-    created_at: apt.created_at,
-    tenant_name: tenantMap[apt.id]?.name || null,
-    tenant_phone: tenantMap[apt.id]?.phone || null,
-    tenant_id: tenantMap[apt.id]?.id || null,
-  }))
+  // The backend /apartments/with-tenants does the join
+  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?client_id=${clientId}`)
 }
 
 export async function getManagedApartments(managerId: string) {
-  const { data, error } = await supabase
-    .from('apartments')
-    .select('*')
-    .eq('manager_id', managerId)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data || []
+  return api.get<any[]>(`/apartments?manager_id=${managerId}`)
 }
 
 // ── Update a unit (name, rent) ─────────────────────────────
@@ -214,12 +108,7 @@ export async function updateManagerUnit(
   unitId: string,
   updates: { name?: string; monthly_rent?: number },
 ) {
-  const { error } = await supabase
-    .from('apartments')
-    .update(updates)
-    .eq('id', unitId)
-
-  if (error) throw error
+  await api.put(`/apartments/${unitId}`, updates)
 }
 
 // ── Assign or update tenant on a unit ──────────────────────
@@ -228,62 +117,17 @@ export async function assignTenantToUnit(
   tenant: { name: string; phone?: string },
   monthlyRent?: number,
 ) {
-  // Get apartment to know client_id
-  const { data: apt, error: aptErr } = await supabase
-    .from('apartments')
-    .select('client_id')
-    .eq('id', unitId)
-    .single()
-
-  if (aptErr || !apt) throw new Error('Unit not found')
-
-  // Check if unit already has a tenant
-  const { data: existing } = await supabase
-    .from('tenants')
-    .select('id')
-    .eq('apartment_id', unitId)
-    .eq('status', 'active')
-    .maybeSingle()
-
-  if (existing) {
-    // Update existing tenant
-    const { error } = await supabase
-      .from('tenants')
-      .update({ name: tenant.name, phone: tenant.phone || null })
-      .eq('id', existing.id)
-    if (error) throw error
-  } else {
-    // Create new tenant
-    const { error } = await supabase
-      .from('tenants')
-      .insert({
-        name: tenant.name,
-        phone: tenant.phone || null,
-        apartment_id: unitId,
-        client_id: apt.client_id,
-        status: 'active',
-      })
-    if (error) throw error
-  }
-
-  // Update rent if provided
-  if (monthlyRent !== undefined) {
-    await supabase
-      .from('apartments')
-      .update({ monthly_rent: monthlyRent })
-      .eq('id', unitId)
-  }
+  await api.post('/tenants/assign-unit', {
+    unit_id: unitId,
+    name: tenant.name,
+    phone: tenant.phone || null,
+    monthly_rent: monthlyRent,
+  })
 }
 
 // ── Remove tenant from a unit ──────────────────────────────
 export async function removeTenantFromUnit(unitId: string) {
-  const { error } = await supabase
-    .from('tenants')
-    .update({ status: 'inactive', apartment_id: null })
-    .eq('apartment_id', unitId)
-    .eq('status', 'active')
-
-  if (error) throw error
+  await api.post('/tenants/remove-from-unit', { unit_id: unitId })
 }
 
 // ── Announcements ──────────────────────────────────────────
@@ -297,31 +141,15 @@ export interface Announcement {
 }
 
 export async function getAnnouncements(clientId: string): Promise<Announcement[]> {
-  const { data, error } = await supabase
-    .from('announcements')
-    .select('*')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data || []
+  return api.get<Announcement[]>(`/announcements?client_id=${clientId}`)
 }
 
 export async function createAnnouncement(clientId: string, title: string, message: string, createdBy: string) {
-  const { error } = await supabase
-    .from('announcements')
-    .insert({ client_id: clientId, title, message, created_by: createdBy })
-
-  if (error) throw error
+  await api.post('/announcements', { client_id: clientId, title, message, created_by: createdBy })
 }
 
 export async function deleteAnnouncement(id: string) {
-  const { error } = await supabase
-    .from('announcements')
-    .delete()
-    .eq('id', id)
-
-  if (error) throw error
+  await api.delete(`/announcements/${id}`)
 }
 
 // ── Payments ───────────────────────────────────────────────
@@ -345,17 +173,12 @@ export interface Payment {
 }
 
 export async function getPayments(clientId: string): Promise<Payment[]> {
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*, tenants:tenant_id(name), apartments:apartment_id(name)')
-    .eq('client_id', clientId)
-    .order('payment_date', { ascending: false })
-
-  if (error) throw error
+  const data = await api.get<any[]>(`/payments?client_id=${clientId}`)
+  // Backend joins tenants(name, email) and apartments(name) as nested objects
   return (data || []).map((p: any) => ({
     ...p,
-    tenant_name: p.tenants?.name || '—',
-    apartment_name: p.apartments?.name || '—',
+    tenant_name: p.tenants?.name || '\u2014',
+    apartment_name: p.apartments?.name || '\u2014',
   }))
 }
 
@@ -368,182 +191,57 @@ export async function createPayment(payment: {
   status: 'paid' | 'pending' | 'overdue'
   description: string | null
 }) {
-  const { error } = await supabase
-    .from('payments')
-    .insert(payment)
-
-  if (error) throw error
+  await api.post('/payments', payment)
 }
 
 export async function updatePaymentStatus(id: string, status: 'paid' | 'pending' | 'overdue') {
-  const { error } = await supabase
-    .from('payments')
-    .update({ status })
-    .eq('id', id)
-
-  if (error) throw error
+  await api.put(`/payments/${id}`, { status })
 }
 
 // ── Cash Payment Verification ──────────────────────────────
 export async function getPendingCashVerifications(clientId: string): Promise<Payment[]> {
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*, tenants:tenant_id(name), apartments:apartment_id(name)')
-    .eq('client_id', clientId)
-    .eq('payment_mode', 'cash')
-    .eq('verification_status', 'pending_verification')
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
+  const data = await api.get<any[]>(`/payments/pending-verifications?client_id=${clientId}`)
+  // Backend already flattens tenant_name and apartment_name
   return (data || []).map((p: any) => ({
     ...p,
-    tenant_name: p.tenants?.name || '—',
-    apartment_name: p.apartments?.name || '—',
+    tenant_name: p.tenant_name || '\u2014',
+    apartment_name: p.apartment_name || '\u2014',
   }))
 }
 
 export async function approveCashPayment(id: string) {
-  const { error } = await supabase
-    .from('payments')
-    .update({
-      status: 'paid',
-      verification_status: 'verified',
-    })
-    .eq('id', id)
-
-  if (error) throw error
+  await api.put(`/payments/${id}/verify`, { verification_status: 'verified' })
 }
 
 export async function rejectCashPayment(id: string) {
-  const { error } = await supabase
-    .from('payments')
-    .update({
-      verification_status: 'rejected',
-    })
-    .eq('id', id)
-
-  if (error) throw error
+  await api.put(`/payments/${id}/verify`, { verification_status: 'rejected' })
 }
 
 // ── Payment Due Day Configuration ──────────────────────────
 
 /** Get the payment_due_day for the manager's apartment */
 export async function getPaymentDueDay(clientId: string): Promise<number | null> {
-  const { data } = await supabase
-    .from('apartments')
-    .select('payment_due_day')
-    .eq('client_id', clientId)
-    .limit(1)
-    .single()
-
-  return data?.payment_due_day ?? null
+  try {
+    const data = await api.get<any[]>(`/apartments?client_id=${clientId}`)
+    return data?.[0]?.payment_due_day ?? null
+  } catch {
+    return null
+  }
 }
 
 /** Set the payment_due_day for all apartments under a client */
 export async function setPaymentDueDay(clientId: string, day: number): Promise<void> {
-  const { error } = await supabase
-    .from('apartments')
-    .update({ payment_due_day: day })
-    .eq('client_id', clientId)
-
-  if (error) throw error
+  // Use the special endpoint that sets payment_due_day for all apartments under a client
+  // The endpoint is PUT /apartments/:id/payment-due-day with client_id in body to update all
+  await api.put('/apartments/_/payment-due-day', { day, client_id: clientId })
 }
 
 /**
  * Generate pending billings for the current month.
- * For each active tenant in the client's apartments, if there's no payment record
- * for the current month, create a pending payment.
- * Also marks existing pending payments as overdue if past due date.
+ * The backend handles the full billing generation logic.
  */
 export async function generateMonthlyBillings(clientId: string): Promise<void> {
-  // 1. Get all apartments for this client with their due day and monthly rent
-  const { data: apartments } = await supabase
-    .from('apartments')
-    .select('id, payment_due_day, monthly_rent')
-    .eq('client_id', clientId)
-    .eq('status', 'active')
-
-  if (!apartments || apartments.length === 0) return
-
-  const apartmentIds = apartments.map(a => a.id)
-  const apartmentMap = new Map(apartments.map(a => [a.id, a]))
-
-  // 2. Get all active tenants in these apartments
-  const { data: allTenants } = await supabase
-    .from('tenants')
-    .select('id, apartment_id')
-    .in('apartment_id', apartmentIds)
-    .eq('status', 'active')
-
-  if (!allTenants || allTenants.length === 0) return
-
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() // 0-indexed
-  const monthStart = new Date(year, month, 1).toISOString().split('T')[0]
-  const monthEnd = new Date(year, month + 1, 0).toISOString().split('T')[0]
-
-  // 3. Get existing payments for this month
-  const { data: existingPayments } = await supabase
-    .from('payments')
-    .select('tenant_id, status')
-    .eq('client_id', clientId)
-    .gte('period_from', monthStart)
-    .lte('period_from', monthEnd)
-
-  const paidOrPendingTenants = new Set(
-    (existingPayments || []).map(p => p.tenant_id).filter(Boolean)
-  )
-
-  // 4. Create pending payments for tenants without a payment this month
-  const newPayments: Array<Record<string, unknown>> = []
-
-  for (const tenant of allTenants) {
-    if (paidOrPendingTenants.has(tenant.id)) continue
-
-    const apt = apartmentMap.get(tenant.apartment_id)
-    if (!apt || !apt.payment_due_day) continue
-
-    const dueDay = Math.min(apt.payment_due_day, new Date(year, month + 1, 0).getDate())
-    const dueDate = new Date(year, month, dueDay)
-    const isPastDue = now > dueDate
-
-    newPayments.push({
-      client_id: clientId,
-      tenant_id: tenant.id,
-      apartment_id: tenant.apartment_id,
-      amount: apt.monthly_rent || 0,
-      payment_date: dueDate.toISOString(),
-      status: isPastDue ? 'overdue' : 'pending',
-      description: `Monthly rent - ${new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' })}`,
-      payment_mode: null,
-      period_from: monthStart,
-      period_to: monthEnd,
-    })
-  }
-
-  if (newPayments.length > 0) {
-    const { error } = await supabase.from('payments').insert(newPayments)
-    if (error) throw error
-  }
-
-  // 5. Mark existing pending payments as overdue if past due date
-  for (const apt of apartments) {
-    if (!apt.payment_due_day) continue
-    const dueDay = Math.min(apt.payment_due_day, new Date(year, month + 1, 0).getDate())
-    const dueDate = new Date(year, month, dueDay)
-
-    if (now > dueDate) {
-      await supabase
-        .from('payments')
-        .update({ status: 'overdue' })
-        .eq('client_id', clientId)
-        .eq('apartment_id', apt.id)
-        .eq('status', 'pending')
-        .gte('period_from', monthStart)
-        .lte('period_from', monthEnd)
-    }
-  }
+  await api.post('/payments/generate-monthly', { client_id: clientId })
 }
 
 // ── Record Cash Payment (Manager records after tenant pays) ──
@@ -556,44 +254,28 @@ export async function recordCashPayment(payment: {
   period_from?: string
   period_to?: string
 }) {
-  const { error } = await supabase
-    .from('payments')
-    .insert({
-      client_id: payment.client_id,
-      tenant_id: payment.tenant_id,
-      apartment_id: payment.apartment_id,
-      amount: payment.amount,
-      payment_date: new Date().toISOString(),
-      status: 'paid',
-      description: payment.description || 'Cash payment recorded by manager',
-      payment_mode: 'cash',
-      verification_status: 'verified',
-      period_from: payment.period_from || null,
-      period_to: payment.period_to || null,
-    })
-
-  if (error) throw error
+  await api.post('/payments', {
+    client_id: payment.client_id,
+    tenant_id: payment.tenant_id,
+    apartment_id: payment.apartment_id,
+    amount: payment.amount,
+    payment_date: new Date().toISOString(),
+    status: 'paid',
+    description: payment.description || 'Cash payment recorded by manager',
+    payment_mode: 'cash',
+    verification_status: 'verified',
+    period_from: payment.period_from || null,
+    period_to: payment.period_to || null,
+  })
 }
 
 // ── Get Active Tenants (for SMS notifications) ─────────────
 export async function getActiveTenants(clientId: string): Promise<{ id: string; name: string; phone: string | null }[]> {
-  // Get apartment IDs belonging to this client
-  const { data: apartments } = await supabase
-    .from('apartments')
-    .select('id')
-    .eq('client_id', clientId)
-
-  if (!apartments || apartments.length === 0) return []
-
-  const aptIds = apartments.map(a => a.id)
-  const { data, error } = await supabase
-    .from('tenants')
-    .select('id, name, phone')
-    .in('apartment_id', aptIds)
-    .eq('status', 'active')
-
-  if (error) throw error
-  return data || []
+  const data = await api.get<any[]>(`/tenants?client_id=${clientId}`)
+  // Filter to active tenants with name and phone
+  return (data || [])
+    .filter((t: any) => t.status === 'active')
+    .map((t: any) => ({ id: t.id, name: t.name, phone: t.phone }))
 }
 
 // ── Documents ──────────────────────────────────────────────
@@ -614,13 +296,8 @@ export interface Document {
 }
 
 export async function getDocuments(clientId: string): Promise<Document[]> {
-  const { data, error } = await supabase
-    .from('documents')
-    .select('*, tenants(name), apartments(name)')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
+  const data = await api.get<any[]>(`/documents?client_id=${clientId}`)
+  // Backend joins tenants(name) and apartments(name) as nested objects
   return (data || []).map((d: any) => ({
     ...d,
     tenant_name: d.tenants?.name ?? null,
@@ -638,6 +315,7 @@ export async function uploadDocument(
   tenantId: string | null,
   description: string,
 ) {
+  // File upload still goes directly to Supabase Storage
   const ext = file.name.split('.').pop()
   const path = `${clientId}/${crypto.randomUUID()}.${ext}`
 
@@ -649,34 +327,22 @@ export async function uploadDocument(
 
   const { data: urlData } = supabase.storage.from('documents').getPublicUrl(path)
 
-  const { data, error } = await supabase
-    .from('documents')
-    .insert({
-      client_id: clientId,
-      apartment_id: apartmentId || null,
-      tenant_id: tenantId || null,
-      uploaded_by: managerId,
-      file_name: file.name,
-      file_url: urlData.publicUrl,
-      file_type: file.type,
-      description: description || null,
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  // Create the DB record via backend
+  return api.post<any>('/documents', {
+    client_id: clientId,
+    apartment_id: apartmentId || null,
+    tenant_id: tenantId || null,
+    uploaded_by: managerId,
+    file_name: file.name,
+    file_url: urlData.publicUrl,
+    file_type: file.type,
+    description: description || null,
+  })
 }
 
-export async function deleteDocument(id: string, fileUrl: string) {
-  // Extract path from URL for storage deletion
-  const urlParts = fileUrl.split('/documents/')
-  if (urlParts.length > 1) {
-    await supabase.storage.from('documents').remove([urlParts[urlParts.length - 1]])
-  }
-
-  const { error } = await supabase.from('documents').delete().eq('id', id)
-  if (error) throw error
+export async function deleteDocument(id: string, _fileUrl: string) {
+  // Backend handles both storage deletion and DB record deletion
+  await api.delete(`/documents/${id}`)
 }
 
 // ── Tenant Account Management (Manager creates tenant accounts) ──
@@ -696,27 +362,17 @@ export interface TenantAccount {
 }
 
 export async function getManagerTenants(clientId: string): Promise<TenantAccount[]> {
-  const { data: apartments } = await supabase
-    .from('apartments')
-    .select('id, name')
-    .eq('client_id', clientId)
+  // Get apartments for name mapping, and all tenants for this client
+  const [apartments, tenants] = await Promise.all([
+    api.get<any[]>(`/apartments?client_id=${clientId}`).catch(() => [] as any[]),
+    api.get<any[]>(`/tenants?client_id=${clientId}`).catch(() => [] as any[]),
+  ])
 
-  if (!apartments || apartments.length === 0) return []
+  const aptMap = new Map((apartments || []).map((a: any) => [a.id, a.name]))
 
-  const aptIds = apartments.map(a => a.id)
-  const aptMap = new Map(apartments.map(a => [a.id, a.name]))
-
-  const { data, error } = await supabase
-    .from('tenants')
-    .select('*')
-    .in('apartment_id', aptIds)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-
-  return (data || []).map(t => ({
+  return (tenants || []).map((t: any) => ({
     ...t,
-    apartment_name: t.apartment_id ? aptMap.get(t.apartment_id) || 'Unknown' : '—',
+    apartment_name: t.apartment_id ? aptMap.get(t.apartment_id) || 'Unknown' : '\u2014',
   }))
 }
 
@@ -727,41 +383,18 @@ export async function createTenantAccount(tenant: {
   apartment_id?: string
   client_id: string
 }) {
-  // 1. Generate a random password
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%'
-  let password = ''
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-
-  // 2. Create Supabase Auth user
-  const { data: authData, error: authError } = await supabase.auth.signUp({
+  const result = await api.post<any>('/tenants', {
+    name: tenant.name,
     email: tenant.email,
-    password,
-    options: {
-      data: { name: tenant.name, role: 'tenant' },
-    },
+    phone: tenant.phone || null,
+    apartment_id: tenant.apartment_id || null,
+    client_id: tenant.client_id,
+    create_auth_account: true,
   })
 
-  if (authError) throw authError
-
-  // 3. Create tenant record linked to auth user
-  const { data, error } = await supabase
-    .from('tenants')
-    .insert({
-      name: tenant.name,
-      email: tenant.email,
-      phone: tenant.phone || null,
-      apartment_id: tenant.apartment_id || null,
-      client_id: tenant.client_id,
-      auth_user_id: authData.user?.id || null,
-      status: 'active',
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  return { tenant: data, generatedPassword: password }
+  // Backend returns { ...tenantData, generatedPassword }
+  const { generatedPassword, ...tenantData } = result
+  return { tenant: tenantData, generatedPassword }
 }
 
 export async function updateTenantAccount(id: string, updates: {
@@ -771,22 +404,9 @@ export async function updateTenantAccount(id: string, updates: {
   apartment_id?: string | null
   status?: string
 }) {
-  const { data, error } = await supabase
-    .from('tenants')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  return api.put<any>(`/tenants/${id}`, { ...updates, updated_at: new Date().toISOString() })
 }
 
 export async function deleteTenantAccount(id: string) {
-  const { error } = await supabase
-    .from('tenants')
-    .delete()
-    .eq('id', id)
-
-  if (error) throw error
+  await api.delete(`/tenants/${id}`)
 }
