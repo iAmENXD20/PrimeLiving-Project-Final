@@ -1,0 +1,127 @@
+import { useState, useEffect } from 'react'
+import { useTheme } from '../context/ThemeContext'
+import ManagerSidebar from '../components/manager/ManagerSidebar'
+import ManagerTopBar from '../components/manager/ManagerTopBar'
+import ManagerOverviewTab from '../components/manager/ManagerOverviewTab'
+import ManagerMaintenanceTab from '../components/manager/ManagerMaintenanceTab'
+import ManagerManageApartmentTab from '../components/manager/ManagerManageApartmentTab'
+import ManagerSettingsTab from '../components/manager/ManagerSettingsTab'
+import ManagerPaymentsTab from '../components/manager/ManagerPaymentsTab'
+import { getCurrentManager } from '../lib/managerApi'
+import { supabase } from '../lib/supabase'
+
+export default function ManagerDashboard() {
+  const { isDark } = useTheme()
+  const [activeTab, setActiveTab] = useState('overview')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [manager, setManager] = useState<{ id: string; name: string; clientId: string | null; phone: string | null } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [pendingMaintenanceCount, setPendingMaintenanceCount] = useState(0)
+
+  useEffect(() => {
+    async function loadManager() {
+      try {
+        const data = await getCurrentManager()
+        if (data) {
+          setManager({ id: data.id, name: data.name, clientId: data.client_id, phone: data.phone })
+        }
+      } catch (err) {
+        console.error('Failed to load manager:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadManager()
+  }, [])
+
+  // Fetch pending maintenance count
+  useEffect(() => {
+    if (!manager?.clientId) return
+    async function fetchPendingCount() {
+      const { count } = await supabase
+        .from('maintenance_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', manager!.clientId!)
+        .eq('status', 'pending')
+      setPendingMaintenanceCount(count ?? 0)
+    }
+    fetchPendingCount()
+    const interval = setInterval(fetchPendingCount, 30000)
+    return () => clearInterval(interval)
+  }, [manager?.clientId])
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab)
+    setSidebarOpen(false)
+  }
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+          Loading dashboard...
+        </div>
+      )
+    }
+
+    if (!manager) {
+      return (
+        <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+          <p className="text-lg font-medium mb-2">Manager profile not found</p>
+          <p className="text-sm">Please ensure your account is linked to a manager profile.</p>
+        </div>
+      )
+    }
+
+    switch (activeTab) {
+      case 'overview':
+        return <ManagerOverviewTab managerId={manager.id} clientId={manager.clientId || ''} managerName={manager.name} />
+      case 'maintenance':
+        return <ManagerMaintenanceTab clientId={manager.clientId || ''} />
+      case 'manage-apartment':
+        return <ManagerManageApartmentTab clientId={manager.clientId || ''} managerName={manager.name} managerId={manager.id} />
+      case 'payments':
+        return <ManagerPaymentsTab clientId={manager.clientId || ''} />
+      case 'settings':
+        return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} />
+      default:
+        return <ManagerOverviewTab managerId={manager.id} clientId={manager.clientId || ''} managerName={manager.name} />
+    }
+  }
+
+  return (
+    <div
+      className={`min-h-screen ${
+        isDark ? 'bg-[#0A1628] text-white' : 'bg-gray-50 text-gray-900'
+      }`}
+    >
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <ManagerSidebar
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        pendingMaintenanceCount={pendingMaintenanceCount}
+      />
+
+      {/* Main content area */}
+      <div className="lg:ml-56 flex flex-col h-screen">
+        <ManagerTopBar
+          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+          managerName={manager?.name}
+        />
+
+        {/* Page content */}
+        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">{renderContent()}</main>
+      </div>
+    </div>
+  )
+}

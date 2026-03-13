@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    @apply antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Light mode (default) */
+  :root {
+    --border: 220 13% 87%;
+    --input: 220 13% 87%;
+    --ring: 160 96% 30%;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --primary: 160 96% 30%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --destructive: 0 78% 55%;
+    --destructive-foreground: 210 40% 98%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --radius: 0.75rem;
+  }
+
+  /* Dark mode */
+  .dark {
+    --border: 220 13% 28%;
+    --input: 220 13% 28%;
+    --ring: 160 96% 30%;
+    --background: 220 30% 16%;
+    --foreground: 210 40% 98%;
+    --primary: 160 96% 30%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 28% 23%;
+    --secondary-foreground: 210 40% 98%;
+    --destructive: 0 78% 55%;
+    --destructive-foreground: 210 40% 98%;
+    --muted: 217 28% 23%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 28% 23%;
+    --accent-foreground: 210 40% 98%;
+    --popover: 220 30% 19%;
+    --popover-foreground: 210 40% 98%;
+    --card: 220 30% 19%;
+    --card-foreground: 210 40% 98%;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .gradient-border {
+    position: relative;
+    border: 1px solid rgba(5, 150, 105, 0.3);
+  }
+
+  .gradient-border:hover {
+    border-color: rgba(5, 150, 105, 0.5);
+  }
+}
+
+/* Custom scrollbar - dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1C2A3F;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #354B64;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4A6280;
+}
+
+/* Custom scrollbar - light mode */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Quick theme transition */
+body,
+main,
+aside,
+header,
+nav,
+div,
+button,
+input,
+table,
+th,
+td,
+span,
+p,
+h1, h2, h3, h4 {
+  transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+}
+
+/* Scroll-triggered fade up animation */
+.fade-up-hidden {
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.fade-up-visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+}
+
+.fade-up-delay-1 { transition-delay: 0.1s; }
+.fade-up-delay-2 { transition-delay: 0.2s; }
+.fade-up-delay-3 { transition-delay: 0.3s; }
+.fade-up-delay-4 { transition-delay: 0.4s; }
+.fade-up-delay-5 { transition-delay: 0.5s; }
+
+/* Transition for theme switching */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+}
