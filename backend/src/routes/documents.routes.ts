@@ -5,6 +5,7 @@ import {
   getDocuments,
   getDocumentById,
   createDocument,
+  uploadDocument,
   deleteDocument,
 } from "../controllers/documents.controller";
 
@@ -14,6 +15,7 @@ router.use(authenticate);
 
 router.get("/", authorize("admin", "owner", "manager"), getDocuments);
 router.get("/:id", authorize("admin", "owner", "manager"), getDocumentById);
+router.post("/upload", authorize("owner", "manager"), uploadDocument);
 router.post("/", authorize("manager"), createDocument);
 router.delete("/:id", authorize("admin", "owner", "manager"), deleteDocument);
 

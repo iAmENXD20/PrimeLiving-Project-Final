@@ -8,10 +8,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   getManagerUnits,
+  getManagerTenants,
   updateManagerUnit,
-  assignTenantToUnit,
+  assignExistingTenantToUnit,
   removeTenantFromUnit,
   type UnitWithTenant,
+  type TenantAccount,
 } from '../../lib/managerApi'
 
 interface ManagerApartmentsTabProps {
@@ -21,12 +23,13 @@ interface ManagerApartmentsTabProps {
 export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabProps) {
   const { isDark } = useTheme()
   const [units, setUnits] = useState<UnitWithTenant[]>([])
+  const [tenants, setTenants] = useState<TenantAccount[]>([])
   const [loading, setLoading] = useState(true)
 
   // Edit modal
   const [selectedUnit, setSelectedUnit] = useState<UnitWithTenant | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [editForm, setEditForm] = useState({ name: '', tenantName: '', tenantPhone: '', monthlyRent: '' })
+  const [editForm, setEditForm] = useState({ name: '', tenantId: '', monthlyRent: '' })
 
   useEffect(() => {
     loadUnits()
@@ -35,8 +38,12 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
   async function loadUnits() {
     try {
       setLoading(true)
-      const data = await getManagerUnits(clientId)
-      setUnits(data)
+      const [unitData, tenantData] = await Promise.all([
+        getManagerUnits(clientId),
+        getManagerTenants(clientId),
+      ])
+      setUnits(unitData)
+      setTenants(tenantData.filter((t) => Boolean(t.email)))
     } catch (err) {
       console.error('Failed to load units:', err)
     } finally {
@@ -48,8 +55,7 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
     setSelectedUnit(unit)
     setEditForm({
       name: unit.name,
-      tenantName: unit.tenant_name || '',
-      tenantPhone: unit.tenant_phone || '',
+      tenantId: unit.tenant_id || '',
       monthlyRent: unit.monthly_rent?.toString() || '',
     })
     setShowEditModal(true)
@@ -64,15 +70,11 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
         monthly_rent: Number(editForm.monthlyRent) || 0,
       })
 
-      const hadTenant = !!selectedUnit.tenant_name
-      const hasTenantNow = !!editForm.tenantName.trim()
+      const hadTenant = !!selectedUnit.tenant_id
+      const hasTenantNow = !!editForm.tenantId
 
       if (hasTenantNow) {
-        await assignTenantToUnit(
-          selectedUnit.id,
-          { name: editForm.tenantName.trim(), phone: editForm.tenantPhone || undefined },
-          Number(editForm.monthlyRent) || undefined,
-        )
+        await assignExistingTenantToUnit(selectedUnit.id, editForm.tenantId, Number(editForm.monthlyRent) || undefined)
       } else if (hadTenant && !hasTenantNow) {
         await removeTenantFromUnit(selectedUnit.id)
       }
@@ -219,22 +221,19 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
                 />
               </div>
               <div>
-                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Tenant Name</Label>
-                <Input
-                  value={editForm.tenantName}
-                  onChange={(e) => setEditForm({ ...editForm, tenantName: e.target.value })}
-                  placeholder="Full name (leave empty if available)"
-                  className={`mt-2 ${inputClass}`}
-                />
-              </div>
-              <div>
-                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Contact No.</Label>
-                <Input
-                  value={editForm.tenantPhone}
-                  onChange={(e) => setEditForm({ ...editForm, tenantPhone: e.target.value })}
-                  placeholder="09XX XXX XXXX"
-                  className={`mt-2 ${inputClass}`}
-                />
+                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Assign Tenant Account</Label>
+                <select
+                  value={editForm.tenantId}
+                  onChange={(e) => setEditForm({ ...editForm, tenantId: e.target.value })}
+                  className={`mt-2 w-full rounded-lg border px-3 py-2.5 text-sm ${inputClass}`}
+                >
+                  <option value="">— No tenant assigned —</option>
+                  {tenants.map((tenant) => (
+                    <option key={tenant.id} value={tenant.id}>
+                      {tenant.name} ({tenant.email})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Monthly Rent (₱)</Label>

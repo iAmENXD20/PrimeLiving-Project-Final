@@ -9,6 +9,7 @@ export interface TenantProfile {
   email: string | null
   phone: string | null
   apartment_id: string | null
+  client_id: string | null
   status: string
   move_in_date: string
   created_at: string
@@ -44,6 +45,15 @@ export interface TenantPayment {
   period_from: string | null
   period_to: string | null
   created_at: string
+}
+
+export interface TenantDueScheduleItem {
+  id: string
+  period_from: string
+  period_to: string
+  payment_date: string
+  amount: number
+  status: 'pending' | 'overdue'
 }
 
 export interface TenantAnnouncement {
@@ -138,6 +148,10 @@ export async function getTenantPayments(tenantId: string): Promise<TenantPayment
   return api.get<TenantPayment[]>(`/payments?tenant_id=${tenantId}`)
 }
 
+export async function getTenantDueSchedule(tenantId: string): Promise<TenantDueScheduleItem[]> {
+  return api.get<TenantDueScheduleItem[]>(`/payments/due-schedule/${tenantId}`)
+}
+
 // ── Upload Payment Receipt to Supabase Storage ─────────────
 // File uploads go directly to Supabase Storage (not routed through backend)
 export async function uploadPaymentReceipt(file: File, tenantId: string): Promise<string> {
@@ -171,16 +185,12 @@ export async function submitCashPaymentVerification(params: {
   period_to: string
   description?: string
 }) {
-  return api.post<any>('/payments', {
+  return api.post<any>('/payments/submit-proof', {
     tenant_id: params.tenant_id,
     client_id: params.client_id,
     apartment_id: params.apartment_id,
     amount: params.amount,
-    payment_date: new Date().toISOString(),
-    status: 'pending',
-    payment_mode: 'cash',
     receipt_url: params.receipt_url,
-    verification_status: 'pending_verification',
     period_from: params.period_from,
     period_to: params.period_to,
     description: params.description || 'Cash Payment - Pending Verification',
@@ -221,14 +231,48 @@ export async function getUnreadNotificationCount(clientId: string): Promise<numb
 // ── Payment QR Code (fetch from owner/client) ──────────
 const QR_CACHE_KEY = 'primeliving_payment_qr_cache'
 
-export async function getClientPaymentQrUrl(clientId: string): Promise<string | null> {
-  try {
-    const result = await api.get<{ qr_url: string }>(`/payments/qr/${clientId}`)
-    if (result.qr_url) {
-      localStorage.setItem(`${QR_CACHE_KEY}_${clientId}`, result.qr_url)
+export async function getClientPaymentQrUrl(clientId?: string | null, apartmentId?: string | null, tenantId?: string | null): Promise<string | null> {
+  const cacheKey = tenantId || clientId || apartmentId || 'unknown'
+
+  if (tenantId) {
+    try {
+      const byTenant = await api.get<{ qr_url: string; client_id?: string }>(`/payments/qr/by-tenant/${tenantId}`)
+      if (byTenant.qr_url) {
+        const resolvedKey = byTenant.client_id || cacheKey
+        localStorage.setItem(`${QR_CACHE_KEY}_${resolvedKey}`, byTenant.qr_url)
+        localStorage.setItem(`${QR_CACHE_KEY}_${cacheKey}`, byTenant.qr_url)
+        return byTenant.qr_url
+      }
+    } catch {
+      // continue to client/apartment fallback
     }
-    return result.qr_url || null
-  } catch {
-    return localStorage.getItem(`${QR_CACHE_KEY}_${clientId}`) || null
   }
+
+  if (clientId) {
+    try {
+      const result = await api.get<{ qr_url: string }>(`/payments/qr/${clientId}`)
+      if (result.qr_url) {
+        localStorage.setItem(`${QR_CACHE_KEY}_${cacheKey}`, result.qr_url)
+        return result.qr_url
+      }
+    } catch {
+      // continue to apartment fallback
+    }
+  }
+
+  if (apartmentId) {
+    try {
+      const fallback = await api.get<{ qr_url: string; client_id?: string }>(`/payments/qr/by-apartment/${apartmentId}`)
+      if (fallback.qr_url) {
+        const resolvedKey = fallback.client_id || cacheKey
+        localStorage.setItem(`${QR_CACHE_KEY}_${resolvedKey}`, fallback.qr_url)
+        localStorage.setItem(`${QR_CACHE_KEY}_${cacheKey}`, fallback.qr_url)
+        return fallback.qr_url
+      }
+    } catch {
+      // fall through to cache
+    }
+  }
+
+  return localStorage.getItem(`${QR_CACHE_KEY}_${cacheKey}`) || null
 }

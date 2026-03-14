@@ -250,7 +250,7 @@ export async function assignTenantToUnit(
   res: Response
 ): Promise<void> {
   try {
-    const { unit_id, name, phone, monthly_rent } = req.body;
+    const { unit_id, tenant_id, name, phone, monthly_rent } = req.body;
 
     // Get apartment to know client_id
     const { data: apt, error: aptErr } = await supabaseAdmin
@@ -272,30 +272,78 @@ export async function assignTenantToUnit(
       .eq("status", "active")
       .maybeSingle();
 
-    if (existing) {
-      // Update existing tenant's info
-      const { error } = await supabaseAdmin
+    if (tenant_id) {
+      if (existing && existing.id !== tenant_id) {
+        const { error: deactivateError } = await supabaseAdmin
+          .from("tenants")
+          .update({ status: "inactive", updated_at: new Date().toISOString() })
+          .eq("id", existing.id);
+
+        if (deactivateError) {
+          sendError(res, deactivateError.message, 500);
+          return;
+        }
+      }
+
+      const { data: selectedTenant, error: selectedTenantError } = await supabaseAdmin
         .from("tenants")
-        .update({ name, phone: phone || null })
-        .eq("id", existing.id);
-      if (error) {
-        sendError(res, error.message, 500);
+        .select("id")
+        .eq("id", tenant_id)
+        .maybeSingle();
+
+      if (selectedTenantError) {
+        sendError(res, selectedTenantError.message, 500);
         return;
+      }
+
+      if (!selectedTenant) {
+        sendError(res, "Selected tenant account not found", 404);
+        return;
+      }
+
+      const { error: assignError } = await supabaseAdmin
+        .from("tenants")
+        .update({
+          apartment_id: unit_id,
+          client_id: apt.client_id,
+          status: "active",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", tenant_id);
+
+      if (assignError) {
+        sendError(res, assignError.message, 500);
+        return;
+      }
+    } else if (name) {
+      if (existing) {
+        // Update existing tenant's info
+        const { error } = await supabaseAdmin
+          .from("tenants")
+          .update({ name, phone: phone || null })
+          .eq("id", existing.id);
+        if (error) {
+          sendError(res, error.message, 500);
+          return;
+        }
+      } else {
+        // Create new tenant
+        const { error } = await supabaseAdmin.from("tenants").insert({
+          name,
+          phone: phone || null,
+          apartment_id: unit_id,
+          client_id: apt.client_id,
+          status: "active",
+          move_in_date: new Date().toISOString().split("T")[0],
+        });
+        if (error) {
+          sendError(res, error.message, 500);
+          return;
+        }
       }
     } else {
-      // Create new tenant
-      const { error } = await supabaseAdmin.from("tenants").insert({
-        name,
-        phone: phone || null,
-        apartment_id: unit_id,
-        client_id: apt.client_id,
-        status: "active",
-        move_in_date: new Date().toISOString().split("T")[0],
-      });
-      if (error) {
-        sendError(res, error.message, 500);
-        return;
-      }
+      sendError(res, "tenant_id or tenant name is required", 400);
+      return;
     }
 
     // Update rent if provided

@@ -55,7 +55,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
   const [pendingVerifications, setPendingVerifications] = useState<Payment[]>([])
   const [loadingVerifications, setLoadingVerifications] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [previewReceipt, setPreviewReceipt] = useState<string | null>(null)
+  const [previewVerification, setPreviewVerification] = useState<Payment | null>(null)
 
   // Record cash payment modal
   const [showRecordModal, setShowRecordModal] = useState(false)
@@ -217,6 +217,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
       await approveCashPayment(paymentId)
       toast.success('Cash payment approved!')
       await Promise.all([load(), loadVerifications()])
+      setPreviewVerification(null)
     } catch (err) {
       console.error('Failed to approve:', err)
       toast.error('Failed to approve payment')
@@ -231,6 +232,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
       await rejectCashPayment(paymentId)
       toast.success('Cash payment rejected')
       await Promise.all([load(), loadVerifications()])
+      setPreviewVerification(null)
     } catch (err) {
       console.error('Failed to reject:', err)
       toast.error('Failed to reject payment')
@@ -412,7 +414,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
             </div>
             <div>
               <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Pending Cash Verifications
+                Pending Payment Verifications
               </h3>
               <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 {pendingVerifications.length} request{pendingVerifications.length !== 1 ? 's' : ''} waiting for your review
@@ -456,31 +458,15 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
-                    {v.receipt_url && (
-                      <button
-                        onClick={() => setPreviewReceipt(v.receipt_url)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                          isDark
-                            ? 'bg-[#1E293B] text-gray-300 hover:bg-[#2a3a52]'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        <Receipt className="w-3.5 h-3.5" /> View Receipt
-                      </button>
-                    )}
                     <button
-                      onClick={() => handleApprove(v.id)}
-                      disabled={actionLoading === v.id}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                      onClick={() => setPreviewVerification(v)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                        isDark
+                          ? 'bg-[#1E293B] text-gray-300 hover:bg-[#2a3a52]'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Approve
-                    </button>
-                    <button
-                      onClick={() => handleReject(v.id)}
-                      disabled={actionLoading === v.id}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
-                    >
-                      <XCircle className="w-3.5 h-3.5" /> Reject
+                      <Receipt className="w-3.5 h-3.5" /> Preview & Verify
                     </button>
                   </div>
                 </div>
@@ -558,6 +544,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                     <td className={`py-3 px-4 max-w-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{p.description || '—'}</td>
                     <td className="py-3 px-4">
                       <button
+                        onClick={() => setPreviewVerification(p)}
                         title="View payment details"
                         className={`p-2 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-primary hover:bg-primary/10' : 'text-gray-500 hover:text-primary hover:bg-primary/10'}`}
                       >
@@ -592,27 +579,81 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
         </p>
       )}
 
-      {/* Receipt Preview Modal */}
-      {previewReceipt && createPortal(
+      {/* Verification Preview Modal */}
+      {previewVerification && createPortal(
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md"
-          onClick={() => setPreviewReceipt(null)}
+          onClick={() => setPreviewVerification(null)}
         >
           <div
-            className={`rounded-2xl p-4 max-w-md w-full mx-4 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
+            className={`rounded-2xl p-4 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
               <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Payment Receipt
+                Payment Verification Preview
               </h4>
-              <button onClick={() => setPreviewReceipt(null)} className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
+              <button onClick={() => setPreviewVerification(null)} className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
                 <X className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
               </button>
             </div>
-            <div className={`rounded-lg overflow-hidden border ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-              <img src={previewReceipt} alt="Payment Receipt" className="w-full rounded-lg" />
+
+            <div className={`rounded-xl border p-4 mb-4 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}><span className="font-semibold">Tenant:</span> {previewVerification.tenant_name || '—'}</p>
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}><span className="font-semibold">Unit:</span> {previewVerification.apartment_name || '—'}</p>
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}><span className="font-semibold">Submitted:</span> {new Date(previewVerification.created_at).toLocaleString()}</p>
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}><span className="font-semibold">Period:</span> {previewVerification.period_from && previewVerification.period_to
+                  ? `${new Date(previewVerification.period_from + 'T00:00:00').toLocaleDateString()} — ${new Date(previewVerification.period_to + 'T00:00:00').toLocaleDateString()}`
+                  : '—'}</p>
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}><span className="font-semibold">Mode:</span> {previewVerification.payment_mode || 'cash'}</p>
+              </div>
+              {previewVerification.description && (
+                <p className={`mt-3 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <span className="font-semibold">Description:</span> {previewVerification.description}
+                </p>
+              )}
             </div>
+
+            {previewVerification.receipt_url ? (
+              <div className={`rounded-lg overflow-hidden border ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+                <img src={previewVerification.receipt_url} alt="Payment Receipt" className="w-full rounded-lg" />
+              </div>
+            ) : (
+              <div className={`rounded-lg border p-6 text-center text-sm ${isDark ? 'border-[#1E293B] text-gray-500' : 'border-gray-200 text-gray-500'}`}>
+                No receipt image uploaded.
+              </div>
+            )}
+
+            {previewVerification.verification_status === 'pending_verification' ? (
+              <div className="flex items-center justify-end gap-2 mt-4">
+                <button
+                  onClick={() => handleReject(previewVerification.id)}
+                  disabled={actionLoading === previewVerification.id}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+                >
+                  <XCircle className="w-4 h-4" /> Reject
+                </button>
+                <button
+                  onClick={() => handleApprove(previewVerification.id)}
+                  disabled={actionLoading === previewVerification.id}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Approve
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => setPreviewVerification(null)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isDark ? 'bg-[#1E293B] text-gray-300 hover:bg-[#2a3a52]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Close
+                </button>
+              </div>
+            )}
           </div>
         </div>,
         document.body

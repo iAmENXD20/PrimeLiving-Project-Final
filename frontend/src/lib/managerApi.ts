@@ -110,6 +110,10 @@ export async function getManagerUnits(clientId: string): Promise<UnitWithTenant[
   return api.get<UnitWithTenant[]>(`/apartments/with-tenants?client_id=${clientId}`)
 }
 
+export async function getManagerUnitsByManager(managerId: string): Promise<UnitWithTenant[]> {
+  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?manager_id=${managerId}`)
+}
+
 export async function getManagedApartments(managerId: string) {
   return api.get<any[]>(`/apartments?manager_id=${managerId}`)
 }
@@ -132,6 +136,18 @@ export async function assignTenantToUnit(
     unit_id: unitId,
     name: tenant.name,
     phone: tenant.phone || null,
+    monthly_rent: monthlyRent,
+  })
+}
+
+export async function assignExistingTenantToUnit(
+  unitId: string,
+  tenantId: string,
+  monthlyRent?: number,
+) {
+  await api.post('/tenants/assign-unit', {
+    unit_id: unitId,
+    tenant_id: tenantId,
     monthly_rent: monthlyRent,
   })
 }
@@ -357,28 +373,22 @@ export async function uploadDocument(
   tenantId: string | null,
   description: string,
 ) {
-  // File upload still goes directly to Supabase Storage
-  const ext = file.name.split('.').pop()
-  const path = `${clientId}/${crypto.randomUUID()}.${ext}`
+  const fileData = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
 
-  const { error: uploadError } = await supabase.storage
-    .from('documents')
-    .upload(path, file, { contentType: file.type })
-
-  if (uploadError) throw uploadError
-
-  const { data: urlData } = supabase.storage.from('documents').getPublicUrl(path)
-
-  // Create the DB record via backend
-  return api.post<any>('/documents', {
+  return api.post<any>('/documents/upload', {
     client_id: clientId,
     apartment_id: apartmentId || null,
     tenant_id: tenantId || null,
     uploaded_by: managerId,
     file_name: file.name,
-    file_url: urlData.publicUrl,
     file_type: file.type,
     description: description || null,
+    file_data: fileData,
   })
 }
 

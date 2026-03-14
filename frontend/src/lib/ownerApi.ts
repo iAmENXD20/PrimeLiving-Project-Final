@@ -260,6 +260,33 @@ export async function deleteOwnerAnnouncement(id: string) {
   await api.delete(`/announcements/${id}`)
 }
 
+// ── Documents ──────────────────────────────────────────────
+export interface OwnerDocument {
+  id: string
+  client_id: string | null
+  apartment_id: string | null
+  tenant_id: string | null
+  uploaded_by: string | null
+  file_name: string
+  file_url: string
+  file_type: string
+  description: string | null
+  created_at: string
+  tenant_name?: string | null
+  unit_name?: string | null
+}
+
+export async function getOwnerDocuments(clientId: string): Promise<OwnerDocument[]> {
+  const data = await api.get<any[]>(`/documents?client_id=${clientId}`)
+  return (data || []).map((d: any) => ({
+    ...d,
+    tenant_name: d.tenants?.name ?? null,
+    unit_name: d.apartments?.name ?? null,
+    tenants: undefined,
+    apartments: undefined,
+  }))
+}
+
 // ── Payments ───────────────────────────────────────────────
 export interface OwnerPayment {
   id: string

@@ -3,8 +3,7 @@ import { createPortal } from 'react-dom'
 import { PhilippinePeso, QrCode, CreditCard, Upload, Trash2, Receipt, Eye, FileText, X, CheckCircle2, Clock, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
-import { getTenantPayments, getClientPaymentQrUrl, type TenantPayment } from '../../lib/tenantApi'
-import DatePicker from '../ui/DatePicker'
+import { getTenantPayments, getTenantDueSchedule, getClientPaymentQrUrl, getCurrentTenant, submitCashPaymentVerification, type TenantPayment, type TenantDueScheduleItem } from '../../lib/tenantApi'
 
 interface TenantPaymentsTabProps {
   tenantId: string
@@ -15,6 +14,7 @@ interface TenantPaymentsTabProps {
 export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: TenantPaymentsTabProps) {
   const { isDark } = useTheme()
   const [payments, setPayments] = useState<TenantPayment[]>([])
+  const [duePayments, setDuePayments] = useState<TenantDueScheduleItem[]>([])
   const [loading, setLoading] = useState(true)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [showQrModal, setShowQrModal] = useState(false)
@@ -27,9 +27,8 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
   const receiptInputRef = useRef<HTMLInputElement>(null)
 
   // Payment form state
-  const [payerName, setPayerName] = useState('')
-  const [periodFrom, setPeriodFrom] = useState('')
-  const [periodTo, setPeriodTo] = useState('')
+  const [tenantName, setTenantName] = useState('')
+  const [selectedDuePaymentId, setSelectedDuePaymentId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [showGeneratedReceipt, setShowGeneratedReceipt] = useState(false)
   const [generatedReceipt, setGeneratedReceipt] = useState<{
@@ -42,28 +41,88 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
     receiptImage?: string | null
   } | null>(null)
 
+  async function refreshPaymentsAndDues() {
+    const [paymentsResult, duesResult] = await Promise.allSettled([
+      getTenantPayments(tenantId),
+      getTenantDueSchedule(tenantId),
+    ])
+
+    if (paymentsResult.status === 'fulfilled') {
+      setPayments(paymentsResult.value)
+    }
+
+    if (duesResult.status === 'fulfilled') {
+      setDuePayments(duesResult.value)
+    }
+  }
+
   useEffect(() => {
     async function load() {
       try {
-        const data = await getTenantPayments(tenantId)
-        setPayments(data)
-        // Load Payment QR
-        if (clientId) {
-          const clientQrUrl = await getClientPaymentQrUrl(clientId)
-          setQrUrl(clientQrUrl)
+        const [paymentsResult, duesResult, qrResult, tenantResult] = await Promise.allSettled([
+          getTenantPayments(tenantId),
+          getTenantDueSchedule(tenantId),
+          getClientPaymentQrUrl(clientId, apartmentId, tenantId),
+          getCurrentTenant(),
+        ])
+
+        if (paymentsResult.status === 'fulfilled') {
+          setPayments(paymentsResult.value)
+        } else {
+          console.error('Failed to load payments:', paymentsResult.reason)
+          setPayments([])
         }
+
+        if (duesResult.status === 'fulfilled') {
+          setDuePayments(duesResult.value)
+        } else {
+          console.error('Failed to load due schedule:', duesResult.reason)
+          setDuePayments([])
+        }
+
+        if (qrResult.status === 'fulfilled') {
+          setQrUrl(qrResult.value)
+        } else {
+          console.error('Failed to load payment QR:', qrResult.reason)
+          setQrUrl(null)
+        }
+
+        if (tenantResult.status === 'fulfilled' && tenantResult.value?.name) {
+          setTenantName(tenantResult.value.name)
+        }
+
         // Load saved receipt
         const savedReceipt = localStorage.getItem(`primeliving_receipt_${tenantId}`)
         if (savedReceipt) setReceiptUrl(savedReceipt)
-
-      } catch (err) {
-        console.error('Failed to load payments:', err)
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [tenantId, clientId])
+  }, [tenantId, clientId, apartmentId])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshPaymentsAndDues().catch((error) => {
+        console.error('Periodic payment sync failed:', error)
+      })
+    }, 300000)
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshPaymentsAndDues().catch((error) => {
+          console.error('Visibility payment sync failed:', error)
+        })
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [tenantId])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -72,6 +131,24 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
   const totalPaid = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + Number(p.amount), 0)
   const totalPending = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + Number(p.amount), 0)
   const totalOverdue = payments.filter(p => p.status === 'overdue').reduce((sum, p) => sum + Number(p.amount), 0)
+  const normalizedDuePayments = Array.from(
+    new Map(
+      duePayments
+        .sort((a, b) => new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime())
+        .map((payment) => {
+          const periodKey = payment.period_from
+            ? payment.period_from.slice(0, 7)
+            : new Date(payment.payment_date).toISOString().slice(0, 7)
+          return [periodKey, payment]
+        })
+    ).values()
+  )
+
+  useEffect(() => {
+    if (!selectedDuePaymentId && normalizedDuePayments.length > 0) {
+      setSelectedDuePaymentId(normalizedDuePayments[0].id)
+    }
+  }, [normalizedDuePayments, selectedDuePaymentId])
 
   const statusColor = (s: string) => {
     switch (s) {
@@ -123,16 +200,8 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
   }
 
   const handleSubmitPayment = async () => {
-    if (!payerName.trim()) {
-      toast.error('Please enter your name')
-      return
-    }
-    if (!periodFrom) {
-      toast.error('Please select the start date')
-      return
-    }
-    if (!periodTo) {
-      toast.error('Please select the end date')
+    if (!selectedDuePaymentId) {
+      toast.error('Please select a pending/overdue billing period')
       return
     }
     if (!receiptUrl) {
@@ -140,21 +209,58 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
       return
     }
 
+    const selectedDue = normalizedDuePayments.find((payment) => payment.id === selectedDuePaymentId)
+    if (!selectedDue?.period_from || !selectedDue?.period_to) {
+      toast.error('Selected billing period is invalid')
+      return
+    }
+
+    if (!clientId) {
+      toast.error('Tenant is not linked to an owner yet')
+      return
+    }
+
     // Generate local receipt for QR payment
     const receiptId = `PL-${Date.now().toString(36).toUpperCase()}`
+    setSubmitting(true)
+    try {
+      await submitCashPaymentVerification({
+        tenant_id: tenantId,
+        client_id: clientId,
+        apartment_id: apartmentId,
+        amount: Number(selectedDue.amount || 0),
+        receipt_url: receiptUrl,
+        period_from: selectedDue.period_from,
+        period_to: selectedDue.period_to,
+        description: `Tenant payment proof submitted for ${selectedDue.period_from} to ${selectedDue.period_to}`,
+      })
+
+      await refreshPaymentsAndDues()
+    } catch (error) {
+      console.error('Failed to submit payment proof:', error)
+      toast.error('Failed to submit payment proof')
+      setSubmitting(false)
+      return
+    }
+
     const receipt = {
       id: receiptId,
       date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-      name: payerName.trim(),
+      name: tenantName || 'Tenant',
       mode: 'QR Payment',
-      periodFrom: new Date(periodFrom + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-      periodTo: new Date(periodTo + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+      periodFrom: new Date(selectedDue.period_from + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+      periodTo: new Date(selectedDue.period_to + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
       receiptImage: receiptUrl,
     }
 
     setGeneratedReceipt(receipt)
     setShowGeneratedReceipt(true)
     toast.success('Payment submitted! Receipt generated.')
+    localStorage.removeItem(RECEIPT_KEY)
+    setReceiptUrl(null)
+    setSelectedDuePaymentId('')
+    if (receiptInputRef.current) receiptInputRef.current.value = ''
+    setSubmitting(false)
   }
 
   return (
@@ -273,49 +379,29 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
           </div>
 
           <div className="space-y-4 flex-1">
-            {/* Tenant Name */}
+            {/* Billing Period */}
             <div>
               <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Name
+                Billing Period (Pending/Overdue)
               </label>
-              <input
-                type="text"
-                value={payerName}
-                onChange={(e) => setPayerName(e.target.value)}
-                placeholder="Enter your full name"
+              <select
+                value={selectedDuePaymentId}
+                onChange={(e) => setSelectedDuePaymentId(e.target.value)}
                 className={`w-full rounded-lg px-4 py-2.5 text-sm border transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/40 ${
                   isDark
-                    ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-600'
-                    : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                    ? 'bg-[#0A1628] border-[#1E293B] text-white'
+                    : 'bg-gray-50 border-gray-200 text-gray-900'
                 }`}
-              />
-            </div>
-
-            {/* Payment Period */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Period From
-                </label>
-                <DatePicker
-                  value={periodFrom}
-                  onChange={setPeriodFrom}
-                  placeholder="Select start date"
-                  isDark={isDark}
-                />
-              </div>
-              <div>
-                <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Period To
-                </label>
-                <DatePicker
-                  value={periodTo}
-                  onChange={setPeriodTo}
-                  min={periodFrom || undefined}
-                  placeholder="Select end date"
-                  isDark={isDark}
-                />
-              </div>
+              >
+                <option value="">Select billing period</option>
+                {normalizedDuePayments.map((payment) => (
+                  <option key={payment.id} value={payment.id}>
+                    {payment.period_from && payment.period_to
+                      ? `${new Date(payment.period_from).toLocaleDateString()} - ${new Date(payment.period_to).toLocaleDateString()}`
+                      : new Date(payment.payment_date).toLocaleDateString()} · ₱{Number(payment.amount).toLocaleString()} · {payment.status}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Receipt Upload */}
@@ -410,6 +496,54 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
         </div>
       </div>
 
+      <div className={cardClass}>
+        <h3 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Pending & Overdue Dues
+        </h3>
+
+        {normalizedDuePayments.length === 0 ? (
+          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            No pending or overdue dues.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+                  {['Period', 'Due Date', 'Amount', 'Status'].map((header) => (
+                    <th key={header} className={`text-left py-3 px-3 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {normalizedDuePayments.map((payment) => (
+                  <tr key={payment.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                    <td className={`py-3 px-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {payment.period_from && payment.period_to
+                        ? `${new Date(payment.period_from).toLocaleDateString()} - ${new Date(payment.period_to).toLocaleDateString()}`
+                        : '—'}
+                    </td>
+                    <td className={`py-3 px-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {new Date(payment.payment_date).toLocaleDateString()}
+                    </td>
+                    <td className={`py-3 px-3 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      ₱{Number(payment.amount).toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor(payment.status)}`}>
+                        {payment.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Payment History – Full Width Below */}
       <div className={cardClass}>
         <h3 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -459,9 +593,15 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
                     {p.payment_mode === 'cash' ? 'Cash' : p.payment_mode === 'qr' ? 'QR' : '—'}
                   </td>
                   <td className="py-3.5 px-4">
+                    {(() => {
+                      const isWaitingVerification = p.verification_status === 'pending_verification'
+                      const displayStatus = isWaitingVerification ? 'waiting verification' : p.status
+                      return (
                     <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor(p.status)}`}>
-                      {p.status}
+                      {displayStatus}
                     </span>
+                      )
+                    })()}
                   </td>
                   <td className="py-3.5 px-4">
                     {p.verification_status === 'pending_verification' && (

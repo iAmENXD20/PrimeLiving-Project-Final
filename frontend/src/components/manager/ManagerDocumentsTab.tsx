@@ -6,9 +6,11 @@ import {
   uploadDocument,
   deleteDocument,
   getManagerUnits,
+  getManagerTenants,
   createAnnouncement,
   type Document,
   type UnitWithTenant,
+  type TenantAccount,
 } from '../../lib/managerApi'
 import { toast } from 'sonner'
 
@@ -21,6 +23,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
   const { isDark } = useTheme()
   const [documents, setDocuments] = useState<Document[]>([])
   const [units, setUnits] = useState<UnitWithTenant[]>([])
+  const [tenants, setTenants] = useState<TenantAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [search, setSearch] = useState('')
@@ -28,19 +31,46 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
   // Upload form state
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [description, setDescription] = useState('')
-  const [selectedUnit, setSelectedUnit] = useState('')
-  const [unitDropdownOpen, setUnitDropdownOpen] = useState(false)
-  const unitDropdownRef = useRef<HTMLDivElement>(null)
+  const [selectedTenant, setSelectedTenant] = useState('')
+  const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false)
+  const tenantDropdownRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function load() {
     try {
-      const [docs, unitsData] = await Promise.all([
+      const [docsResult, unitsResult, tenantsResult] = await Promise.allSettled([
         getDocuments(clientId),
         getManagerUnits(clientId),
+        getManagerTenants(clientId),
       ])
+
+      const docs = docsResult.status === 'fulfilled' ? docsResult.value : []
+      const unitsData = unitsResult.status === 'fulfilled' ? unitsResult.value : []
+      const tenantsData = tenantsResult.status === 'fulfilled' ? tenantsResult.value : []
+
+      const tenantFallbackFromUnits: TenantAccount[] = (unitsData || [])
+        .filter((unit) => unit.tenant_id)
+        .map((unit) => ({
+          id: unit.tenant_id as string,
+          auth_user_id: null,
+          name: unit.tenant_name || 'Unknown',
+          email: null,
+          phone: unit.tenant_phone || null,
+          apartment_id: unit.id,
+          client_id: unit.client_id,
+          status: 'active',
+          move_in_date: null,
+          created_at: unit.created_at,
+          apartment_name: unit.name,
+        }))
+
+      const dedupedFallback = Array.from(
+        new Map(tenantFallbackFromUnits.map((tenant) => [tenant.id, tenant])).values()
+      )
+
       setDocuments(docs)
       setUnits(unitsData)
+      setTenants((tenantsData && tenantsData.length > 0) ? tenantsData : dedupedFallback)
     } catch (err) {
       console.error('Failed to load documents:', err)
     } finally {
@@ -52,8 +82,8 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (unitDropdownRef.current && !unitDropdownRef.current.contains(e.target as Node)) {
-        setUnitDropdownOpen(false)
+      if (tenantDropdownRef.current && !tenantDropdownRef.current.contains(e.target as Node)) {
+        setTenantDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -69,34 +99,48 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
       toast.error('Only PDF files are allowed')
       return
     }
+    if (!selectedTenant) {
+      toast.error('Please assign this document to a tenant')
+      return
+    }
 
     setUploading(true)
     try {
-      const unit = units.find(u => u.id === selectedUnit)
+      const tenant = tenants.find((t) => t.id === selectedTenant)
+      if (!tenant) {
+        toast.error('Selected tenant is invalid')
+        return
+      }
+
+      const unit = units.find((u) => u.tenant_id === tenant.id)
       await uploadDocument(
         selectedFile,
         clientId,
         managerId,
-        unit?.id || null,
-        unit?.tenant_id || null,
+        unit?.id || tenant.apartment_id || null,
+        tenant.id,
         description,
       )
 
       // Notify tenant if document is assigned to a unit with a tenant
-      if (unit?.tenant_id && unit?.tenant_name) {
-        await createAnnouncement(
-          clientId,
-          '📄 New Document Received',
-          `A new document "${selectedFile.name}" has been shared with you${description ? `: ${description}` : '.'}`,
-          'Property Manager',
-        )
-        toast.success(`Uploaded successfully — ${unit.tenant_name} has received the document`)
+      if (tenant?.name) {
+        try {
+          await createAnnouncement(
+            clientId,
+            '📄 New Document Received',
+            `A new document "${selectedFile.name}" has been shared with you${description ? `: ${description}` : '.'}`,
+            'Property Manager',
+          )
+        } catch (announcementError) {
+          console.warn('Announcement notification skipped:', announcementError)
+        }
+        toast.success(`Uploaded successfully — ${tenant.name} has received the document`)
       } else {
         toast.success('Uploaded successfully')
       }
       setSelectedFile(null)
       setDescription('')
-      setSelectedUnit('')
+      setSelectedTenant('')
       if (fileInputRef.current) fileInputRef.current.value = ''
       await load()
     } catch (err) {
@@ -131,7 +175,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
   })
 
   const cardClass = `rounded-xl border ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'}`
-  const selectedUnitLabel = units.find(u => u.id === selectedUnit)?.name || 'Select unit (optional)'
+  const selectedTenantLabel = tenants.find((t) => t.id === selectedTenant)?.name || 'Select tenant *'
 
   return (
     <div className="flex flex-1 min-h-0 gap-5">
@@ -158,56 +202,51 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
             />
           </div>
 
-          {/* Unit dropdown */}
+          {/* Tenant dropdown */}
           <div>
             <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              Assign to Unit
+              Assign to Tenant *
             </label>
-            <div ref={unitDropdownRef} className="relative">
+            <div ref={tenantDropdownRef} className="relative">
               <button
                 type="button"
-                onClick={() => setUnitDropdownOpen(!unitDropdownOpen)}
+                onClick={() => setTenantDropdownOpen(!tenantDropdownOpen)}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
                   isDark
                     ? 'bg-[#111D32] border-[#1E293B] text-white'
                     : 'bg-white border-gray-200 text-gray-900'
                 }`}
               >
-                <span className={!selectedUnit ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
-                  {selectedUnitLabel}
+                <span className={!selectedTenant ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
+                  {selectedTenantLabel}
                 </span>
-                <ChevronDown className={`w-4 h-4 transition-transform ${unitDropdownOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                <ChevronDown className={`w-4 h-4 transition-transform ${tenantDropdownOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
               </button>
               <div
                 className={`absolute left-0 right-0 mt-1 rounded-lg border shadow-lg z-20 max-h-48 overflow-y-auto transition-all duration-200 origin-top ${
-                  unitDropdownOpen
+                  tenantDropdownOpen
                     ? 'opacity-100 scale-y-100 pointer-events-auto'
                     : 'opacity-0 scale-y-75 pointer-events-none'
                 } ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}
               >
-                <button
-                  onClick={() => { setSelectedUnit(''); setUnitDropdownOpen(false) }}
-                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                    !selectedUnit
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  None (General)
-                </button>
-                {units.map((u) => (
+                {tenants.map((tenant) => (
                   <button
-                    key={u.id}
-                    onClick={() => { setSelectedUnit(u.id); setUnitDropdownOpen(false) }}
+                    key={tenant.id}
+                    onClick={() => { setSelectedTenant(tenant.id); setTenantDropdownOpen(false) }}
                     className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                      selectedUnit === u.id
+                      selectedTenant === tenant.id
                         ? 'bg-primary/10 text-primary font-medium'
                         : isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
                     }`}
                   >
-                    {u.name} {u.tenant_name ? `— ${u.tenant_name}` : ''}
+                    {tenant.name} {tenant.apartment_name && tenant.apartment_name !== '—' ? `— ${tenant.apartment_name}` : ''}
                   </button>
                 ))}
+                {tenants.length === 0 && (
+                  <div className={`px-4 py-3 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    No tenant accounts found yet.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -232,7 +271,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
 
           <button
             onClick={handleUpload}
-            disabled={uploading || !selectedFile}
+            disabled={uploading || !selectedFile || !selectedTenant}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             <Upload className="w-4 h-4" />

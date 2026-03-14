@@ -7,6 +7,7 @@ import OwnerManageApartmentTab from '../components/owner/OwnerManageApartmentTab
 import OwnerAccountTab from '../components/owner/OwnerAccountTab'
 import OwnerMaintenanceTab from '../components/owner/OwnerMaintenanceTab'
 import OwnerPaymentsTab from '../components/owner/OwnerPaymentsTab'
+import OwnerDocumentsTab from '../components/owner/OwnerDocumentsTab'
 import { getCurrentOwner } from '../lib/ownerApi'
 
 export default function OwnerDashboard() {
@@ -64,6 +65,8 @@ export default function OwnerDashboard() {
         return <OwnerMaintenanceTab clientId={owner.id} ownerName={owner.name} />
       case 'payments':
         return <OwnerPaymentsTab clientId={owner.id} />
+      case 'documents':
+        return <OwnerDocumentsTab clientId={owner.id} />
       case 'account':
         return <OwnerAccountTab clientId={owner.id} />
       default:

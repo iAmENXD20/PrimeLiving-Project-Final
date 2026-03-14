@@ -34,6 +34,8 @@ export async function getPayments(
   res: Response
 ): Promise<void> {
   try {
+    const tenantId = req.query.tenant_id as string | undefined;
+
     let query = supabaseAdmin
       .from("payments")
       .select("*, tenants(name, email), apartments(name)")
@@ -42,8 +44,8 @@ export async function getPayments(
     if (req.query.client_id) {
       query = query.eq("client_id", req.query.client_id as string);
     }
-    if (req.query.tenant_id) {
-      query = query.eq("tenant_id", req.query.tenant_id as string);
+    if (tenantId) {
+      query = query.eq("tenant_id", tenantId);
     }
     if (req.query.status) {
       query = query.eq("status", req.query.status as string);
@@ -57,6 +59,149 @@ export async function getPayments(
     }
 
     sendSuccess(res, data);
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * GET /api/payments/due-schedule/:tenantId
+ * Returns read-only monthly due schedule (pending/overdue) based on tenant move-in day.
+ */
+export async function getTenantDueSchedule(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { tenantId } = req.params;
+    if (!tenantId) {
+      sendError(res, "tenantId is required", 400);
+      return;
+    }
+
+    const { data: tenant, error: tenantError } = await supabaseAdmin
+      .from("tenants")
+      .select("id, client_id, apartment_id, move_in_date, status")
+      .eq("id", tenantId)
+      .single();
+
+    if (tenantError || !tenant) {
+      sendError(res, "Tenant not found", 404);
+      return;
+    }
+
+    if (!tenant.apartment_id || !tenant.move_in_date) {
+      sendSuccess(res, []);
+      return;
+    }
+
+    const { data: apartment } = await supabaseAdmin
+      .from("apartments")
+      .select("monthly_rent")
+      .eq("id", tenant.apartment_id)
+      .single();
+
+    const monthlyRent = Number(apartment?.monthly_rent || 0);
+    const moveInDate = new Date(tenant.move_in_date);
+    if (Number.isNaN(moveInDate.getTime())) {
+      sendSuccess(res, []);
+      return;
+    }
+
+    const { data: paymentRows } = await supabaseAdmin
+      .from("payments")
+      .select("id, status, verification_status, amount, period_from, period_to, payment_date")
+      .eq("tenant_id", tenantId);
+
+    const existingByPeriodStart = new Map<string, any>();
+    (paymentRows || []).forEach((row: any) => {
+      if (row.period_from) {
+        existingByPeriodStart.set(String(row.period_from), row);
+      }
+    });
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const GRACE_DAYS = 3;
+
+    const toLocalDateString = (value: Date) => {
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, "0");
+      const day = String(value.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const addOneMonthSameDay = (date: Date): Date => {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      const targetLastDay = new Date(year, month + 2, 0).getDate();
+      return new Date(year, month + 1, Math.min(day, targetLastDay));
+    };
+
+    const rowsToInsert: any[] = [];
+    const pendingToOverdueIds: string[] = [];
+
+    for (let periodStart = new Date(moveInDate); periodStart <= today; periodStart = addOneMonthSameDay(periodStart)) {
+      const periodEnd = addOneMonthSameDay(periodStart);
+      const dueDate = new Date(periodEnd);
+      const overdueAt = new Date(dueDate);
+      overdueAt.setDate(overdueAt.getDate() + GRACE_DAYS);
+
+      const periodFrom = toLocalDateString(periodStart);
+      const periodTo = toLocalDateString(periodEnd);
+      const shouldBeOverdue = today > overdueAt;
+      const existing = existingByPeriodStart.get(periodFrom);
+
+      if (!existing) {
+        rowsToInsert.push({
+          client_id: tenant.client_id,
+          tenant_id: tenant.id,
+          apartment_id: tenant.apartment_id,
+          amount: monthlyRent,
+          payment_date: dueDate.toISOString(),
+          status: shouldBeOverdue ? "overdue" : "pending",
+          description: `Monthly rent - ${periodFrom} to ${periodTo}`,
+          payment_mode: null,
+          receipt_url: null,
+          verification_status: null,
+          period_from: periodFrom,
+          period_to: periodTo,
+        });
+        continue;
+      }
+
+      const isPaid = existing.status === "paid" || existing.verification_status === "verified";
+      if (!isPaid && existing.status === "pending" && shouldBeOverdue) {
+        pendingToOverdueIds.push(existing.id);
+      }
+    }
+
+    if (rowsToInsert.length > 0) {
+      await supabaseAdmin.from("payments").insert(rowsToInsert);
+    }
+
+    if (pendingToOverdueIds.length > 0) {
+      await supabaseAdmin
+        .from("payments")
+        .update({ status: "overdue" })
+        .in("id", pendingToOverdueIds);
+    }
+
+    const { data: dueRows, error: dueRowsError } = await supabaseAdmin
+      .from("payments")
+      .select("id, period_from, period_to, payment_date, amount, status, verification_status")
+      .eq("tenant_id", tenantId)
+      .in("status", ["pending", "overdue"])
+      .order("period_from", { ascending: true });
+
+    if (dueRowsError) {
+      sendError(res, dueRowsError.message, 500);
+      return;
+    }
+
+    const visibleDueRows = (dueRows || []).filter((row: any) => row.verification_status !== "pending_verification");
+    sendSuccess(res, visibleDueRows);
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -111,6 +256,93 @@ export async function createPayment(
     }
 
     sendSuccess(res, data, "Payment created successfully", 201);
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/payments/submit-proof
+ * Tenant submits payment proof for an existing billing period row.
+ */
+export async function submitPaymentProof(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const {
+      tenant_id,
+      client_id,
+      apartment_id,
+      amount,
+      receipt_url,
+      period_from,
+      period_to,
+      description,
+    } = req.body;
+
+    if (!tenant_id || !client_id || !period_from || !period_to || !receipt_url) {
+      sendError(res, "tenant_id, client_id, period_from, period_to, and receipt_url are required", 400);
+      return;
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from("payments")
+      .select("id, status")
+      .eq("tenant_id", tenant_id)
+      .eq("period_from", period_from)
+      .maybeSingle();
+
+    if (existing?.id) {
+      const { data, error } = await supabaseAdmin
+        .from("payments")
+        .update({
+          receipt_url,
+          payment_mode: "qr",
+          verification_status: "pending_verification",
+          description: description || `Payment proof submitted for ${period_from} to ${period_to}`,
+          amount: amount ?? undefined,
+          apartment_id: apartment_id || null,
+          client_id,
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      if (error) {
+        sendError(res, error.message, 500);
+        return;
+      }
+
+      sendSuccess(res, data, "Payment proof submitted successfully");
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("payments")
+      .insert({
+        tenant_id,
+        client_id,
+        apartment_id: apartment_id || null,
+        amount: amount || 0,
+        payment_date: new Date().toISOString(),
+        status: "pending",
+        payment_mode: "qr",
+        receipt_url,
+        verification_status: "pending_verification",
+        period_from,
+        period_to,
+        description: description || `Payment proof submitted for ${period_from} to ${period_to}`,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      sendError(res, error.message, 500);
+      return;
+    }
+
+    sendSuccess(res, data, "Payment proof submitted successfully", 201);
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -185,6 +417,17 @@ export async function verifyPayment(
     const { id } = req.params;
     const { verification_status } = req.body; // "verified" or "rejected"
 
+    const { data: payment, error: paymentError } = await supabaseAdmin
+      .from("payments")
+      .select("id, client_id, apartment_id, amount, payment_date")
+      .eq("id", id)
+      .single();
+
+    if (paymentError || !payment) {
+      sendError(res, "Payment not found", 404);
+      return;
+    }
+
     const updateData: any = { verification_status };
 
     // If verified, also mark payment as paid
@@ -202,6 +445,27 @@ export async function verifyPayment(
     if (error) {
       sendError(res, error.message, 500);
       return;
+    }
+
+    if (verification_status === "verified") {
+      const revenueDescription = `Verified payment: ${id}`;
+
+      const { data: existingRevenue } = await supabaseAdmin
+        .from("revenues")
+        .select("id")
+        .eq("client_id", payment.client_id)
+        .eq("description", revenueDescription)
+        .maybeSingle();
+
+      if (!existingRevenue) {
+        await supabaseAdmin.from("revenues").insert({
+          apartment_id: payment.apartment_id,
+          client_id: payment.client_id,
+          amount: payment.amount,
+          month: payment.payment_date || new Date().toISOString(),
+          description: revenueDescription,
+        });
+      }
     }
 
     sendSuccess(res, data, `Payment ${verification_status} successfully`);
@@ -367,7 +631,6 @@ export async function getPendingVerifications(
       .from("payments")
       .select("*, tenants:tenant_id(name), apartments:apartment_id(name)")
       .eq("client_id", clientId)
-      .eq("payment_mode", "cash")
       .eq("verification_status", "pending_verification")
       .order("created_at", { ascending: false });
 
@@ -483,6 +746,110 @@ export async function getPaymentQr(
     }
 
     sendSuccess(res, { client_id: clientId, qr_url: signedData.signedUrl });
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * GET /api/payments/qr/by-apartment/:apartmentId
+ * Resolve apartment -> client_id then return signed QR URL
+ */
+export async function getPaymentQrByApartment(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { apartmentId } = req.params;
+    if (!apartmentId) {
+      sendError(res, "apartmentId is required", 400);
+      return;
+    }
+
+    const { data: apartment, error: apartmentError } = await supabaseAdmin
+      .from("apartments")
+      .select("client_id")
+      .eq("id", apartmentId)
+      .single();
+
+    if (apartmentError || !apartment?.client_id) {
+      sendError(res, "Owner not found for this apartment", 404);
+      return;
+    }
+
+    await ensurePaymentQrBucket();
+    const objectPath = `${apartment.client_id}/payment-qr`;
+
+    const { data: signedData, error: signedError } = await supabaseAdmin.storage
+      .from(PAYMENT_QR_BUCKET)
+      .createSignedUrl(objectPath, 60 * 60);
+
+    if (signedError) {
+      sendError(res, "QR code not found", 404);
+      return;
+    }
+
+    sendSuccess(res, { client_id: apartment.client_id, qr_url: signedData.signedUrl });
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * GET /api/payments/qr/by-tenant/:tenantId
+ * Resolve tenant -> apartment -> client_id then return signed QR URL
+ */
+export async function getPaymentQrByTenant(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { tenantId } = req.params;
+    if (!tenantId) {
+      sendError(res, "tenantId is required", 400);
+      return;
+    }
+
+    const { data: tenant, error: tenantError } = await supabaseAdmin
+      .from("tenants")
+      .select("id, apartment_id, client_id")
+      .eq("id", tenantId)
+      .single();
+
+    if (tenantError || !tenant) {
+      sendError(res, "Tenant not found", 404);
+      return;
+    }
+
+    let resolvedClientId: string | null = tenant.client_id || null;
+
+    if (!resolvedClientId && tenant.apartment_id) {
+      const { data: apartment } = await supabaseAdmin
+        .from("apartments")
+        .select("client_id")
+        .eq("id", tenant.apartment_id)
+        .single();
+      resolvedClientId = apartment?.client_id || null;
+    }
+
+    if (!resolvedClientId) {
+      sendError(res, "Owner not found for this tenant", 404);
+      return;
+    }
+
+    await ensurePaymentQrBucket();
+    const objectPath = `${resolvedClientId}/payment-qr`;
+
+    const { data: signedData, error: signedError } = await supabaseAdmin.storage
+      .from(PAYMENT_QR_BUCKET)
+      .createSignedUrl(objectPath, 60 * 60);
+
+    if (signedError) {
+      sendError(res, "QR code not found", 404);
+      return;
+    }
+
+    sendSuccess(res, { tenant_id: tenantId, client_id: resolvedClientId, qr_url: signedData.signedUrl });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

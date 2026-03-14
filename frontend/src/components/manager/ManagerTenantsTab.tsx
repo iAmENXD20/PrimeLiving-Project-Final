@@ -1,8 +1,7 @@
-import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, ChevronDown } from 'lucide-react'
-import { useState, useEffect, useRef } from 'react'
+import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
-import { supabase } from '../../lib/supabase'
 import { useTheme } from '../../context/ThemeContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,9 +11,7 @@ import {
   createTenantAccount,
   updateTenantAccount,
   deleteTenantAccount,
-  getManagerUnits,
   type TenantAccount,
-  type UnitWithTenant,
 } from '../../lib/managerApi'
 
 interface ManagerTenantsTabProps {
@@ -26,11 +23,10 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
   const [search, setSearch] = useState('')
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [tenants, setTenants] = useState<TenantAccount[]>([])
-  const [units, setUnits] = useState<UnitWithTenant[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingTenant, setEditingTenant] = useState<TenantAccount | null>(null)
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', apartment_id: '', monthlyRent: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
   const [saving, setSaving] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
   const [credentials, setCredentials] = useState({ email: '', password: '' })
@@ -40,32 +36,16 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
   const [smsSent, setSmsSent] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
-  const [unitDropdownOpen, setUnitDropdownOpen] = useState(false)
-  const unitDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadData()
   }, [clientId])
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (unitDropdownRef.current && !unitDropdownRef.current.contains(e.target as Node)) {
-        setUnitDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
   async function loadData() {
     try {
       setLoading(true)
-      const [tenantData, unitData] = await Promise.all([
-        getManagerTenants(clientId),
-        getManagerUnits(clientId),
-      ])
+      const tenantData = await getManagerTenants(clientId)
       setTenants(tenantData)
-      setUnits(unitData)
     } catch (err) {
       console.error('Failed to load tenants:', err)
     } finally {
@@ -75,7 +55,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
 
   function openAddModal() {
     setEditingTenant(null)
-    setForm({ firstName: '', lastName: '', email: '', phone: '', apartment_id: '', monthlyRent: '' })
+    setForm({ firstName: '', lastName: '', email: '', phone: '' })
     setShowModal(true)
   }
 
@@ -84,14 +64,11 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
     const nameParts = (tenant.name || '').split(' ')
     const firstName = nameParts[0] || ''
     const lastName = nameParts.slice(1).join(' ') || ''
-    const unit = units.find(u => u.id === tenant.apartment_id)
     setForm({
       firstName,
       lastName,
       email: tenant.email || '',
       phone: tenant.phone || '',
-      apartment_id: tenant.apartment_id || '',
-      monthlyRent: unit?.monthly_rent?.toString() || '',
     })
     setShowModal(true)
     setOpenMenu(null)
@@ -110,13 +87,8 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
           name: fullName,
           email: form.email,
           phone: form.phone || undefined,
-          apartment_id: form.apartment_id || null,
         })
-        // Update monthly rent on the apartment if assigned
-        if (form.apartment_id && form.monthlyRent) {
-          await supabase.from('apartments').update({ monthly_rent: parseFloat(form.monthlyRent) }).eq('id', form.apartment_id)
-        }
-        setTenants((prev) => prev.map((t) => (t.id === updated.id ? { ...updated, apartment_name: units.find(u => u.id === updated.apartment_id)?.name || '—' } : t)))
+        setTenants((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
         toast.success('Tenant updated successfully')
         setShowModal(false)
       } else {
@@ -124,18 +96,9 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
           name: fullName,
           email: form.email,
           phone: form.phone || undefined,
-          apartment_id: form.apartment_id || undefined,
           client_id: clientId,
         })
-        // Update monthly rent on the apartment if assigned
-        if (form.apartment_id && form.monthlyRent) {
-          await supabase.from('apartments').update({ monthly_rent: parseFloat(form.monthlyRent) }).eq('id', form.apartment_id)
-        }
-        const newTenant = {
-          ...result.tenant,
-          apartment_name: units.find(u => u.id === result.tenant.apartment_id)?.name || '—',
-        }
-        setTenants((prev) => [newTenant, ...prev])
+        setTenants((prev) => [result.tenant, ...prev])
         setShowModal(false)
         setCredentials({ email: form.email, password: result.generatedPassword })
         setShowCredentials(true)
@@ -337,7 +300,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
 
               {!editingTenant && (
                 <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Enter the tenant's email address. This will be used as their login credential.
+                  Enter the tenant's account details. Unit assignment is managed only in the Units tab.
                 </p>
               )}
 
@@ -378,78 +341,6 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                     placeholder="+63 9XX XXX XXXX"
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Assign to Unit</Label>
-                  <div className="relative" ref={unitDropdownRef}>
-                    <button
-                      type="button"
-                      onClick={() => setUnitDropdownOpen(!unitDropdownOpen)}
-                      className={`w-full rounded-lg px-3 py-2.5 pr-10 text-sm text-left border transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                        isDark
-                          ? 'bg-[#0A1628] border-[#1E293B] text-white'
-                          : 'bg-gray-50 border-gray-200 text-gray-900'
-                      }`}
-                    >
-                      {form.apartment_id
-                        ? (() => {
-                            const u = units.find(u => u.id === form.apartment_id)
-                            return u ? u.name : '— No unit assigned —'
-                          })()
-                        : '— No unit assigned —'}
-                    </button>
-                    <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none transition-transform ${unitDropdownOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-
-                    {unitDropdownOpen && (
-                      <div className={`absolute z-30 w-full mt-1 rounded-lg border shadow-xl max-h-52 overflow-y-auto ${
-                        isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
-                      }`}>
-                        <button
-                          type="button"
-                          onClick={() => { setForm({ ...form, apartment_id: '' }); setUnitDropdownOpen(false) }}
-                          className={`w-full px-3 py-2.5 text-sm text-left transition-colors ${
-                            !form.apartment_id
-                              ? isDark ? 'bg-primary/10 text-primary font-medium' : 'bg-primary/5 text-primary font-medium'
-                              : isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          — No unit assigned —
-                        </button>
-                        {units.filter(u => !u.tenant_name).map((u) => {
-                          const isSelected = form.apartment_id === u.id
-                          return (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => { setForm({ ...form, apartment_id: u.id }); setUnitDropdownOpen(false) }}
-                              className={`w-full px-3 py-2.5 text-sm text-left transition-colors flex items-center justify-between ${
-                                isSelected
-                                  ? isDark ? 'bg-primary/10 text-primary font-medium' : 'bg-primary/5 text-primary font-medium'
-                                  : isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
-                              }`}
-                            >
-                              <span>{u.name}</span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
-                              }`}>
-                                Vacant
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Monthly Rent (₱)</Label>
-                  <Input
-                    type="number"
-                    value={form.monthlyRent}
-                    onChange={(e) => setForm({ ...form, monthlyRent: e.target.value })}
-                    placeholder="e.g. 5000"
                     className={inputClass}
                   />
                 </div>

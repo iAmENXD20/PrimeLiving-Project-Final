@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { Search, Filter, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
-import { getManagerMaintenanceRequests, type MaintenanceRequest } from '../../lib/managerApi'
+import { toast } from 'sonner'
+import { getManagerMaintenanceRequests, updateMaintenanceStatus, type MaintenanceRequest } from '../../lib/managerApi'
 
 /** Parse photo_url field — may be a JSON array string or a single URL */
 function parsePhotoUrls(photoUrl: string | null | undefined): string[] {
@@ -51,6 +52,7 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
   const [photoModalOpen, setPhotoModalOpen] = useState(false)
   const [photoModalUrls, setPhotoModalUrls] = useState<string[]>([])
   const [photoModalIndex, setPhotoModalIndex] = useState(0)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
   const statusRef = useRef<HTMLDivElement>(null)
   const priorityRef = useRef<HTMLDivElement>(null)
 
@@ -98,6 +100,27 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
   useEffect(() => {
     loadRequests()
   }, [clientId])
+
+  async function handleStatusChange(requestId: string, nextStatus: 'in_progress' | 'resolved' | 'closed') {
+    if (nextStatus === 'closed') {
+      const confirmed = window.confirm('Close this request? Use close only for invalid/cancelled requests.')
+      if (!confirmed) return
+    }
+
+    try {
+      setUpdatingId(requestId)
+      await updateMaintenanceStatus(requestId, nextStatus)
+      setRequests((prev) => prev.map((request) => (
+        request.id === requestId ? { ...request, status: nextStatus } : request
+      )))
+      toast.success('Maintenance status updated')
+    } catch (error) {
+      console.error('Failed to update maintenance status:', error)
+      toast.error('Failed to update maintenance status')
+    } finally {
+      setUpdatingId(null)
+    }
+  }
 
   const filtered = requests.filter((r) => {
     if (statusFilter !== 'all' && r.status !== statusFilter) return false
@@ -248,7 +271,7 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
           <table className="w-full text-base">
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                {['Title', 'Names', 'Apartment', 'Photo', 'Priority', 'Status', 'Date'].map((h) => (
+                {['Title', 'Names', 'Apartment', 'Photo', 'Priority', 'Status', 'Actions', 'Date'].map((h) => (
                   <th key={h} className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {h}
                   </th>
@@ -296,6 +319,53 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
                       {req.status.replace('_', ' ')}
                     </span>
                   </td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-wrap gap-2">
+                      {req.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleStatusChange(req.id, 'in_progress')}
+                            disabled={updatingId === req.id}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
+                          >
+                            Start
+                          </button>
+                          <button
+                            onClick={() => handleStatusChange(req.id, 'closed')}
+                            disabled={updatingId === req.id}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-500/15 text-gray-400 hover:bg-gray-500/25 transition-colors disabled:opacity-50"
+                          >
+                            Close
+                          </button>
+                        </>
+                      )}
+
+                      {req.status === 'in_progress' && (
+                        <>
+                          <button
+                            onClick={() => handleStatusChange(req.id, 'resolved')}
+                            disabled={updatingId === req.id}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
+                          >
+                            Resolve
+                          </button>
+                          <button
+                            onClick={() => handleStatusChange(req.id, 'closed')}
+                            disabled={updatingId === req.id}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-500/15 text-gray-400 hover:bg-gray-500/25 transition-colors disabled:opacity-50"
+                          >
+                            Close
+                          </button>
+                        </>
+                      )}
+
+                      {(req.status === 'resolved' || req.status === 'closed') && (
+                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          No further action
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className={`py-3 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {new Date(req.created_at).toLocaleDateString()}
                   </td>
@@ -303,7 +373,7 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <td colSpan={8} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     No maintenance requests found
                   </td>
                 </tr>
