@@ -22,6 +22,7 @@ const navItems = [
 export default function TenantSidebar({ activeTab, onTabChange, isOpen, onClose, notificationCount = 0 }: TenantSidebarProps) {
   const { isDark } = useTheme()
   const navigate = useNavigate()
+  const unreadCount = Number.isFinite(notificationCount) ? Math.max(0, Math.floor(notificationCount)) : 0
 
   const handleLogout = async () => {
     await supabase.auth.signOut({ scope: 'local' })
@@ -79,9 +80,9 @@ export default function TenantSidebar({ activeTab, onTabChange, isOpen, onClose,
             >
               <div className="relative">
                 <Icon className="w-[18px] h-[18px]" />
-                {showBadge && (
+                {showBadge && unreadCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {notificationCount > 9 ? '9+' : notificationCount}
+                    {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
               </div>

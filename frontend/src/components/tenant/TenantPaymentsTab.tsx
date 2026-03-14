@@ -128,7 +128,6 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
   }`
 
-  const totalPaid = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + Number(p.amount), 0)
   const totalPending = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + Number(p.amount), 0)
   const totalOverdue = payments.filter(p => p.status === 'overdue').reduce((sum, p) => sum + Number(p.amount), 0)
   const normalizedDuePayments = Array.from(
@@ -273,18 +272,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
       </div>
 
       {/* Summary Cards – Full Width */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className={cardClass}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-              <PhilippinePeso className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Total Paid</p>
-              <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{totalPaid.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className={cardClass}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-yellow-500/15 flex items-center justify-center">

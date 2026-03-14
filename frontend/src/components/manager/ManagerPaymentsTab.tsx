@@ -8,7 +8,7 @@ import {
   getPendingCashVerifications,
   approveCashPayment,
   rejectCashPayment,
-  recordCashPayment,
+  settleCashBilling,
   getManagerTenants,
   getPaymentDueDay,
   setPaymentDueDay,
@@ -60,7 +60,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
   // Record cash payment modal
   const [showRecordModal, setShowRecordModal] = useState(false)
   const [tenants, setTenants] = useState<TenantAccount[]>([])
-  const [recordForm, setRecordForm] = useState({ tenantId: '', amount: '', description: '', periodFrom: '', periodTo: '' })
+  const [recordForm, setRecordForm] = useState({ tenantId: '', paymentId: '', description: '' })
   const [recordLoading, setRecordLoading] = useState(false)
 
   // Due date configuration
@@ -137,31 +137,23 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
   }
 
   const handleRecordCashPayment = async () => {
-    if (!recordForm.tenantId || !recordForm.amount) {
-      toast.error('Please select a tenant and enter the amount')
-      return
-    }
-    const amount = parseFloat(recordForm.amount)
-    if (isNaN(amount) || amount <= 0) {
-      toast.error('Please enter a valid amount')
+    if (!recordForm.tenantId || !recordForm.paymentId) {
+      toast.error('Please select a tenant and billing period')
       return
     }
 
-    const selectedTenant = tenants.find(t => t.id === recordForm.tenantId)
+    const selectedPayment = payments.find((payment) => payment.id === recordForm.paymentId)
+    if (!selectedPayment || (selectedPayment.status !== 'pending' && selectedPayment.status !== 'overdue')) {
+      toast.error('Selected billing period is no longer pending/overdue')
+      return
+    }
+
     setRecordLoading(true)
     try {
-      await recordCashPayment({
-        client_id: clientId,
-        tenant_id: recordForm.tenantId,
-        apartment_id: selectedTenant?.apartment_id || null,
-        amount,
-        description: recordForm.description || undefined,
-        period_from: recordForm.periodFrom || undefined,
-        period_to: recordForm.periodTo || undefined,
-      })
+      await settleCashBilling(recordForm.paymentId, recordForm.description || undefined)
       toast.success('Cash payment recorded successfully!')
       setShowRecordModal(false)
-      setRecordForm({ tenantId: '', amount: '', description: '', periodFrom: '', periodTo: '' })
+      setRecordForm({ tenantId: '', paymentId: '', description: '' })
       await load()
     } catch (err) {
       console.error('Failed to record payment:', err)
@@ -195,6 +187,15 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
   const periodLabel = selectedMonth !== null
     ? `${MONTHS[selectedMonth]} ${selectedYear}`
     : 'All Time'
+
+  const recordDuePayments = recordForm.tenantId
+    ? payments.filter((payment) => (
+      payment.tenant_id === recordForm.tenantId &&
+      (payment.status === 'pending' || payment.status === 'overdue')
+    ))
+    : []
+
+  const selectedRecordPayment = recordDuePayments.find((payment) => payment.id === recordForm.paymentId) || null
 
   const filtered = monthFiltered.filter((p) => {
     if (filter !== 'all' && p.status !== filter) return false
@@ -686,7 +687,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                 </label>
                 <select
                   value={recordForm.tenantId}
-                  onChange={(e) => setRecordForm(f => ({ ...f, tenantId: e.target.value }))}
+                  onChange={(e) => setRecordForm(f => ({ ...f, tenantId: e.target.value, paymentId: '' }))}
                   className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
                     isDark
                       ? 'bg-[#0A1628] border-[#1E293B] text-white focus:border-primary'
@@ -699,6 +700,41 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                       {t.name} {t.apartment_name ? `— ${t.apartment_name}` : ''}
                     </option>
                   ))}
+                </select>
+              </div>
+
+              {/* Billing Period (Pending/Overdue) */}
+              <div>
+                <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Billing Period
+                </label>
+                <select
+                  value={recordForm.paymentId}
+                  onChange={(e) => setRecordForm(f => ({ ...f, paymentId: e.target.value }))}
+                  disabled={!recordForm.tenantId || recordDuePayments.length === 0}
+                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white focus:border-primary'
+                      : 'bg-white border-gray-200 text-gray-900 focus:border-primary'
+                  } focus:outline-none ${(!recordForm.tenantId || recordDuePayments.length === 0) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  <option value="">
+                    {!recordForm.tenantId
+                      ? 'Select tenant first'
+                      : recordDuePayments.length === 0
+                        ? 'No pending/overdue billings'
+                        : 'Select billing period'}
+                  </option>
+                  {recordDuePayments.map((payment) => {
+                    const periodLabelText = payment.period_from && payment.period_to
+                      ? `${new Date(payment.period_from + 'T00:00:00').toLocaleDateString()} - ${new Date(payment.period_to + 'T00:00:00').toLocaleDateString()}`
+                      : new Date(payment.payment_date).toLocaleDateString()
+                    return (
+                      <option key={payment.id} value={payment.id}>
+                        {periodLabelText} • ₱{Number(payment.amount).toLocaleString()} • {payment.status}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
@@ -722,52 +758,16 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                   Amount Paid (₱)
                 </label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Enter amount"
-                  value={recordForm.amount}
-                  onChange={(e) => setRecordForm(f => ({ ...f, amount: e.target.value }))}
+                  type="text"
+                  readOnly
+                  placeholder="Select billing period"
+                  value={selectedRecordPayment ? `₱${Number(selectedRecordPayment.amount).toLocaleString()}` : ''}
                   className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
                     isDark
-                      ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500 focus:border-primary'
-                      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-primary'
-                  } focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                      : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                  } focus:outline-none`}
                 />
-              </div>
-
-              {/* Period */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Period From
-                  </label>
-                  <input
-                    type="date"
-                    value={recordForm.periodFrom}
-                    onChange={(e) => setRecordForm(f => ({ ...f, periodFrom: e.target.value }))}
-                    className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                      isDark
-                        ? 'bg-[#0A1628] border-[#1E293B] text-white focus:border-primary'
-                        : 'bg-white border-gray-200 text-gray-900 focus:border-primary'
-                    } focus:outline-none`}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Period To
-                  </label>
-                  <input
-                    type="date"
-                    value={recordForm.periodTo}
-                    onChange={(e) => setRecordForm(f => ({ ...f, periodTo: e.target.value }))}
-                    className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                      isDark
-                        ? 'bg-[#0A1628] border-[#1E293B] text-white focus:border-primary'
-                        : 'bg-white border-gray-200 text-gray-900 focus:border-primary'
-                    } focus:outline-none`}
-                  />
-                </div>
               </div>
 
               {/* Description */}

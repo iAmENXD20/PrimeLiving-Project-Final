@@ -67,13 +67,17 @@ export async function updateOwnerApartmentAddress(clientId: string, address: str
 }
 
 // ── Owner Dashboard Stats ──────────────────────────────────
-export async function getOwnerDashboardStats(clientId: string) {
+export async function getOwnerDashboardStats(clientId: string, options?: { month?: number; year?: number }) {
+  const params = new URLSearchParams()
+  if (options?.month) params.set('month', String(options.month))
+  if (options?.year) params.set('year', String(options.year))
+  const query = params.toString() ? `?${params.toString()}` : ''
   return api.get<{
     apartments: number
     activeTenants: number
     pendingMaintenance: number
     totalRevenue: number
-  }>(`/analytics/owner/${clientId}`)
+  }>(`/analytics/owner/${clientId}${query}`)
 }
 
 // ── Maintenance Requests ───────────────────────────────────
@@ -155,9 +159,23 @@ export interface UnitWithTenant {
   tenant_id: string | null
 }
 
+export interface OwnerTenant {
+  id: string
+  name: string
+  phone: string | null
+  apartment_id: string | null
+  status: 'active' | 'inactive'
+  monthly_rent?: number
+}
+
 export async function getOwnerUnits(clientId: string): Promise<UnitWithTenant[]> {
   // The backend /apartments/with-tenants endpoint does the join for us
   return api.get<UnitWithTenant[]>(`/apartments/with-tenants?client_id=${clientId}`)
+}
+
+export async function getOwnerTenants(clientId: string, includeInactive = false): Promise<OwnerTenant[]> {
+  const query = includeInactive ? '&include_inactive=true' : ''
+  return api.get<OwnerTenant[]>(`/tenants?client_id=${clientId}${query}`)
 }
 
 export async function getOwnerApartments(clientId: string) {

@@ -117,6 +117,8 @@ export default function ManagerDashboard() {
         <ManagerTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           managerName={manager?.name}
+          managerId={manager?.id}
+          clientId={manager?.clientId || null}
         />
 
         {/* Page content */}

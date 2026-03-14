@@ -1,33 +1,31 @@
 import { useEffect, useState } from 'react'
-import { Bell, Megaphone } from 'lucide-react'
+import { Bell, Megaphone, Check, Trash2 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
-import { getTenantAnnouncements, markNotificationsAsRead, type TenantAnnouncement } from '../../lib/tenantApi'
+import {
+  getTenantNotifications,
+  markTenantNotificationRead,
+  markAllTenantNotificationsRead,
+  deleteTenantNotification,
+  deleteAllTenantNotifications,
+  type TenantNotification,
+} from '../../lib/tenantApi'
 
 interface TenantNotificationsTabProps {
+  tenantId: string
   clientId: string | null
   onRead?: () => void
 }
 
-export default function TenantNotificationsTab({ clientId, onRead }: TenantNotificationsTabProps) {
+export default function TenantNotificationsTab({ tenantId, clientId, onRead }: TenantNotificationsTabProps) {
   const { isDark } = useTheme()
-  const [announcements, setAnnouncements] = useState<TenantAnnouncement[]>([])
+  const [notifications, setNotifications] = useState<TenantNotification[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      if (!clientId) {
-        setLoading(false)
-        return
-      }
       try {
-        const data = await getTenantAnnouncements(clientId)
-        setAnnouncements(data)
-
-        // Mark all as read when viewing
-        if (data.length > 0) {
-          markNotificationsAsRead(data.map(a => a.id))
-          onRead?.()
-        }
+        const data = await getTenantNotifications(tenantId, clientId)
+        setNotifications(data)
       } catch (err) {
         console.error('Failed to load notifications:', err)
       } finally {
@@ -35,7 +33,7 @@ export default function TenantNotificationsTab({ clientId, onRead }: TenantNotif
       }
     }
     load()
-  }, [clientId])
+  }, [tenantId, clientId])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -52,14 +50,83 @@ export default function TenantNotificationsTab({ clientId, onRead }: TenantNotif
     })
   }
 
+  const handleMarkRead = async (id: string) => {
+    try {
+      await markTenantNotificationRead(id)
+      setNotifications((prev) => prev.map((notification) => (
+        notification.id === id ? { ...notification, is_read: true } : notification
+      )))
+      onRead?.()
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteTenantNotification(id)
+      setNotifications((prev) => prev.filter((notification) => notification.id !== id))
+      onRead?.()
+    } catch (error) {
+      console.error('Failed to delete notification:', error)
+    }
+  }
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllTenantNotificationsRead(tenantId)
+      setNotifications((prev) => prev.map((notification) => ({ ...notification, is_read: true })))
+      onRead?.()
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error)
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    try {
+      await deleteAllTenantNotifications(tenantId, clientId)
+      setNotifications([])
+      onRead?.()
+    } catch (error) {
+      console.error('Failed to delete all notifications:', error)
+    }
+  }
+
   return (
     <div className="gap-6 animate-fade-up flex flex-col flex-1 min-h-0">
       <div>
         <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Notifications</h2>
         <p className={`text-base mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Announcements and updates from your apartment management
+          Announcements and status updates from your apartment management
         </p>
       </div>
+
+      {!loading && notifications.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleMarkAllRead}
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border ${
+              isDark
+                ? 'bg-[#111D32] border-[#1E293B] text-gray-200 hover:bg-[#0F1A2F]'
+                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Check className="w-4 h-4" />
+            Mark all read
+          </button>
+          <button
+            onClick={handleDeleteAll}
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border ${
+              isDark
+                ? 'bg-[#111D32] border-[#1E293B] text-red-300 hover:bg-[#0F1A2F]'
+                : 'bg-white border-gray-200 text-red-600 hover:bg-red-50'
+            }`}
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete all
+          </button>
+        </div>
+      )}
 
       {loading && (
         <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -67,7 +134,7 @@ export default function TenantNotificationsTab({ clientId, onRead }: TenantNotif
         </div>
       )}
 
-      {!loading && announcements.length === 0 && (
+      {!loading && notifications.length === 0 && (
         <div className={`${cardClass} flex-1 flex flex-col min-h-0`}>
           <div className="flex-1 flex flex-col items-center justify-center">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
@@ -77,31 +144,57 @@ export default function TenantNotificationsTab({ clientId, onRead }: TenantNotif
               No notifications yet
             </p>
             <p className={`text-sm mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-              You'll see announcements from your apartment management here
+              You'll see announcements and request/payment updates here
             </p>
           </div>
         </div>
       )}
 
-      {/* Announcements List */}
+      {/* Notifications List */}
       <div className="space-y-4">
-        {announcements.map((a) => (
-          <div key={a.id} className={cardClass}>
+        {notifications.map((notification) => (
+          <div key={notification.id} className={cardClass}>
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <Megaphone className="w-5 h-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {a.title}
+                  {notification.title}
                 </h3>
                 <p className={`mt-1 text-base leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                  {a.message}
+                  {notification.message}
                 </p>
                 <div className={`mt-3 flex items-center gap-3 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                  <span>By {a.created_by}</span>
+                  <span>{notification.type.replace(/_/g, ' ')}</span>
                   <span>•</span>
-                  <span>{formatDate(a.created_at)}</span>
+                  <span>{formatDate(notification.created_at)}</span>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  {!notification.is_read && (
+                    <button
+                      onClick={() => handleMarkRead(notification.id)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${
+                        isDark
+                          ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                          : 'bg-primary/10 text-primary hover:bg-primary/20'
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Mark read
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDelete(notification.id)}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${
+                      isDark
+                        ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                        : 'bg-red-50 text-red-600 hover:bg-red-100'
+                    }`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete
+                  </button>
                 </div>
               </div>
             </div>

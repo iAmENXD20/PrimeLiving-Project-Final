@@ -2,6 +2,8 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
+import { sendSmsToMany } from "../utils/sms";
+import { createNotification, createNotifications } from "../utils/notifications";
 
 const MAINTENANCE_PHOTO_BUCKET = "maintenance-photos";
 
@@ -136,6 +138,58 @@ export async function createMaintenanceRequest(
       return;
     }
 
+    const [{ data: managersByClient }, { data: tenant }] = await Promise.all([
+      supabaseAdmin
+        .from("managers")
+        .select("id, phone")
+        .eq("client_id", client_id)
+        .eq("status", "active"),
+      supabaseAdmin
+        .from("tenants")
+        .select("name")
+        .eq("id", tenant_id)
+        .maybeSingle(),
+    ]);
+
+    let managers = managersByClient || [];
+
+    if (managers.length === 0 && apartment_id) {
+      const { data: apartment } = await supabaseAdmin
+        .from("apartments")
+        .select("manager_id")
+        .eq("id", apartment_id)
+        .maybeSingle();
+
+      if (apartment?.manager_id) {
+        const { data: managerByApartment } = await supabaseAdmin
+          .from("managers")
+          .select("id, phone")
+          .eq("id", apartment.manager_id)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (managerByApartment) {
+          managers = [managerByApartment];
+        }
+      }
+    }
+
+    await sendSmsToMany(
+      (managers || []).map((manager: any) => manager.phone),
+      `[PrimeLiving] New maintenance request from ${tenant?.name || "tenant"}: ${title} (${priority})`
+    );
+
+    await createNotifications(
+      (managers || []).map((manager: any) => ({
+        client_id,
+        recipient_role: "manager" as const,
+        recipient_id: manager.id,
+        type: "maintenance_request_created",
+        title: "New Maintenance Request",
+        message: `${tenant?.name || "A tenant"} submitted: ${title}`,
+      }))
+    );
+
     sendSuccess(res, data, "Maintenance request created successfully", 201);
   } catch (err: any) {
     sendError(res, err.message, 500);
@@ -164,6 +218,30 @@ export async function updateMaintenanceStatus(
     if (error) {
       sendError(res, error.message, 500);
       return;
+    }
+
+    if (data?.tenant_id) {
+      const { data: tenant } = await supabaseAdmin
+        .from("tenants")
+        .select("phone")
+        .eq("id", data.tenant_id)
+        .maybeSingle();
+
+      await sendSmsToMany(
+        [tenant?.phone],
+        `[PrimeLiving] Your maintenance request "${data.title}" is now ${status.replace("_", " ")}.`
+      );
+
+      if (data.client_id && data.tenant_id) {
+        await createNotification({
+          client_id: data.client_id,
+          recipient_role: "tenant",
+          recipient_id: data.tenant_id,
+          type: "maintenance_status_updated",
+          title: "Maintenance Update",
+          message: `Your request "${data.title}" is now ${status.replace("_", " ")}.`,
+        });
+      }
     }
 
     sendSuccess(res, data, "Maintenance status updated successfully");

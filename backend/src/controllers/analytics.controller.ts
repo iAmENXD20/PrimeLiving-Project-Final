@@ -63,6 +63,14 @@ export async function getOwnerStats(
 ): Promise<void> {
   try {
     const { clientId } = req.params;
+    const monthParam = Number(req.query.month);
+    const yearParam = Number(req.query.year);
+    const hasMonthFilter =
+      Number.isInteger(monthParam) &&
+      Number.isInteger(yearParam) &&
+      monthParam >= 1 &&
+      monthParam <= 12 &&
+      yearParam >= 2000;
 
     // Get apartment IDs for this client first
     const { data: apartments } = await supabaseAdmin
@@ -71,6 +79,20 @@ export async function getOwnerStats(
       .eq("client_id", clientId);
 
     const aptIds = (apartments || []).map((a: any) => a.id);
+
+    const revenueQuery = supabaseAdmin
+      .from("payments")
+      .select("amount, payment_date")
+      .eq("client_id", clientId)
+      .eq("status", "paid");
+
+    if (hasMonthFilter) {
+      const start = new Date(Date.UTC(yearParam, monthParam - 1, 1));
+      const end = new Date(Date.UTC(yearParam, monthParam, 1));
+      revenueQuery
+        .gte("payment_date", start.toISOString())
+        .lt("payment_date", end.toISOString());
+    }
 
     const [apartmentsRes, maintenanceRes, revenueRes] = await Promise.all([
       supabaseAdmin
@@ -83,10 +105,7 @@ export async function getOwnerStats(
         .select("*", { count: "exact", head: true })
         .eq("client_id", clientId)
         .eq("status", "pending"),
-      supabaseAdmin
-        .from("revenues")
-        .select("amount")
-        .eq("client_id", clientId),
+      revenueQuery,
     ]);
 
     // Count active tenants in the client's apartments
@@ -195,7 +214,18 @@ export async function getManagerStats(
       .eq("manager_id", managerId)
       .eq("status", "active");
 
-    const apartmentIds = (managedApartments || []).map((a: any) => a.id);
+    let apartmentIds = (managedApartments || []).map((a: any) => a.id);
+
+    // Fallback: if manager_id links are missing, use active apartments under the same client
+    if (apartmentIds.length === 0) {
+      const { data: clientApartments } = await supabaseAdmin
+        .from("apartments")
+        .select("id")
+        .eq("client_id", clientId)
+        .eq("status", "active");
+
+      apartmentIds = (clientApartments || []).map((a: any) => a.id);
+    }
 
     const [tenants, pendingMaintenance, allMaintenance] = await Promise.all([
       supabaseAdmin

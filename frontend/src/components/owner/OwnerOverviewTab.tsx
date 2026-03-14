@@ -21,12 +21,34 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [apartmentName, setApartmentName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const today = new Date()
+  const [selectedMonth, setSelectedMonth] = useState<number>(0)
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear())
+
+  const monthOptions = [
+    { value: 0, label: 'All Time' },
+    { value: 1, label: 'January' },
+    { value: 2, label: 'February' },
+    { value: 3, label: 'March' },
+    { value: 4, label: 'April' },
+    { value: 5, label: 'May' },
+    { value: 6, label: 'June' },
+    { value: 7, label: 'July' },
+    { value: 8, label: 'August' },
+    { value: 9, label: 'September' },
+    { value: 10, label: 'October' },
+    { value: 11, label: 'November' },
+    { value: 12, label: 'December' },
+  ]
+  const yearOptions = Array.from({ length: 6 }, (_, index) => today.getFullYear() - 4 + index)
 
   useEffect(() => {
     async function load() {
       try {
         const [s, requests, addr, aptName] = await Promise.all([
-          getOwnerDashboardStats(clientId),
+          selectedMonth === 0
+            ? getOwnerDashboardStats(clientId)
+            : getOwnerDashboardStats(clientId, { month: selectedMonth, year: selectedYear }),
           getOwnerMaintenanceRequests(clientId),
           getOwnerApartmentAddress(clientId),
           getClientApartmentName(clientId),
@@ -42,7 +64,7 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
       }
     }
     load()
-  }, [clientId])
+  }, [clientId, selectedMonth, selectedYear])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -50,11 +72,13 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
 
   const headingClass = `text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`
 
-  const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
+  const selectedPeriodLabel = selectedMonth === 0
+    ? 'All Time'
+    : `${monthOptions.find((m) => m.value === selectedMonth)?.label} ${selectedYear}`
 
   const statCards = [
     { label: 'Active Tenants', value: stats.activeTenants, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
-    { label: 'Total Revenue', value: `₱${stats.totalRevenue.toLocaleString()}`, icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: currentMonth },
+    { label: 'Total Revenue', value: `₱${stats.totalRevenue.toLocaleString()}`, icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: selectedPeriodLabel },
     { label: 'Units', value: stats.apartments, icon: Building2, color: 'text-blue-400', bg: 'bg-blue-500/15' },
     { label: 'Pending Maintenance', value: stats.pendingMaintenance, icon: Wrench, color: 'text-red-400', bg: 'bg-red-500/15' },
   ]
@@ -88,6 +112,37 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
           Loading dashboard data...
         </div>
       )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Revenue period:</p>
+        <select
+          value={selectedMonth}
+          onChange={(event) => setSelectedMonth(Number(event.target.value))}
+          className={`px-3 py-2 rounded-lg border text-sm ${
+            isDark
+              ? 'bg-[#111D32] border-[#1E293B] text-white'
+              : 'bg-white border-gray-200 text-gray-700'
+          }`}
+        >
+          {monthOptions.map((month) => (
+            <option key={month.value} value={month.value}>{month.label}</option>
+          ))}
+        </select>
+        <select
+          value={selectedYear}
+          onChange={(event) => setSelectedYear(Number(event.target.value))}
+          disabled={selectedMonth === 0}
+          className={`px-3 py-2 rounded-lg border text-sm ${
+            isDark
+              ? 'bg-[#111D32] border-[#1E293B] text-white'
+              : 'bg-white border-gray-200 text-gray-700'
+          } ${selectedMonth === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
+        >
+          {yearOptions.map((year) => (
+            <option key={year} value={year}>{year}</option>
+          ))}
+        </select>
+      </div>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

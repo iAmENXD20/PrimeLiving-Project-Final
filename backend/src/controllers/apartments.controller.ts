@@ -159,8 +159,15 @@ export async function deleteApartment(
   try {
     const { id } = req.params;
 
-    // Delete associated tenants first
-    await supabaseAdmin.from("tenants").delete().eq("apartment_id", id);
+    // Soft-deactivate associated tenants first (preserve history)
+    await supabaseAdmin
+      .from("tenants")
+      .update({
+        status: "inactive",
+        apartment_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("apartment_id", id);
 
     const { error } = await supabaseAdmin
       .from("apartments")

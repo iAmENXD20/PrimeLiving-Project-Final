@@ -2,6 +2,8 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
+import { sendSmsToMany } from "../utils/sms";
+import { createNotifications } from "../utils/notifications";
 
 /**
  * GET /api/announcements
@@ -71,6 +73,8 @@ export async function createAnnouncement(
   res: Response
 ): Promise<void> {
   try {
+    const { client_id, title, message } = req.body;
+
     const { data, error } = await supabaseAdmin
       .from("announcements")
       .insert(req.body)
@@ -80,6 +84,30 @@ export async function createAnnouncement(
     if (error) {
       sendError(res, error.message, 500);
       return;
+    }
+
+    if (client_id) {
+      const { data: tenants } = await supabaseAdmin
+        .from("tenants")
+        .select("id, phone")
+        .eq("client_id", client_id)
+        .eq("status", "active");
+
+      await sendSmsToMany(
+        (tenants || []).map((tenant: any) => tenant.phone),
+        `[PrimeLiving Announcement] ${title}: ${message}`
+      );
+
+      await createNotifications(
+        (tenants || []).map((tenant: any) => ({
+          client_id,
+          recipient_role: "tenant" as const,
+          recipient_id: tenant.id,
+          type: "announcement_created",
+          title,
+          message,
+        }))
+      );
     }
 
     sendSuccess(res, data, "Announcement created successfully", 201);

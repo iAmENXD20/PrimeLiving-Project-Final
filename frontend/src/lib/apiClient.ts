@@ -80,8 +80,11 @@ export const api = {
     })
   },
 
-  delete<T>(endpoint: string): Promise<T> {
-    return request<T>(endpoint, { method: 'DELETE' })
+  delete<T>(endpoint: string, body?: unknown): Promise<T> {
+    return request<T>(endpoint, {
+      method: 'DELETE',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
   },
 }
 

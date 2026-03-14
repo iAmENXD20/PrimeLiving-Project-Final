@@ -57,7 +57,6 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName }:
   const statCards = [
     { label: 'Pending Maintenance Request', value: stats.pendingMaintenance, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/15' },
     { label: 'Resolved Requests', value: stats.resolvedMaintenance, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
-    { label: 'Total Paid', value: `₱${stats.totalPaid.toLocaleString()}`, icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15' },
     { label: 'Pending Payments', value: stats.pendingPayments, icon: PhilippinePeso, color: 'text-red-400', bg: 'bg-red-500/15' },
   ]
 
@@ -111,7 +110,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName }:
       )}
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {statCards.map((s) => {
           const Icon = s.icon
           return (

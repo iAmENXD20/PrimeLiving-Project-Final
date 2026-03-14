@@ -44,10 +44,8 @@ export default function TenantDashboard() {
           })
 
           // Load unread notification count
-          if (clientId) {
-            const count = await getUnreadNotificationCount(clientId)
-            setNotificationCount(count)
-          }
+          const count = await getUnreadNotificationCount(data.id, clientId)
+          setNotificationCount(count)
         }
       } catch (err) {
         console.error('Failed to load tenant:', err)
@@ -76,9 +74,9 @@ export default function TenantDashboard() {
   ]
 
   const refreshNotificationCount = async () => {
-    if (tenant?.clientId) {
+    if (tenant?.id) {
       try {
-        const count = await getUnreadNotificationCount(tenant.clientId)
+        const count = await getUnreadNotificationCount(tenant.id, tenant.clientId)
         setNotificationCount(count)
       } catch {
         // silent
@@ -88,10 +86,10 @@ export default function TenantDashboard() {
 
   // Poll every 30 seconds for new notifications
   useEffect(() => {
-    if (!tenant?.clientId) return
+    if (!tenant?.id) return
     const interval = setInterval(refreshNotificationCount, 30000)
     return () => clearInterval(interval)
-  }, [tenant?.clientId])
+  }, [tenant?.id, tenant?.clientId])
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab)
@@ -124,7 +122,7 @@ export default function TenantDashboard() {
       case 'payments':
         return <TenantPaymentsTab tenantId={tenant.id} clientId={tenant.clientId} apartmentId={tenant.apartmentId} />
       case 'notifications':
-        return <TenantNotificationsTab clientId={tenant.clientId} onRead={refreshNotificationCount} />
+        return <TenantNotificationsTab tenantId={tenant.id} clientId={tenant.clientId} onRead={refreshNotificationCount} />
       case 'account':
         return <TenantAccountTab tenantId={tenant.id} tenantName={tenant.name} tenantPhone={tenant.phone} />
       default:

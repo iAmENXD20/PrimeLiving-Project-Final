@@ -53,6 +53,45 @@ export async function getCurrentManager(): Promise<ManagerProfile | null> {
   }
 }
 
+export interface ManagerNotification {
+  id: string
+  client_id: string | null
+  recipient_role: 'manager' | 'tenant'
+  recipient_id: string
+  type: string
+  title: string
+  message: string
+  is_read: boolean
+  created_at: string
+}
+
+export async function getManagerNotifications(managerId: string, clientId: string): Promise<ManagerNotification[]> {
+  return api.get<ManagerNotification[]>(`/notifications?recipient_role=manager&recipient_id=${managerId}&client_id=${clientId}`)
+}
+
+export async function markManagerNotificationRead(id: string): Promise<void> {
+  await api.put(`/notifications/${id}/read`, {})
+}
+
+export async function markAllManagerNotificationsRead(managerId: string): Promise<void> {
+  await api.put('/notifications/read-all', {
+    recipient_role: 'manager',
+    recipient_id: managerId,
+  })
+}
+
+export async function deleteManagerNotification(id: string): Promise<void> {
+  await api.delete(`/notifications/${id}`)
+}
+
+export async function deleteAllManagerNotifications(managerId: string, clientId?: string | null): Promise<void> {
+  await api.delete('/notifications/all', {
+    recipient_role: 'manager',
+    recipient_id: managerId,
+    client_id: clientId || undefined,
+  })
+}
+
 // ── Manager Dashboard Stats ────────────────────────────────
 export async function getManagerDashboardStats(managerId: string, clientId: string) {
   return api.get<{
@@ -293,6 +332,16 @@ export async function recordCashPayment(payment: {
     verification_status: 'verified',
     period_from: payment.period_from || null,
     period_to: payment.period_to || null,
+  })
+}
+
+export async function settleCashBilling(paymentId: string, description?: string) {
+  await api.put(`/payments/${paymentId}`, {
+    status: 'paid',
+    payment_mode: 'cash',
+    verification_status: 'verified',
+    payment_date: new Date().toISOString(),
+    description: description || 'Cash payment recorded by manager',
   })
 }
 

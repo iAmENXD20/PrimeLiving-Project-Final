@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   getOwnerUnits,
+  getOwnerTenants,
   createBulkUnits,
   deleteOwnerApartment,
   getOwnerManagers,
@@ -15,6 +16,7 @@ import {
   updateOwnerManager,
   deleteOwnerManager,
   type UnitWithTenant,
+  type OwnerTenant,
 } from '../../lib/ownerApi'
 
 interface OwnerManageApartmentTabProps {
@@ -61,11 +63,15 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
 
   // ─── Sub-tab state ────────────────────────────────────────────
   const [activeSubTab, setActiveSubTab] = useState<'units' | 'managers' | 'tenants'>('units')
+  const [ownerTenants, setOwnerTenants] = useState<OwnerTenant[]>([])
+  const [tenantsTabLoading, setTenantsTabLoading] = useState(true)
+  const [showInactiveTenants, setShowInactiveTenants] = useState(false)
 
   // ─── Load data ────────────────────────────────────────────────
   useEffect(() => {
     loadUnits()
     loadManagers()
+    loadTenants()
   }, [clientId])
 
   async function loadUnits() {
@@ -89,6 +95,18 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
       console.error('Failed to load managers:', err)
     } finally {
       setManagersLoading(false)
+    }
+  }
+
+  async function loadTenants() {
+    try {
+      setTenantsTabLoading(true)
+      const data = await getOwnerTenants(clientId, true)
+      setOwnerTenants(data)
+    } catch (err) {
+      console.error('Failed to load tenants:', err)
+    } finally {
+      setTenantsTabLoading(false)
     }
   }
 
@@ -231,13 +249,21 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
     ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder:text-gray-500'
     : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400'
 
-  const tenantsList = units.filter((u) => u.tenant_name).map((u) => ({
-    id: u.tenant_id || u.id,
-    name: u.tenant_name || '',
-    phone: u.tenant_phone || '—',
-    unit: u.name,
-    rent: u.monthly_rent,
-  }))
+  const unitNameById = new Map(units.map((unit) => [unit.id, unit.name]))
+  const unitRentById = new Map(units.map((unit) => [unit.id, unit.monthly_rent]))
+
+  const tenantsList = ownerTenants
+    .filter((tenant) => showInactiveTenants || tenant.status === 'active')
+    .map((tenant) => ({
+      id: tenant.id,
+      name: tenant.name,
+      phone: tenant.phone || '—',
+      unit: tenant.apartment_id ? (unitNameById.get(tenant.apartment_id) || 'Unassigned') : 'Unassigned',
+      rent: tenant.apartment_id ? (unitRentById.get(tenant.apartment_id) || 0) : 0,
+      status: tenant.status,
+    }))
+
+  const activeTenantCount = ownerTenants.filter((tenant) => tenant.status === 'active').length
 
   const subTabs = [
     { id: 'units' as const, label: 'Units', icon: Building2 },
@@ -606,13 +632,22 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
            ════════════════════════════════════════════════════════ */}
         {activeSubTab === 'tenants' && (
         <section className="flex flex-col flex-1 min-h-0">
-          <div className="mb-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               Tenants
             </h3>
-            <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              {tenantsList.length} active tenant{tenantsList.length !== 1 ? 's' : ''}
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              {activeTenantCount} active tenant{activeTenantCount !== 1 ? 's' : ''}
             </p>
+            <label className={`inline-flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              <input
+                type="checkbox"
+                checked={showInactiveTenants}
+                onChange={(e) => setShowInactiveTenants(e.target.checked)}
+                className="w-4 h-4 accent-primary"
+              />
+              Show Inactive Tenants
+            </label>
           </div>
 
           <div className={`${cardClass} overflow-hidden flex flex-col flex-1 min-h-0`}>
@@ -620,7 +655,7 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
               <table className="w-full text-base">
                 <thead className="sticky top-0 z-[1]">
                   <tr className={`border-b ${isDark ? 'border-[#1E293B] bg-[#111D32]' : 'border-gray-200 bg-white'}`}>
-                    {['Name', 'Phone', 'Unit', 'Rent'].map((h) => (
+                    {['Name', 'Phone', 'Unit', 'Rent', 'Status'].map((h) => (
                       <th key={h} className={`text-left py-3.5 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {h}
                       </th>
@@ -628,14 +663,14 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
                   </tr>
                 </thead>
                 <tbody>
-                  {unitsLoading && (
+                  {tenantsTabLoading && (
                     <tr>
-                      <td colSpan={4} className={`py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <td colSpan={5} className={`py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         Loading tenants...
                       </td>
                     </tr>
                   )}
-                  {!unitsLoading && tenantsList.map((t) => (
+                  {!tenantsTabLoading && tenantsList.map((t) => (
                     <tr
                       key={t.id}
                       className={`border-b last:border-0 transition-colors ${
@@ -654,11 +689,22 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
                       <td className={`py-3.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {t.rent ? `₱${t.rent.toLocaleString()}` : '—'}
                       </td>
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
+                            t.status === 'active'
+                              ? 'bg-emerald-500/15 text-emerald-400'
+                              : 'bg-gray-500/15 text-gray-400'
+                          }`}
+                        >
+                          {t.status}
+                        </span>
+                      </td>
                     </tr>
                   ))}
-                  {!unitsLoading && tenantsList.length === 0 && (
+                  {!tenantsTabLoading && tenantsList.length === 0 && (
                     <tr>
-                      <td colSpan={4} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <td colSpan={5} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                         No tenants found
                       </td>
                     </tr>

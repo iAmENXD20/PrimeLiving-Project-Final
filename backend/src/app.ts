@@ -16,6 +16,7 @@ import maintenanceRoutes from "./routes/maintenance.routes";
 import paymentsRoutes from "./routes/payments.routes";
 import documentsRoutes from "./routes/documents.routes";
 import announcementsRoutes from "./routes/announcements.routes";
+import notificationsRoutes from "./routes/notifications.routes";
 import analyticsRoutes from "./routes/analytics.routes";
 import revenuesRoutes from "./routes/revenues.routes";
 
@@ -54,6 +55,7 @@ app.use("/api/maintenance", maintenanceRoutes);
 app.use("/api/payments", paymentsRoutes);
 app.use("/api/documents", documentsRoutes);
 app.use("/api/announcements", announcementsRoutes);
+app.use("/api/notifications", notificationsRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/revenues", revenuesRoutes);
 

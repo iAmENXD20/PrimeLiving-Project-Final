@@ -65,6 +65,18 @@ export interface TenantAnnouncement {
   created_at: string
 }
 
+export interface TenantNotification {
+  id: string
+  client_id: string | null
+  recipient_role: 'tenant' | 'manager'
+  recipient_id: string
+  type: string
+  title: string
+  message: string
+  is_read: boolean
+  created_at: string
+}
+
 // ── Get current tenant from auth user ──────────────────────
 export async function getCurrentTenant(): Promise<TenantProfile | null> {
   const { data: { user } } = await supabase.auth.getUser()
@@ -202,30 +214,41 @@ export async function getTenantAnnouncements(clientId: string): Promise<TenantAn
   return api.get<TenantAnnouncement[]>(`/announcements?client_id=${clientId}`)
 }
 
-// ── Notification Read Tracking (localStorage) ──────────────
-// Client-side only — no backend needed
-const READ_KEY = 'primeliving_read_notifications'
-
-function getReadIds(): Set<string> {
-  try {
-    const raw = localStorage.getItem(READ_KEY)
-    if (!raw) return new Set()
-    return new Set(JSON.parse(raw) as string[])
-  } catch {
-    return new Set()
-  }
+export async function getTenantNotifications(tenantId: string, clientId?: string | null): Promise<TenantNotification[]> {
+  const params = new URLSearchParams({
+    recipient_role: 'tenant',
+    recipient_id: tenantId,
+  })
+  if (clientId) params.set('client_id', clientId)
+  return api.get<TenantNotification[]>(`/notifications?${params.toString()}`)
 }
 
-export function markNotificationsAsRead(ids: string[]) {
-  const readIds = getReadIds()
-  ids.forEach(id => readIds.add(id))
-  localStorage.setItem(READ_KEY, JSON.stringify([...readIds]))
+export async function markTenantNotificationRead(id: string): Promise<void> {
+  await api.put(`/notifications/${id}/read`, {})
 }
 
-export async function getUnreadNotificationCount(clientId: string): Promise<number> {
-  const announcements = await getTenantAnnouncements(clientId)
-  const readIds = getReadIds()
-  return announcements.filter(a => !readIds.has(a.id)).length
+export async function markAllTenantNotificationsRead(tenantId: string): Promise<void> {
+  await api.put('/notifications/read-all', {
+    recipient_role: 'tenant',
+    recipient_id: tenantId,
+  })
+}
+
+export async function deleteTenantNotification(id: string): Promise<void> {
+  await api.delete(`/notifications/${id}`)
+}
+
+export async function deleteAllTenantNotifications(tenantId: string, clientId?: string | null): Promise<void> {
+  await api.delete('/notifications/all', {
+    recipient_role: 'tenant',
+    recipient_id: tenantId,
+    client_id: clientId || undefined,
+  })
+}
+
+export async function getUnreadNotificationCount(tenantId: string, clientId?: string | null): Promise<number> {
+  const notifications = await getTenantNotifications(tenantId, clientId)
+  return notifications.filter((notification) => !notification.is_read).length
 }
 
 // ── Payment QR Code (fetch from owner/client) ──────────

@@ -2,6 +2,8 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
+import { sendSmsToMany } from "../utils/sms";
+import { createNotification, createNotifications } from "../utils/notifications";
 
 const PAYMENT_QR_BUCKET = "payment-qr-codes";
 
@@ -314,6 +316,35 @@ export async function submitPaymentProof(
         return;
       }
 
+      const [{ data: managers }, { data: tenant }] = await Promise.all([
+        supabaseAdmin
+          .from("managers")
+          .select("phone")
+          .eq("client_id", client_id)
+          .eq("status", "active"),
+        supabaseAdmin
+          .from("tenants")
+          .select("name")
+          .eq("id", tenant_id)
+          .maybeSingle(),
+      ]);
+
+      await sendSmsToMany(
+        (managers || []).map((manager: any) => manager.phone),
+        `[PrimeLiving] ${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}. Please review.`
+      );
+
+      await createNotifications(
+        (managers || []).map((manager: any) => ({
+          client_id,
+          recipient_role: "manager" as const,
+          recipient_id: manager.id,
+          type: "payment_proof_submitted",
+          title: "Payment Proof Submitted",
+          message: `${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}.`,
+        }))
+      );
+
       sendSuccess(res, data, "Payment proof submitted successfully");
       return;
     }
@@ -341,6 +372,35 @@ export async function submitPaymentProof(
       sendError(res, error.message, 500);
       return;
     }
+
+    const [{ data: managers }, { data: tenant }] = await Promise.all([
+      supabaseAdmin
+        .from("managers")
+        .select("phone")
+        .eq("client_id", client_id)
+        .eq("status", "active"),
+      supabaseAdmin
+        .from("tenants")
+        .select("name")
+        .eq("id", tenant_id)
+        .maybeSingle(),
+    ]);
+
+    await sendSmsToMany(
+      (managers || []).map((manager: any) => manager.phone),
+      `[PrimeLiving] ${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}. Please review.`
+    );
+
+    await createNotifications(
+      (managers || []).map((manager: any) => ({
+        client_id,
+        recipient_role: "manager" as const,
+        recipient_id: manager.id,
+        type: "payment_proof_submitted",
+        title: "Payment Proof Submitted",
+        message: `${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}.`,
+      }))
+    );
 
     sendSuccess(res, data, "Payment proof submitted successfully", 201);
   } catch (err: any) {
@@ -433,6 +493,7 @@ export async function verifyPayment(
     // If verified, also mark payment as paid
     if (verification_status === "verified") {
       updateData.status = "paid";
+      updateData.payment_date = new Date().toISOString();
     }
 
     const { data, error } = await supabaseAdmin
@@ -466,6 +527,28 @@ export async function verifyPayment(
           description: revenueDescription,
         });
       }
+    }
+
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("phone")
+      .eq("id", data.tenant_id)
+      .maybeSingle();
+
+    await sendSmsToMany(
+      [tenant?.phone],
+      `[PrimeLiving] Your payment has been ${verification_status}.`
+    );
+
+    if (data.client_id && data.tenant_id) {
+      await createNotification({
+        client_id: data.client_id,
+        recipient_role: "tenant",
+        recipient_id: data.tenant_id,
+        type: "payment_verification_updated",
+        title: "Payment Verification Update",
+        message: `Your payment has been ${verification_status}.`,
+      });
     }
 
     sendSuccess(res, data, `Payment ${verification_status} successfully`);

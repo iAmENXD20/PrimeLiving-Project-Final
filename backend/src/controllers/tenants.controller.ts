@@ -13,10 +13,17 @@ export async function getTenants(
 ): Promise<void> {
   try {
     const clientId = req.query.client_id as string | undefined;
+    const requesterRole = req.user?.role;
+    const includeInactive =
+      req.query.include_inactive === "true" || requesterRole === "admin";
     let query = supabaseAdmin
       .from("tenants")
       .select("*")
       .order("created_at", { ascending: false });
+
+    if (!includeInactive) {
+      query = query.neq("status", "inactive");
+    }
 
     if (req.query.apartment_id) {
       query = query.eq("apartment_id", req.query.apartment_id as string);
@@ -100,6 +107,7 @@ export async function getTenantByAuthId(
       .from("tenants")
       .select("*")
       .eq("auth_user_id", authUserId)
+      .eq("status", "active")
       .single();
 
     if (error) {
@@ -216,7 +224,7 @@ export async function updateTenant(
 
 /**
  * DELETE /api/tenants/:id
- * Delete a tenant
+ * Soft-delete a tenant (set inactive, preserve data for admin/history)
  */
 export async function deleteTenant(
   req: AuthenticatedRequest,
@@ -225,17 +233,27 @@ export async function deleteTenant(
   try {
     const { id } = req.params;
 
-    const { error } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("tenants")
-      .delete()
-      .eq("id", id);
+      .update({
+        status: "inactive",
+        apartment_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select("id");
 
     if (error) {
       sendError(res, error.message, 500);
       return;
     }
 
-    sendSuccess(res, null, "Tenant deleted successfully");
+    if (!data || data.length === 0) {
+      sendError(res, "Tenant not found", 404);
+      return;
+    }
+
+    sendSuccess(res, null, "Tenant deactivated successfully");
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

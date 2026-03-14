@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth";
 import { authorize } from "../middleware/authorize";
+import { invalidateCache } from "../middleware/cache.middleware";
 import {
   getManagers,
   getManagerById,
@@ -19,8 +20,8 @@ router.get("/count", authorize("admin", "owner"), getManagerCount);
 router.get("/by-auth/:authUserId", authorize("admin", "owner", "manager"), getManagerByAuthId);
 router.get("/", authorize("admin", "owner"), getManagers);
 router.get("/:id", authorize("admin", "owner", "manager"), getManagerById);
-router.post("/", authorize("admin", "owner"), createManager);
-router.put("/:id", authorize("admin", "owner", "manager"), updateManager);
-router.delete("/:id", authorize("admin", "owner"), deleteManager);
+router.post("/", authorize("admin", "owner"), invalidateCache(["managers", "analytics"]), createManager);
+router.put("/:id", authorize("admin", "owner", "manager"), invalidateCache(["managers", "analytics"]), updateManager);
+router.delete("/:id", authorize("admin", "owner"), invalidateCache(["managers", "analytics"]), deleteManager);
 
 export default router;

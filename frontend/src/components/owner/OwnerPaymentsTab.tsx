@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
-import { Search, PhilippinePeso, Upload, Trash2, QrCode, Image as ImageIcon, Eye, ChevronDown } from 'lucide-react'
+import { Search, PhilippinePeso, Upload, Trash2, QrCode, Image as ImageIcon, ChevronDown } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useTheme } from '../../context/ThemeContext'
 import { toast } from 'sonner'
@@ -275,64 +275,48 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
 
       {/* Table */}
       {!loading && (
-        <div className={`${cardClass} flex flex-col`} style={{ height: '480px' }}>
-          {/* Fixed header */}
-          <div className="overflow-x-auto flex-shrink-0">
+        <div className={`${cardClass} overflow-y-auto overflow-x-auto`} style={{ height: '480px' }}>
+          {filtered.length > 0 ? (
             <table className="w-full text-base">
-              <thead>
+              <thead className={`sticky top-0 z-10 ${isDark ? 'bg-navy-card' : 'bg-white'}`}>
                 <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                  {['Names', 'Unit', 'Amount', 'Date', 'Status', 'Description', ''].map((h) => (
+                  {['Names', 'Unit', 'Amount', 'Date', 'Status', 'Description'].map((h) => (
                     <th key={h} className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
-            </table>
-          </div>
-          {/* Scrollable body */}
-          <div className="overflow-y-auto overflow-x-auto flex-1">
-            {filtered.length > 0 ? (
-            <table className="w-full text-base">
               <tbody>
-              {filtered.map((p) => {
-                const badge = statusBadge[p.status]
-                return (
-                  <tr key={p.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
-                    <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.tenant_name}</td>
-                    <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{p.apartment_name}</td>
-                    <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{Number(p.amount).toLocaleString()}</td>
-                    <td className={`py-3 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{new Date(p.payment_date).toLocaleDateString()}</td>
-                    <td className="py-3 px-4">
-                      <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize ${badge.bg} ${badge.text}`}>
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className={`py-3 px-4 max-w-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{p.description || '—'}</td>
-                    <td className="py-3 px-4">
-                      <button
-                        title="View payment details"
-                        className={`p-2 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-primary hover:bg-primary/10' : 'text-gray-500 hover:text-primary hover:bg-primary/10'}`}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-            ) : (
-              <div className={`flex flex-col items-center justify-center h-full ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                {payments.length === 0 ? (
-                  <>
-                    <PhilippinePeso className={`w-12 h-12 mb-3 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
-                    <p className="text-lg font-medium">No payment records yet</p>
-                  </>
-                ) : (
-                  <p className="text-lg font-medium">No matching payments</p>
-                )}
-              </div>
-            )}
-          </div>
+                {filtered.map((p) => {
+                  const badge = statusBadge[p.status]
+                  return (
+                    <tr key={p.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                      <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.tenant_name}</td>
+                      <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{p.apartment_name}</td>
+                      <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{Number(p.amount).toLocaleString()}</td>
+                      <td className={`py-3 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{new Date(p.payment_date).toLocaleDateString()}</td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize ${badge.bg} ${badge.text}`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className={`py-3 px-4 max-w-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{p.description || '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <div className={`flex flex-col items-center justify-center h-full ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              {payments.length === 0 ? (
+                <>
+                  <PhilippinePeso className={`w-12 h-12 mb-3 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+                  <p className="text-lg font-medium">No payment records yet</p>
+                </>
+              ) : (
+                <p className="text-lg font-medium">No matching payments</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
