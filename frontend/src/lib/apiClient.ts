@@ -1,6 +1,24 @@
 import { supabase } from './supabase'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const API_CACHE_DEFAULT_TTL_SECONDS = Number(import.meta.env.VITE_API_CACHE_TTL_SECONDS || 20)
+
+type RequestOptions = RequestInit & {
+  cacheTtlSeconds?: number
+  skipCache?: boolean
+}
+
+type ApiCacheEntry = {
+  expiresAt: number
+  payload: unknown
+}
+
+const apiGetCache = new Map<string, ApiCacheEntry>()
+const inFlightGetRequests = new Map<string, Promise<unknown>>()
+
+export function clearApiCache() {
+  apiGetCache.clear()
+}
 
 /**
  * Generic API response from the Express backend.
@@ -30,9 +48,25 @@ async function getAccessToken(): Promise<string | null> {
  */
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {},
+  options: RequestOptions = {},
 ): Promise<T> {
   const token = await getAccessToken()
+  const method = (options.method || 'GET').toUpperCase()
+  const cacheTtlSeconds = options.cacheTtlSeconds ?? API_CACHE_DEFAULT_TTL_SECONDS
+  const shouldUseCache = method === 'GET' && cacheTtlSeconds > 0 && !options.skipCache
+  const cacheKey = `${token || 'anonymous'}:${endpoint}`
+
+  if (shouldUseCache) {
+    const cached = apiGetCache.get(cacheKey)
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.payload as T
+    }
+
+    const inFlight = inFlightGetRequests.get(cacheKey)
+    if (inFlight) {
+      return inFlight as Promise<T>
+    }
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -43,18 +77,44 @@ async function request<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  })
+  const execute = async (): Promise<T> => {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    })
 
-  const json: ApiResponse<T> = await response.json()
+    const json: ApiResponse<T> = await response.json()
 
-  if (!response.ok || !json.success) {
-    throw new Error(json.error || json.message || `Request failed with status ${response.status}`)
+    if (!response.ok || !json.success) {
+      throw new Error(json.error || json.message || `Request failed with status ${response.status}`)
+    }
+
+    const data = json.data as T
+
+    if (shouldUseCache) {
+      apiGetCache.set(cacheKey, {
+        expiresAt: Date.now() + cacheTtlSeconds * 1000,
+        payload: data,
+      })
+    }
+
+    if (method !== 'GET') {
+      clearApiCache()
+    }
+
+    return data
   }
 
-  return json.data as T
+  if (!shouldUseCache) {
+    return execute()
+  }
+
+  const promise = execute().finally(() => {
+    inFlightGetRequests.delete(cacheKey)
+  })
+
+  inFlightGetRequests.set(cacheKey, promise)
+  return promise
 }
 
 /**
@@ -62,8 +122,12 @@ async function request<T>(
  * All return the unwrapped `data` field from the backend ApiResponse.
  */
 export const api = {
-  get<T>(endpoint: string): Promise<T> {
-    return request<T>(endpoint, { method: 'GET' })
+  get<T>(endpoint: string, options?: { cacheTtlSeconds?: number; skipCache?: boolean }): Promise<T> {
+    return request<T>(endpoint, {
+      method: 'GET',
+      cacheTtlSeconds: options?.cacheTtlSeconds,
+      skipCache: options?.skipCache,
+    })
   },
 
   post<T>(endpoint: string, body?: unknown): Promise<T> {

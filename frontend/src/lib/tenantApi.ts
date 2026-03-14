@@ -220,7 +220,7 @@ export async function getTenantNotifications(tenantId: string, clientId?: string
     recipient_id: tenantId,
   })
   if (clientId) params.set('client_id', clientId)
-  return api.get<TenantNotification[]>(`/notifications?${params.toString()}`)
+  return api.get<TenantNotification[]>(`/notifications?${params.toString()}`, { skipCache: true })
 }
 
 export async function markTenantNotificationRead(id: string): Promise<void> {

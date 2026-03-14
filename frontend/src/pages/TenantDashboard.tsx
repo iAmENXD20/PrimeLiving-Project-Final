@@ -116,7 +116,7 @@ export default function TenantDashboard() {
 
     switch (activeTab) {
       case 'overview':
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={tenant.name} />
+        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={tenant.name} clientId={tenant.clientId} />
       case 'maintenance':
         return <TenantMaintenanceTab tenantId={tenant.id} apartmentId={tenant.apartmentId} clientId={tenant.clientId} />
       case 'payments':
@@ -126,7 +126,7 @@ export default function TenantDashboard() {
       case 'account':
         return <TenantAccountTab tenantId={tenant.id} tenantName={tenant.name} tenantPhone={tenant.phone} />
       default:
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={tenant.name} />
+        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={tenant.name} clientId={tenant.clientId} />
     }
   }
 

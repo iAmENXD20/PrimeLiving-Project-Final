@@ -7,6 +7,7 @@ import ManagerMaintenanceTab from '../components/manager/ManagerMaintenanceTab'
 import ManagerManageApartmentTab from '../components/manager/ManagerManageApartmentTab'
 import ManagerSettingsTab from '../components/manager/ManagerSettingsTab'
 import ManagerPaymentsTab from '../components/manager/ManagerPaymentsTab'
+import ManagerNotificationsTab from '../components/manager/ManagerNotificationsTab'
 import { getCurrentManager } from '../lib/managerApi'
 import { supabase } from '../lib/supabase'
 
@@ -82,6 +83,8 @@ export default function ManagerDashboard() {
         return <ManagerManageApartmentTab clientId={manager.clientId || ''} managerName={manager.name} managerId={manager.id} />
       case 'payments':
         return <ManagerPaymentsTab clientId={manager.clientId || ''} />
+      case 'notifications':
+        return <ManagerNotificationsTab managerId={manager.id} clientId={manager.clientId || ''} />
       case 'settings':
         return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} />
       default:
@@ -117,8 +120,6 @@ export default function ManagerDashboard() {
         <ManagerTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           managerName={manager?.name}
-          managerId={manager?.id}
-          clientId={manager?.clientId || null}
         />
 
         {/* Page content */}

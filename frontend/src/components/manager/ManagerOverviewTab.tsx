@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Users, AlertTriangle, MapPin, CheckCircle, XCircle } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
-import { getManagerDashboardStats, getManagerMaintenanceRequests, type MaintenanceRequest } from '../../lib/managerApi'
-import { getOwnerApartmentAddress, getClientApartmentName } from '../../lib/ownerApi'
+import { getManagerDashboardStats, getManagerMaintenanceRequests, getManagedApartments, type MaintenanceRequest } from '../../lib/managerApi'
+import { getOwnerApartmentAddress } from '../../lib/ownerApi'
 
 interface ManagerOverviewTabProps {
   managerId: string
@@ -15,22 +15,23 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
   const [stats, setStats] = useState({ managedApartments: 0, activeTenants: 0, pendingMaintenance: 0, totalMaintenance: 0, paidTenants: 0, unpaidTenants: 0 })
   const [recentRequests, setRecentRequests] = useState<MaintenanceRequest[]>([])
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
-  const [apartmentName, setApartmentName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       try {
-        const [s, requests, addr, aptName] = await Promise.all([
+        const [s, requests, apartments] = await Promise.all([
           getManagerDashboardStats(managerId, clientId),
           getManagerMaintenanceRequests(clientId),
-          getOwnerApartmentAddress(clientId),
-          getClientApartmentName(clientId),
+          getManagedApartments(managerId),
         ])
+        const resolvedClientId = clientId || apartments?.[0]?.client_id || ''
+        const ownerAddress = resolvedClientId
+          ? await getOwnerApartmentAddress(resolvedClientId)
+          : null
         setStats(s)
         setRecentRequests(requests.slice(0, 5))
-        setApartmentAddress(addr)
-        setApartmentName(aptName)
+        setApartmentAddress(apartments?.[0]?.address || ownerAddress || null)
       } catch (err) {
         console.error('Failed to load manager overview:', err)
       } finally {
@@ -70,15 +71,10 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
       {/* Header */}
       <div>
         <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Hello, {managerName?.split(' ')[0] || 'Manager'}!</h2>
-        {apartmentName && (
-          <p className={`text-base font-medium mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{apartmentName}</p>
-        )}
-        {apartmentAddress && (
-          <div className={`flex items-center gap-2 mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-            <MapPin className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium">{apartmentAddress}</span>
-          </div>
-        )}
+        <div className={`flex items-center gap-2 mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+          <MapPin className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium">{apartmentAddress || '-'}</span>
+        </div>
       </div>
 
       {loading && (

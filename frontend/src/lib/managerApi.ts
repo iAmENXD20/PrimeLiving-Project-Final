@@ -66,7 +66,7 @@ export interface ManagerNotification {
 }
 
 export async function getManagerNotifications(managerId: string, clientId: string): Promise<ManagerNotification[]> {
-  return api.get<ManagerNotification[]>(`/notifications?recipient_role=manager&recipient_id=${managerId}&client_id=${clientId}`)
+  return api.get<ManagerNotification[]>(`/notifications?recipient_role=manager&recipient_id=${managerId}&client_id=${clientId}`, { skipCache: true })
 }
 
 export async function markManagerNotificationRead(id: string): Promise<void> {

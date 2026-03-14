@@ -2,7 +2,7 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
-import { sendSmsSemaphore } from "../utils/sms";
+import { sendSmsPhilSms } from "../utils/sms";
 import { env } from "../config/env";
 
 export async function getNotifications(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -145,7 +145,7 @@ export async function sendTestSms(req: AuthenticatedRequest, res: Response): Pro
       return;
     }
 
-    await sendSmsSemaphore(phone, message);
+    await sendSmsPhilSms(phone, message);
     sendSuccess(res, { phone }, "Test SMS sent");
   } catch (err: any) {
     sendError(res, err.message || "Failed to send test SMS", 500);
@@ -155,7 +155,10 @@ export async function sendTestSms(req: AuthenticatedRequest, res: Response): Pro
 export async function getSmsConfigStatus(_req: AuthenticatedRequest, res: Response): Promise<void> {
   sendSuccess(res, {
     sms_enabled: env.SMS_ENABLED !== "false",
-    semaphore_api_key_configured: Boolean(env.SEMAPHORE_API_KEY),
-    semaphore_sender_name: env.SEMAPHORE_SENDER_NAME || null,
+    philsms_api_key_configured: Boolean(env.PHILSMS_API_KEY),
+    philsms_sender_id: env.PHILSMS_SENDER_ID || null,
+    philsms_api_url: env.PHILSMS_API_URL,
+    semaphore_api_key_configured: Boolean(env.PHILSMS_API_KEY),
+    semaphore_sender_name: env.PHILSMS_SENDER_ID || null,
   });
 }

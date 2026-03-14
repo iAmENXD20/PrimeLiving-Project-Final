@@ -5,7 +5,6 @@ import {
   getOwnerDashboardStats,
   getOwnerMaintenanceRequests,
   getOwnerApartmentAddress,
-  getClientApartmentName,
   type MaintenanceRequest,
 } from '../../lib/ownerApi'
 
@@ -19,7 +18,6 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
   const [stats, setStats] = useState({ apartments: 0, activeTenants: 0, pendingMaintenance: 0, totalRevenue: 0 })
   const [recentMaintenance, setRecentMaintenance] = useState<MaintenanceRequest[]>([])
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
-  const [apartmentName, setApartmentName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const today = new Date()
   const [selectedMonth, setSelectedMonth] = useState<number>(0)
@@ -45,18 +43,16 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
   useEffect(() => {
     async function load() {
       try {
-        const [s, requests, addr, aptName] = await Promise.all([
+        const [s, requests, addr] = await Promise.all([
           selectedMonth === 0
             ? getOwnerDashboardStats(clientId)
             : getOwnerDashboardStats(clientId, { month: selectedMonth, year: selectedYear }),
           getOwnerMaintenanceRequests(clientId),
           getOwnerApartmentAddress(clientId),
-          getClientApartmentName(clientId),
         ])
         setStats(s)
         setRecentMaintenance(requests.slice(0, 5))
         setApartmentAddress(addr)
-        setApartmentName(aptName)
       } catch (err) {
         console.error('Failed to load owner overview:', err)
       } finally {
@@ -96,9 +92,6 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
     <div className="space-y-6 animate-fade-up">
       <div>
         <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Hello, {ownerName?.split(' ')[0] || 'Owner'}!</h2>
-        {apartmentName && (
-          <p className={`text-base font-medium mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{apartmentName}</p>
-        )}
         {apartmentAddress && (
           <div className={`flex items-center gap-2 mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
             <MapPin className="w-4 h-4 text-primary" />

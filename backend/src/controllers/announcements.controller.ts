@@ -2,7 +2,6 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
-import { sendSmsToMany } from "../utils/sms";
 import { createNotifications } from "../utils/notifications";
 
 /**
@@ -81,7 +80,13 @@ export async function createAnnouncement(
       .select()
       .single();
 
-    if (error) {
+    const isMissingAnnouncementsTable =
+      Boolean(error) &&
+      /Could not find the table 'public\.announcements'|relation "announcements" does not exist/i.test(
+        error?.message || ""
+      );
+
+    if (error && !isMissingAnnouncementsTable) {
       sendError(res, error.message, 500);
       return;
     }
@@ -89,28 +94,66 @@ export async function createAnnouncement(
     if (client_id) {
       const { data: tenants } = await supabaseAdmin
         .from("tenants")
-        .select("id, phone")
+        .select("id")
         .eq("client_id", client_id)
         .eq("status", "active");
 
-      await sendSmsToMany(
-        (tenants || []).map((tenant: any) => tenant.phone),
-        `[PrimeLiving Announcement] ${title}: ${message}`
-      );
+      const tenantNotifications = (tenants || []).map((tenant: any) => ({
+        client_id,
+        recipient_role: "tenant" as const,
+        recipient_id: tenant.id,
+        type: "announcement_created",
+        title,
+        message,
+      }));
 
-      await createNotifications(
-        (tenants || []).map((tenant: any) => ({
-          client_id,
-          recipient_role: "tenant" as const,
-          recipient_id: tenant.id,
-          type: "announcement_created",
-          title,
-          message,
-        }))
-      );
+      const managerNotifications: Array<{
+        client_id: string;
+        recipient_role: "manager";
+        recipient_id: string;
+        type: string;
+        title: string;
+        message: string;
+      }> = [];
+
+      if (req.user?.role === "owner") {
+        const { data: managers } = await supabaseAdmin
+          .from("managers")
+          .select("id")
+          .eq("client_id", client_id)
+          .eq("status", "active");
+
+        managerNotifications.push(
+          ...(managers || []).map((manager: any) => ({
+            client_id,
+            recipient_role: "manager" as const,
+            recipient_id: manager.id,
+            type: "announcement_created",
+            title,
+            message,
+          }))
+        );
+      }
+
+      await createNotifications([...tenantNotifications, ...managerNotifications]);
     }
 
-    sendSuccess(res, data, "Announcement created successfully", 201);
+    sendSuccess(
+      res,
+      data || {
+        id: null,
+        client_id,
+        title,
+        message,
+        created_by: req.body?.created_by || req.user?.email || null,
+        created_at: new Date().toISOString(),
+        notification_only: true,
+      },
+      isMissingAnnouncementsTable
+        ? "Announcement notification sent (announcement table is unavailable)"
+        : "Announcement created successfully",
+      201
+    );
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

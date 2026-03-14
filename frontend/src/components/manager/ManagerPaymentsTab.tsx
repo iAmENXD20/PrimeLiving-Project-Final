@@ -10,8 +10,6 @@ import {
   rejectCashPayment,
   settleCashBilling,
   getManagerTenants,
-  getPaymentDueDay,
-  setPaymentDueDay,
   generateMonthlyBillings,
   type Payment,
   type TenantAccount,
@@ -23,14 +21,6 @@ interface ManagerPaymentsTabProps {
 
 const STATUS_OPTIONS = ['all', 'paid', 'pending', 'overdue'] as const
 
-const DUE_DATE_PRESETS = [
-  { value: 1, label: 'Every 1st of the month' },
-  { value: 5, label: 'Every 5th of the month' },
-  { value: 10, label: 'Every 10th of the month' },
-  { value: 15, label: 'Every 15th of the month' },
-  { value: 25, label: 'Every 25th of the month' },
-  { value: 30, label: 'End of the month' },
-]
 type StatusFilter = (typeof STATUS_OPTIONS)[number]
 
 const MONTHS = [
@@ -63,12 +53,6 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
   const [recordForm, setRecordForm] = useState({ tenantId: '', paymentId: '', description: '' })
   const [recordLoading, setRecordLoading] = useState(false)
 
-  // Due date configuration
-  const [dueDay, setDueDay] = useState<number | null>(null)
-  const [dueDayLoading, setDueDayLoading] = useState(false)
-  const [dueDateDropdownOpen, setDueDateDropdownOpen] = useState(false)
-  const dueDateDropdownRef = useRef<HTMLDivElement>(null)
-
   // Month/Year filter
   const now = new Date()
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null)
@@ -86,33 +70,6 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
       console.error('Failed to load payments:', err)
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function loadDueDay() {
-    try {
-      const day = await getPaymentDueDay(clientId)
-      setDueDay(day)
-    } catch (err) {
-      console.error('Failed to load due day:', err)
-    }
-  }
-
-  async function handleSaveDueDay(day: number) {
-    setDueDayLoading(true)
-    try {
-      await setPaymentDueDay(clientId, day)
-      setDueDay(day)
-      setDueDateDropdownOpen(false)
-      const preset = DUE_DATE_PRESETS.find(p => p.value === day)
-      toast.success(preset ? `Due date set: ${preset.label}` : `Payment due date set to day ${day}`)
-      await generateMonthlyBillings(clientId)
-      await load()
-    } catch (err) {
-      console.error('Failed to set due day:', err)
-      toast.error('Failed to save due date')
-    } finally {
-      setDueDayLoading(false)
     }
   }
 
@@ -163,15 +120,12 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
     }
   }
 
-  useEffect(() => { load(); loadVerifications(); loadTenants(); loadDueDay() }, [clientId])
+  useEffect(() => { load(); loadVerifications(); loadTenants() }, [clientId])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (monthPickerRef.current && !monthPickerRef.current.contains(e.target as Node)) {
         setMonthPickerOpen(false)
-      }
-      if (dueDateDropdownRef.current && !dueDateDropdownRef.current.contains(e.target as Node)) {
-        setDueDateDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -344,65 +298,6 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
             </div>
           )}
         </div>
-        </div>
-      </div>
-
-      {/* Payment Due Date Configuration */}
-      <div className={`${cardClass} p-4`}>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Payment Due Date
-            </h3>
-            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              {dueDay
-                ? DUE_DATE_PRESETS.find(p => p.value === dueDay)?.label || `Rent is due on day ${dueDay} of each month`
-                : 'Select the monthly payment due date for your tenants'}
-            </p>
-          </div>
-          <div className="relative" ref={dueDateDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setDueDateDropdownOpen(!dueDateDropdownOpen)}
-              disabled={dueDayLoading}
-              className={`w-64 px-3 py-2 rounded-lg border text-sm text-left flex items-center justify-between transition-colors ${
-                isDark
-                  ? 'bg-[#0A1628] border-[#1E293B] text-white hover:border-primary/50'
-                  : 'bg-gray-50 border-gray-200 text-gray-900 hover:border-primary/50'
-              } ${dueDayLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <span className={!dueDay ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
-                {dueDayLoading
-                  ? 'Saving...'
-                  : dueDay
-                    ? DUE_DATE_PRESETS.find(p => p.value === dueDay)?.label || `Day ${dueDay} of each month`
-                    : 'Select due date'}
-              </span>
-              <ChevronDown className={`w-4 h-4 ml-2 flex-shrink-0 transition-transform ${dueDateDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {dueDateDropdownOpen && (
-              <div className={`absolute right-0 mt-1 w-64 rounded-lg border shadow-lg z-50 overflow-hidden ${
-                isDark ? 'bg-[#0F1D32] border-[#1E293B]' : 'bg-white border-gray-200'
-              }`}>
-                {DUE_DATE_PRESETS.map((preset) => (
-                  <button
-                    key={preset.value}
-                    type="button"
-                    onClick={() => handleSaveDueDay(preset.value)}
-                    disabled={dueDayLoading}
-                    className={`w-full px-3 py-2.5 text-sm text-left flex items-center justify-between transition-colors ${
-                      dueDay === preset.value
-                        ? isDark ? 'bg-primary/20 text-primary font-medium' : 'bg-primary/10 text-primary font-medium'
-                        : isDark ? 'text-gray-300 hover:bg-[#1E293B]' : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {preset.label}
-                    {dueDay === preset.value && <CheckCircle2 className="w-4 h-4" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 

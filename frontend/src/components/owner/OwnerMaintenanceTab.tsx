@@ -88,7 +88,7 @@ export default function OwnerMaintenanceTab({ clientId, ownerName }: OwnerMainte
       await createOwnerAnnouncement(
         clientId,
         `⚠️ Action Required: ${req.title}`,
-        `The owner requests immediate attention on this maintenance issue.\n\nProblem: ${req.title}\nDescription: ${req.description}\nPriority: ${req.priority}\nTenant: ${req.tenant_name || 'Unknown'}\nUnit: ${req.apartment_name || 'Unknown'}\nStatus: ${req.status.replace('_', ' ')}`,
+        `The owner requests immediate attention on this maintenance issue.\n\nProblem: ${req.title}\nDescription: ${req.description}\nPriority: ${req.priority}\nTenant: ${req.tenant_name || 'Unknown'}\nStatus: ${req.status.replace('_', ' ')}`,
         ownerName || 'Owner'
       )
       setAlertedIds((prev) => new Set([...prev, req.id]))

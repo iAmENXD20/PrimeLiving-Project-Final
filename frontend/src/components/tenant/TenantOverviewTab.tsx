@@ -13,9 +13,10 @@ interface TenantOverviewTabProps {
   tenantId: string
   apartmentId: string | null
   tenantName?: string
+  clientId?: string | null
 }
 
-export default function TenantOverviewTab({ tenantId, apartmentId, tenantName }: TenantOverviewTabProps) {
+export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, clientId }: TenantOverviewTabProps) {
   const { isDark } = useTheme()
   const [stats, setStats] = useState({ pendingMaintenance: 0, resolvedMaintenance: 0, totalPaid: 0, pendingPayments: 0 })
   const [apartmentInfo, setApartmentInfo] = useState<{ name: string; address: string; monthly_rent: number; client_id: string } | null>(null)
@@ -36,10 +37,14 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName }:
         if (apartmentId) {
           const info = await getTenantApartmentInfo(apartmentId)
           setApartmentInfo(info)
-          if (info?.client_id) {
-            const addr = await getOwnerApartmentAddress(info.client_id)
-            setApartmentAddress(addr)
-          }
+          const fallbackClientId = info?.client_id || clientId || null
+          const fallbackAddress = fallbackClientId
+            ? await getOwnerApartmentAddress(fallbackClientId)
+            : null
+          setApartmentAddress(info?.address || fallbackAddress || null)
+        } else if (clientId) {
+          const fallbackAddress = await getOwnerApartmentAddress(clientId)
+          setApartmentAddress(fallbackAddress || null)
         }
       } catch (err) {
         console.error('Failed to load tenant overview:', err)
@@ -48,7 +53,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName }:
       }
     }
     load()
-  }, [tenantId, apartmentId])
+  }, [tenantId, apartmentId, clientId])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -73,15 +78,10 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName }:
     <div className="gap-6 animate-fade-up flex flex-col flex-1 min-h-0">
       <div>
         <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Hello, {tenantName?.split(' ')[0] || 'Tenant'}!</h2>
-        {apartmentInfo?.name && (
-          <p className={`text-base font-medium mt-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{apartmentInfo.name}</p>
-        )}
-        {apartmentAddress && (
-          <div className={`flex items-center gap-2 mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-            <MapPin className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium">{apartmentAddress}</span>
-          </div>
-        )}
+        <div className={`flex items-center gap-2 mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+          <MapPin className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium">{apartmentAddress || '-'}</span>
+        </div>
       </div>
 
       {loading && (

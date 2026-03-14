@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wrench, Building2, Megaphone, PhilippinePeso, Settings, LogOut, X, Users } from 'lucide-react'
+import { LayoutDashboard, Wrench, Building2, PhilippinePeso, Bell, Settings, LogOut, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { supabase } from '../../lib/supabase'
@@ -16,6 +16,7 @@ const navItems = [
   { id: 'maintenance', label: 'Maintenance', icon: Wrench },
   { id: 'manage-apartment', label: 'Manage Apartment', icon: Building2 },
   { id: 'payments', label: 'Payments', icon: PhilippinePeso },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'settings', label: 'Account Settings', icon: Settings },
 ]
 
