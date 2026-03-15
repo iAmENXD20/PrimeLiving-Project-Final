@@ -177,9 +177,9 @@ export default function OwnerApartmentsTab({ clientId }: OwnerApartmentsTabProps
       {/* Add Units Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
+          <div className="absolute inset-0 bg-black/65 animate-in fade-in duration-200" onClick={() => setShowAddModal(false)} />
           <div
-            className={`relative w-full max-w-md mx-4 rounded-xl border p-6 ${
+            className={`relative w-full max-w-md mx-4 rounded-xl border p-6 animate-in zoom-in-95 fade-in duration-200 ${
               isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
             }`}
           >

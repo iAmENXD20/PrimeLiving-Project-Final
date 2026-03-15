@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import compression from "compression";
 import { env } from "./config/env";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
@@ -24,6 +25,7 @@ const app = express();
 
 // ── Global Middleware ──
 app.use(helmet());
+app.use(compression());
 app.use(
   cors({
     origin: true,

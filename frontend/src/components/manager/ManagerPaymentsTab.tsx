@@ -498,11 +498,11 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
       {/* Verification Preview Modal */}
       {previewVerification && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 animate-in fade-in duration-200"
           onClick={() => setPreviewVerification(null)}
         >
           <div
-            className={`rounded-2xl p-4 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
+            className={`rounded-2xl p-4 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
@@ -578,11 +578,11 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
       {/* Record Cash Payment Modal */}
       {showRecordModal && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 animate-in fade-in duration-200"
           onClick={() => setShowRecordModal(false)}
         >
           <div
-            className={`rounded-2xl p-6 max-w-md w-full mx-4 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
+            className={`rounded-2xl p-6 max-w-md w-full mx-4 animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">

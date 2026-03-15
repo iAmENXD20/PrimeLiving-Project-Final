@@ -28,10 +28,10 @@ export default function ConfirmationModal({
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={() => !loading && onCancel()} />
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="absolute inset-0 bg-black/65" onClick={() => !loading && onCancel()} />
       <div
-        className={`relative w-full max-w-md rounded-2xl border p-6 shadow-2xl ${
+        className={`relative w-full max-w-md rounded-2xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${
           isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
         }`}
       >

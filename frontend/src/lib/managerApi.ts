@@ -147,7 +147,7 @@ export interface UnitWithTenant {
 
 export async function getManagerUnits(clientId: string): Promise<UnitWithTenant[]> {
   // The backend /apartments/with-tenants does the join
-  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?client_id=${clientId}`)
+  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?client_id=${clientId}`, { skipCache: true })
 }
 
 export async function getManagerUnitsByManager(managerId: string): Promise<UnitWithTenant[]> {
@@ -487,8 +487,8 @@ export interface TenantAccount {
 export async function getManagerTenants(clientId: string): Promise<TenantAccount[]> {
   // Get apartments for name mapping, and all tenants for this client
   const [apartments, tenants] = await Promise.all([
-    api.get<any[]>(`/apartments?client_id=${clientId}`).catch(() => [] as any[]),
-    api.get<any[]>(`/tenants?client_id=${clientId}`).catch(() => [] as any[]),
+    api.get<any[]>(`/apartments?client_id=${clientId}`, { skipCache: true }).catch(() => [] as any[]),
+    api.get<any[]>(`/tenants?client_id=${clientId}`, { skipCache: true }).catch(() => [] as any[]),
   ])
 
   const aptMap = new Map((apartments || []).map((a: any) => [a.id, a.name]))

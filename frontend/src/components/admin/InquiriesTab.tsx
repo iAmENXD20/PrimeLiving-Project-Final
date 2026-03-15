@@ -362,9 +362,9 @@ export default function InquiriesTab() {
 
       {/* Detail Modal */}
       {selectedInquiry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 animate-in fade-in duration-200">
           <div
-            className={`w-full max-w-lg mx-4 rounded-2xl border overflow-hidden ${
+            className={`w-full max-w-lg mx-4 rounded-2xl border overflow-hidden animate-in zoom-in-95 fade-in duration-200 ${
               isDark
                 ? 'bg-[#111D32] border-[#1E293B]'
                 : 'bg-white border-gray-200 shadow-2xl'
@@ -474,8 +474,8 @@ export default function InquiriesTab() {
       {/* Create Owner Account Form Modal */}
       {showCreateForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowCreateForm(false); setPendingInquiry(null) }} />
-          <div className={`relative w-full max-w-md mx-4 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200 shadow-2xl'}`}>
+          <div className="absolute inset-0 bg-black/65 animate-in fade-in duration-200" onClick={() => { setShowCreateForm(false); setPendingInquiry(null) }} />
+          <div className={`relative w-full max-w-md mx-4 rounded-2xl border overflow-hidden animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200 shadow-2xl'}`}>
             {/* Header */}
             <div className={`px-6 py-5 border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
               <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>

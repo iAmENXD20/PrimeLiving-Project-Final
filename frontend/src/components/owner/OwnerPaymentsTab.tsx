@@ -612,11 +612,11 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
       {/* QR Preview Modal */}
       {showQrPreview && qrUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 animate-in fade-in duration-200"
           onClick={() => setShowQrPreview(false)}
         >
           <div
-            className={`rounded-2xl p-4 max-w-sm w-full mx-4 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
+            className={`rounded-2xl p-4 max-w-sm w-full mx-4 animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <h4 className={`text-lg font-semibold text-center mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>

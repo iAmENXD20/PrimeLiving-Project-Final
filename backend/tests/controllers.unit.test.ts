@@ -91,6 +91,7 @@ function makeQueryResult(result: { data?: any; error?: any; count?: number | nul
     "update",
     "delete",
     "eq",
+    "neq",
     "in",
     "gte",
     "lte",
@@ -714,9 +715,16 @@ describe("controller unit tests", () => {
   });
 
   it("tenants.removeTenantFromUnit returns success", async () => {
+    let callCount = 0;
+    let updateQuery: any = null;
     mocks.fromMock.mockImplementation((table: string) => {
       if (table !== "tenants") throw new Error(`unexpected table: ${table}`);
-      return makeQueryResult({ error: null });
+      callCount += 1;
+      if (callCount === 1) {
+        return makeQueryResult({ data: [{ id: "t-1", status: "active" }], error: null });
+      }
+      updateQuery = makeQueryResult({ data: null, error: null });
+      return updateQuery;
     });
 
     const req = { body: { unit_id: "u-1", preserve_account: false } } as any;
@@ -727,6 +735,12 @@ describe("controller unit tests", () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true, message: "Tenant removed from unit successfully" })
+    );
+    expect(updateQuery.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        unit_id: null,
+        apartment_id: null,
+      })
     );
   });
 

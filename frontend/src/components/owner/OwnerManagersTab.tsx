@@ -39,7 +39,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
   const [form, setForm] = useState({ name: '', email: '', phone: '' })
   const [saving, setSaving] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
-  const [credentials, setCredentials] = useState({ email: '', password: '' })
+  const [credentials, setCredentials] = useState({ email: '' })
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [smsPhone, setSmsPhone] = useState('')
   const [smsSending, setSmsSending] = useState(false)
@@ -105,13 +105,9 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
         })
         setManagers((prev) => [result.manager, ...prev])
         setShowModal(false)
-        if (result.generatedPassword) {
-          setCredentials({ email: form.email, password: result.generatedPassword })
-          setShowCredentials(true)
-          toast.success('Manager account created successfully')
-        } else {
-          toast.success('Manager account created. Invitation email has been sent.')
-        }
+        setCredentials({ email: form.email })
+        setShowCredentials(true)
+        toast.success('Manager invitation sent successfully')
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save manager'
@@ -399,7 +395,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20">
             <div className={`relative w-full max-w-md rounded-xl border p-6 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
               <h3 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Manager Account Created
+                Manager Invitation Sent
               </h3>
 
               <div className="space-y-3">
@@ -416,30 +412,22 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                   </button>
                 </div>
 
-                <div className={`flex items-center justify-between rounded-lg p-3 ${isDark ? 'bg-[#0A1628] border border-[#1E293B]' : 'bg-gray-50 border border-gray-200'}`}>
-                  <div>
-                    <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Password</p>
-                    <p className={`text-sm font-mono mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{credentials.password}</p>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(credentials.password, 'Password')}
-                    className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-200 text-gray-500'}`}
-                  >
-                    {copiedField === 'Password' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  </button>
+                <div className={`rounded-lg p-3 ${isDark ? 'bg-emerald-500/10 border border-emerald-500/25' : 'bg-emerald-50 border border-emerald-200'}`}>
+                  <p className={`text-xs font-medium ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Status</p>
+                  <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>Invited</p>
                 </div>
               </div>
 
               <div className={`mt-4 rounded-lg p-3 ${isDark ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-yellow-50 border border-yellow-200'}`}>
                 <p className={`text-xs ${isDark ? 'text-yellow-400' : 'text-yellow-700'}`}>
-                  ⚠️ Save these credentials now. The password cannot be retrieved after closing this dialog.
+                  The manager should check their email to accept the invite and set their own password.
                 </p>
               </div>
 
               {/* Email Send Section */}
               <div className="mt-5 space-y-3">
                 <Label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Send credentials via Email
+                  Send invite reminder via Email
                 </Label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
@@ -461,7 +449,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                       try {
                         await new Promise((resolve) => setTimeout(resolve, 1500))
                         setEmailSent(true)
-                        toast.success(`Credentials sent to ${credentials.email}`)
+                        toast.success(`Invite reminder sent to ${credentials.email}`)
                       } catch {
                         toast.error('Failed to send email')
                       } finally {
@@ -478,7 +466,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                 {emailSent && (
                   <p className={`text-xs flex items-center gap-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                     <Check className="w-3.5 h-3.5" />
-                    Credentials sent successfully to {credentials.email}
+                    Invite reminder sent successfully to {credentials.email}
                   </p>
                 )}
               </div>

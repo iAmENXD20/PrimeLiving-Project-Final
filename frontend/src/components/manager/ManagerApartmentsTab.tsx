@@ -97,6 +97,16 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
         )
       } else if (hadTenant && !hasTenantNow) {
         await removeTenantFromUnit(selectedUnit.id, true)
+        setUnits((prev) => prev.map((unit) =>
+          unit.id === selectedUnit.id
+            ? { ...unit, tenant_id: null, tenant_name: null, tenant_phone: null }
+            : unit
+        ))
+        setTenants((prev) => prev.map((tenant) =>
+          tenant.id === selectedUnit.tenant_id
+            ? { ...tenant, unit_id: null }
+            : tenant
+        ))
       }
 
       await loadUnits()
@@ -113,6 +123,16 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
     try {
       setEmptyingUnitId(unit.id)
       await removeTenantFromUnit(unit.id, true)
+      setUnits((prev) => prev.map((current) =>
+        current.id === unit.id
+          ? { ...current, tenant_id: null, tenant_name: null, tenant_phone: null }
+          : current
+      ))
+      setTenants((prev) => prev.map((tenant) =>
+        tenant.id === unit.tenant_id
+          ? { ...tenant, unit_id: null }
+          : tenant
+      ))
       await loadUnits()
       toast.success('Unit emptied. Tenant account was preserved.')
     } catch (err: unknown) {
@@ -286,9 +306,9 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
       {/* Edit Unit Modal */}
       {showEditModal && selectedUnit && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowEditModal(false)} />
+          <div className="absolute inset-0 bg-black/65 animate-in fade-in duration-200" onClick={() => setShowEditModal(false)} />
           <div
-            className={`relative w-full max-w-md rounded-xl border p-6 shadow-2xl ${
+            className={`relative w-full max-w-md rounded-xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${
               isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
             }`}
           >

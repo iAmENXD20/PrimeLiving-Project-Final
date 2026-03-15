@@ -101,6 +101,38 @@ describe("apiClient behavior", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
   });
 
+  it("invalidates related apartments cache after tenants mutation", async () => {
+    (globalThis.fetch as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: [{ id: "u1", tenant_name: "Alice" }] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: { success: true } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: [{ id: "u1", tenant_name: null }] }),
+      });
+
+    const beforeMutation = await api.get<Array<{ id: string; tenant_name: string | null }>>(
+      "/apartments/with-tenants?client_id=abc",
+      { cacheTtlSeconds: 120 }
+    );
+
+    await api.post("/tenants/remove-from-unit", { unit_id: "u1" });
+
+    const afterMutation = await api.get<Array<{ id: string; tenant_name: string | null }>>(
+      "/apartments/with-tenants?client_id=abc",
+      { cacheTtlSeconds: 120 }
+    );
+
+    expect(beforeMutation[0].tenant_name).toBe("Alice");
+    expect(afterMutation[0].tenant_name).toBe(null);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+  });
+
   it("throws backend-provided error message", async () => {
     (globalThis.fetch as any).mockResolvedValue({
       ok: false,

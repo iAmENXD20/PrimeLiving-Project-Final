@@ -252,6 +252,7 @@ export async function deleteTenant(
       .update({
         status: "inactive",
         unit_id: null,
+        apartment_id: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -414,22 +415,46 @@ export async function removeTenantFromUnit(
   try {
     const { unit_id, preserve_account } = req.body;
 
+    if (!unit_id) {
+      sendError(res, "unit_id is required", 400);
+      return;
+    }
+
+    const { data: assignedTenants, error: lookupError } = await supabaseAdmin
+      .from("tenants")
+      .select("id, status")
+      .eq("unit_id", unit_id)
+      .neq("status", "inactive");
+
+    if (lookupError) {
+      sendError(res, lookupError.message, 500);
+      return;
+    }
+
+    if (!assignedTenants || assignedTenants.length === 0) {
+      sendError(res, "No assigned tenant found for this unit", 404);
+      return;
+    }
+
+    const tenantIds = assignedTenants.map((tenant: any) => tenant.id);
+
     const updates = preserve_account
       ? {
           unit_id: null,
+          apartment_id: null,
           updated_at: new Date().toISOString(),
         }
       : {
           status: "inactive",
           unit_id: null,
+          apartment_id: null,
           updated_at: new Date().toISOString(),
         };
 
     const { error } = await supabaseAdmin
       .from("tenants")
       .update(updates)
-      .eq("unit_id", unit_id)
-      .eq("status", "active");
+      .in("id", tenantIds);
 
     if (error) {
       sendError(res, error.message, 500);

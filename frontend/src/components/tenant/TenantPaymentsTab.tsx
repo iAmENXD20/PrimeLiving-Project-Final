@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { PhilippinePeso, QrCode, CreditCard, Upload, Trash2, Receipt, Eye, FileText, X, CheckCircle2, Clock, XCircle } from 'lucide-react'
+import { PhilippinePeso, QrCode, CreditCard, Upload, Trash2, Receipt, Eye, FileText, X, CheckCircle2, Clock, XCircle, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { getTenantPayments, getTenantDueSchedule, getClientPaymentQrUrl, getCurrentTenant, submitCashPaymentVerification, type TenantPayment, type TenantDueScheduleItem } from '../../lib/tenantApi'
@@ -29,10 +29,12 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [confirmReceiptDelete, setConfirmReceiptDelete] = useState(false)
   const receiptInputRef = useRef<HTMLInputElement>(null)
+  const billingDropdownRef = useRef<HTMLDivElement>(null)
 
   // Payment form state
   const [tenantName, setTenantName] = useState('')
   const [selectedDuePaymentId, setSelectedDuePaymentId] = useState('')
+  const [isBillingMenuOpen, setIsBillingMenuOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [duePage, setDuePage] = useState(1)
   const [historyPage, setHistoryPage] = useState(1)
@@ -173,6 +175,19 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
     if (historyPage > historyTotalPages) setHistoryPage(historyTotalPages)
   }, [historyPage, historyTotalPages])
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (billingDropdownRef.current && !billingDropdownRef.current.contains(event.target as Node)) {
+        setIsBillingMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   const statusColor = (s: string) => {
     switch (s) {
       case 'paid': return 'bg-emerald-500/15 text-emerald-400'
@@ -286,6 +301,13 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
     setSubmitting(false)
   }
 
+  const currentDueSelection = normalizedDuePayments.find((payment) => payment.id === selectedDuePaymentId)
+  const currentDueLabel = currentDueSelection
+    ? currentDueSelection.period_from && currentDueSelection.period_to
+      ? `${new Date(currentDueSelection.period_from).toLocaleDateString()} - ${new Date(currentDueSelection.period_to).toLocaleDateString()} · ₱${Number(currentDueSelection.amount).toLocaleString()} · ${currentDueSelection.status}`
+      : `${new Date(currentDueSelection.payment_date).toLocaleDateString()} · ₱${Number(currentDueSelection.amount).toLocaleString()} · ${currentDueSelection.status}`
+    : 'Select billing period'
+
   return (
     <div className="gap-6 animate-fade-up flex flex-col flex-1 min-h-0">
       <div>
@@ -396,24 +418,73 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
               <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 Billing Period (Pending/Overdue)
               </label>
-              <select
-                value={selectedDuePaymentId}
-                onChange={(e) => setSelectedDuePaymentId(e.target.value)}
-                className={`w-full rounded-lg px-4 py-2.5 text-sm border transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/40 ${
-                  isDark
-                    ? 'bg-[#0A1628] border-[#1E293B] text-white'
-                    : 'bg-gray-50 border-gray-200 text-gray-900'
-                }`}
-              >
-                <option value="">Select billing period</option>
-                {normalizedDuePayments.map((payment) => (
-                  <option key={payment.id} value={payment.id}>
-                    {payment.period_from && payment.period_to
-                      ? `${new Date(payment.period_from).toLocaleDateString()} - ${new Date(payment.period_to).toLocaleDateString()}`
-                      : new Date(payment.payment_date).toLocaleDateString()} · ₱{Number(payment.amount).toLocaleString()} · {payment.status}
-                  </option>
-                ))}
-              </select>
+              <div className="relative" ref={billingDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsBillingMenuOpen((prev) => !prev)}
+                  className={`w-full rounded-lg px-4 py-2.5 text-sm border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500/40 flex items-center justify-between text-left ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white hover:border-[#2A3A52]'
+                      : 'bg-gray-50 border-gray-200 text-gray-900 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="truncate pr-3">{currentDueLabel}</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isBillingMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isBillingMenuOpen && (
+                  <div
+                    className={`absolute z-20 mt-2 w-full rounded-lg border shadow-xl max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-200 ${
+                      isDark
+                        ? 'bg-[#0A1628] border-[#1E293B]'
+                        : 'bg-white border-gray-200'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDuePaymentId('')
+                        setIsBillingMenuOpen(false)
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      Select billing period
+                    </button>
+                    {normalizedDuePayments.map((payment) => {
+                      const optionLabel = payment.period_from && payment.period_to
+                        ? `${new Date(payment.period_from).toLocaleDateString()} - ${new Date(payment.period_to).toLocaleDateString()} · ₱${Number(payment.amount).toLocaleString()} · ${payment.status}`
+                        : `${new Date(payment.payment_date).toLocaleDateString()} · ₱${Number(payment.amount).toLocaleString()} · ${payment.status}`
+
+                      return (
+                        <button
+                          key={payment.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDuePaymentId(payment.id)
+                            setIsBillingMenuOpen(false)
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-start justify-between gap-3 ${
+                            selectedDuePaymentId === payment.id
+                              ? isDark
+                                ? 'bg-primary/20 text-white'
+                                : 'bg-primary/10 text-gray-900'
+                              : isDark
+                                ? 'text-gray-300 hover:bg-white/5'
+                                : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span className="leading-5">{optionLabel}</span>
+                          {selectedDuePaymentId === payment.id && (
+                            <span className="mt-1 w-2 h-2 rounded-full bg-primary shrink-0" />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Receipt Upload */}
@@ -684,11 +755,11 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
       {/* QR Preview Modal */}
       {showQrModal && qrUrl && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 animate-in fade-in duration-200"
           onClick={() => setShowQrModal(false)}
         >
           <div
-            className={`rounded-2xl p-4 max-w-sm w-full mx-4 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
+            className={`rounded-2xl p-4 max-w-sm w-full mx-4 animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <h4 className={`text-lg font-semibold text-center mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -723,11 +794,11 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
       {/* Receipt Preview Modal */}
       {showReceiptModal && receiptUrl && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 animate-in fade-in duration-200"
           onClick={() => setShowReceiptModal(false)}
         >
           <div
-            className={`rounded-2xl p-4 max-w-md w-full mx-4 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
+            className={`rounded-2xl p-4 max-w-md w-full mx-4 animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
@@ -749,11 +820,11 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
       {/* Generated Receipt Modal */}
       {showGeneratedReceipt && generatedReceipt && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 animate-in fade-in duration-200"
           onClick={() => setShowGeneratedReceipt(false)}
         >
           <div
-            className={`rounded-2xl p-6 max-w-md w-full mx-4 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
+            className={`rounded-2xl p-6 max-w-md w-full mx-4 animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
