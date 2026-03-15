@@ -8,7 +8,7 @@ export interface TenantProfile {
   name: string
   email: string | null
   phone: string | null
-  apartment_id: string | null
+  unit_id: string | null
   client_id: string | null
   status: string
   move_in_date: string
@@ -19,7 +19,7 @@ export interface TenantProfile {
 export interface TenantMaintenanceRequest {
   id: string
   tenant_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   client_id: string | null
   title: string
   description: string
@@ -34,7 +34,7 @@ export interface TenantPayment {
   id: string
   client_id: string
   tenant_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   amount: number
   payment_date: string
   status: 'paid' | 'pending' | 'overdue'
@@ -80,7 +80,7 @@ export interface TenantNotification {
 export interface TenantDocument {
   id: string
   client_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   tenant_id: string | null
   uploaded_by: string | null
   file_name: string
@@ -137,7 +137,7 @@ export async function getTenantMaintenanceRequests(tenantId: string): Promise<Te
 
 export async function createTenantMaintenanceRequest(request: {
   tenant_id: string
-  apartment_id: string | null
+  unit_id: string | null
   client_id: string | null
   title: string
   description: string
@@ -205,7 +205,7 @@ export async function uploadPaymentReceipt(file: File, tenantId: string): Promis
 export async function submitCashPaymentVerification(params: {
   tenant_id: string
   client_id: string
-  apartment_id: string | null
+  unit_id: string | null
   amount: number
   receipt_url: string
   period_from: string
@@ -215,7 +215,7 @@ export async function submitCashPaymentVerification(params: {
   return api.post<any>('/payments/submit-proof', {
     tenant_id: params.tenant_id,
     client_id: params.client_id,
-    apartment_id: params.apartment_id,
+    unit_id: params.unit_id,
     amount: params.amount,
     receipt_url: params.receipt_url,
     period_from: params.period_from,

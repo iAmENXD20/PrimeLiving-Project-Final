@@ -129,6 +129,11 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
 
   const labelClass = isDark ? 'text-gray-300' : 'text-gray-700'
   const sectionClass = `${cardClass} rounded-2xl border p-6 lg:p-8 shadow-sm`
+  const infoGridClass = `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 [&>div]:rounded-xl [&>div]:border [&>div]:p-4 [&>div]:min-h-[88px] [&_p]:truncate ${
+    isDark
+      ? '[&>div]:border-[#1E293B] [&>div]:bg-[#0A1628]/70'
+      : '[&>div]:border-gray-200 [&>div]:bg-gray-50'
+  }`
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-up">
@@ -156,7 +161,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className={infoGridClass}>
           <div>
             <Label className={`text-sm ${labelClass}`}>Name</Label>
             <p className={`mt-1 text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
@@ -231,7 +236,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 min-w-0">
                 <p className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                   {phone || 'Not provided'}
                 </p>

@@ -10,7 +10,13 @@
     "build": "npm run build --prefix backend && npm run build --prefix frontend",
     "build:backend": "npm run build --prefix backend",
     "build:frontend": "npm run build --prefix frontend",
-    "lint": "npm run lint --prefix backend && npm run lint --prefix frontend"
+    "lint": "npm run lint --prefix backend && npm run lint --prefix frontend",
+    "test": "npm run test --prefix backend && npm run test --prefix frontend",
+    "test:unit:all": "powershell -ExecutionPolicy Bypass -File ./scripts/run-all-unit-tests.ps1",
+    "test:unit:all:live": "npm run test:unit:all",
+    "test:backend": "npm run test --prefix backend",
+    "test:frontend": "npm run test --prefix frontend",
+    "test:watch": "concurrently -n backend-test,frontend-test -c blue,green \"npm run test:watch --prefix backend\" \"npm run test:watch --prefix frontend\""
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

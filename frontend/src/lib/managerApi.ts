@@ -5,7 +5,7 @@ import { supabase } from './supabase'
 export interface MaintenanceRequest {
   id: string
   tenant_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   client_id: string | null
   title: string
   description: string
@@ -122,7 +122,7 @@ export async function getManagerMaintenanceRequests(clientId: string): Promise<M
   return requests.map(r => ({
     ...r,
     tenant_name: r.tenant_id ? tenantMap.get(r.tenant_id) || 'Unknown' : '\u2014',
-    apartment_name: r.apartment_id ? apartmentMap.get(r.apartment_id) || 'Unknown' : '\u2014',
+    apartment_name: r.unit_id ? apartmentMap.get(r.unit_id) || 'Unknown' : '\u2014',
   }))
 }
 
@@ -244,7 +244,7 @@ export interface Payment {
   id: string
   client_id: string
   tenant_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   amount: number
   payment_date: string
   status: 'paid' | 'pending' | 'overdue'
@@ -272,7 +272,7 @@ export async function getPayments(clientId: string): Promise<Payment[]> {
 export async function createPayment(payment: {
   client_id: string
   tenant_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   amount: number
   payment_date: string
   status: 'paid' | 'pending' | 'overdue'
@@ -335,7 +335,7 @@ export async function generateMonthlyBillings(clientId: string): Promise<void> {
 export async function recordCashPayment(payment: {
   client_id: string
   tenant_id: string
-  apartment_id: string | null
+  unit_id: string | null
   amount: number
   description?: string
   period_from?: string
@@ -344,7 +344,7 @@ export async function recordCashPayment(payment: {
   await api.post('/payments', {
     client_id: payment.client_id,
     tenant_id: payment.tenant_id,
-    apartment_id: payment.apartment_id,
+    unit_id: payment.unit_id,
     amount: payment.amount,
     payment_date: new Date().toISOString(),
     status: 'paid',
@@ -412,7 +412,7 @@ export async function getActiveTenants(
 export interface Document {
   id: string
   client_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   tenant_id: string | null
   uploaded_by: string | null
   file_name: string
@@ -453,7 +453,7 @@ export async function uploadDocument(
 
   return api.post<any>('/documents/upload', {
     client_id: clientId,
-    apartment_id: apartmentId || null,
+    unit_id: apartmentId || null,
     tenant_id: tenantId || null,
     uploaded_by: managerId,
     file_name: file.name,
@@ -476,7 +476,7 @@ export interface TenantAccount {
   name: string
   email: string | null
   phone: string | null
-  apartment_id: string | null
+  unit_id: string | null
   client_id: string | null
   status: string
   move_in_date: string | null
@@ -495,7 +495,7 @@ export async function getManagerTenants(clientId: string): Promise<TenantAccount
 
   return (tenants || []).map((t: any) => ({
     ...t,
-    apartment_name: t.apartment_id ? aptMap.get(t.apartment_id) || 'Unknown' : '\u2014',
+    apartment_name: t.unit_id ? aptMap.get(t.unit_id) || 'Unknown' : '\u2014',
   }))
 }
 
@@ -503,14 +503,14 @@ export async function createTenantAccount(tenant: {
   name: string
   email: string
   phone?: string
-  apartment_id?: string
+  unit_id?: string
   client_id: string
 }) {
   const result = await api.post<any>('/tenants', {
     name: tenant.name,
     email: tenant.email,
     phone: tenant.phone || null,
-    apartment_id: tenant.apartment_id || null,
+    unit_id: tenant.unit_id || null,
     client_id: tenant.client_id,
     create_auth_account: true,
   })
@@ -524,7 +524,7 @@ export async function updateTenantAccount(id: string, updates: {
   name?: string
   email?: string
   phone?: string
-  apartment_id?: string | null
+  unit_id?: string | null
   status?: string
 }) {
   return api.put<any>(`/tenants/${id}`, { ...updates, updated_at: new Date().toISOString() })

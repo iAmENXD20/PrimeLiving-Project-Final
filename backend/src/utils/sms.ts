@@ -1,13 +1,57 @@
 import { env } from "../config/env";
 import { supabaseAdmin } from "../config/supabase";
 
-async function logSmsAttempt(phone: string, message: string, status: "sent" | "failed", error?: string): Promise<void> {
+interface SmsContext {
+  apartment_id?: string | null;
+  unit_id?: string | null;
+  client_id?: string | null;
+}
+
+async function resolveApartmentId(context?: SmsContext): Promise<string | null> {
+  if (!context) return null;
+  if (context.apartment_id) return context.apartment_id;
+
+  if (context.unit_id) {
+    const { data: unit } = await supabaseAdmin
+      .from("units")
+      .select("apartment_id")
+      .eq("id", context.unit_id)
+      .maybeSingle();
+
+    if (unit?.apartment_id) return unit.apartment_id;
+  }
+
+  if (context.client_id) {
+    const { data: apartment } = await supabaseAdmin
+      .from("apartments")
+      .select("id")
+      .eq("client_id", context.client_id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (apartment?.id) return apartment.id;
+  }
+
+  return null;
+}
+
+async function logSmsAttempt(
+  phone: string,
+  message: string,
+  status: "sent" | "failed",
+  error?: string,
+  context?: SmsContext
+): Promise<void> {
   try {
+    const apartmentId = await resolveApartmentId(context);
+
     await supabaseAdmin.from("sms_logs").insert({
       phone,
       message,
       status,
       error: error || null,
+      apartment_id: apartmentId,
     });
   } catch (logError) {
     console.error("Failed to write sms_logs:", logError);
@@ -103,18 +147,22 @@ export async function sendSmsSemaphore(phone: string, message: string): Promise<
   throw new Error(lastError);
 }
 
-export async function sendSmsToMany(phones: Array<string | null | undefined>, message: string): Promise<void> {
+export async function sendSmsToMany(
+  phones: Array<string | null | undefined>,
+  message: string,
+  context?: SmsContext
+): Promise<void> {
   const uniquePhones = Array.from(new Set(phones.filter(Boolean) as string[]));
 
   await Promise.allSettled(
     uniquePhones.map(async (phone) => {
       try {
         await sendSmsSemaphore(phone, message);
-        await logSmsAttempt(phone, message, "sent");
+        await logSmsAttempt(phone, message, "sent", undefined, context);
       } catch (error) {
         console.error("SMS send failed:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
-        await logSmsAttempt(phone, message, "failed", errorMessage);
+        await logSmsAttempt(phone, message, "failed", errorMessage, context);
       }
     })
   );

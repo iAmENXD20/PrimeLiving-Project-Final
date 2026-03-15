@@ -250,7 +250,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
       await submitCashPaymentVerification({
         tenant_id: tenantId,
         client_id: clientId,
-        apartment_id: apartmentId,
+        unit_id: apartmentId,
         amount: Number(selectedDue.amount || 0),
         receipt_url: receiptUrl,
         period_from: selectedDue.period_from,

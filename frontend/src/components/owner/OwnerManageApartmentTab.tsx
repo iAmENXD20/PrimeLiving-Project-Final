@@ -269,8 +269,8 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
       id: tenant.id,
       name: tenant.name,
       phone: tenant.phone || '—',
-      unit: tenant.apartment_id ? (unitNameById.get(tenant.apartment_id) || 'Unassigned') : 'Unassigned',
-      rent: tenant.apartment_id ? (unitRentById.get(tenant.apartment_id) || 0) : 0,
+      unit: tenant.unit_id ? (unitNameById.get(tenant.unit_id) || 'Unassigned') : 'Unassigned',
+      rent: tenant.unit_id ? (unitRentById.get(tenant.unit_id) || 0) : 0,
       status: tenant.status,
     }))
   const tenantsTotalPages = Math.max(1, Math.ceil(tenantsList.length / pageSize))

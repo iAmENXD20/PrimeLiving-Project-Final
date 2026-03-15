@@ -40,7 +40,7 @@ export async function getPayments(
 
     let query = supabaseAdmin
       .from("payments")
-      .select("*, tenants(name, email), apartments(name)")
+      .select("*, tenants(name, email), apartments:unit_id(name)")
       .order("created_at", { ascending: false });
 
     if (req.query.client_id) {
@@ -83,7 +83,7 @@ export async function getTenantDueSchedule(
 
     const { data: tenant, error: tenantError } = await supabaseAdmin
       .from("tenants")
-      .select("id, client_id, apartment_id, move_in_date, status")
+      .select("id, client_id, unit_id, move_in_date, status")
       .eq("id", tenantId)
       .single();
 
@@ -92,15 +92,15 @@ export async function getTenantDueSchedule(
       return;
     }
 
-    if (!tenant.apartment_id || !tenant.move_in_date) {
+    if (!tenant.unit_id || !tenant.move_in_date) {
       sendSuccess(res, []);
       return;
     }
 
     const { data: apartment } = await supabaseAdmin
-      .from("apartments")
+      .from("units")
       .select("monthly_rent")
-      .eq("id", tenant.apartment_id)
+      .eq("id", tenant.unit_id)
       .single();
 
     const monthlyRent = Number(apartment?.monthly_rent || 0);
@@ -159,7 +159,7 @@ export async function getTenantDueSchedule(
         rowsToInsert.push({
           client_id: tenant.client_id,
           tenant_id: tenant.id,
-          apartment_id: tenant.apartment_id,
+          unit_id: tenant.unit_id,
           amount: monthlyRent,
           payment_date: dueDate.toISOString(),
           status: shouldBeOverdue ? "overdue" : "pending",
@@ -222,7 +222,7 @@ export async function getPaymentById(
 
     const { data, error } = await supabaseAdmin
       .from("payments")
-      .select("*, tenants(name, email), apartments(name)")
+      .select("*, tenants(name, email), apartments:unit_id(name)")
       .eq("id", id)
       .single();
 
@@ -275,7 +275,7 @@ export async function submitPaymentProof(
     const {
       tenant_id,
       client_id,
-      apartment_id,
+      unit_id,
       amount,
       receipt_url,
       period_from,
@@ -304,7 +304,7 @@ export async function submitPaymentProof(
           verification_status: "pending_verification",
           description: description || `Payment proof submitted for ${period_from} to ${period_to}`,
           amount: amount ?? undefined,
-          apartment_id: apartment_id || null,
+          unit_id: unit_id || null,
           client_id,
         })
         .eq("id", existing.id)
@@ -331,12 +331,14 @@ export async function submitPaymentProof(
 
       await sendSmsToMany(
         (managers || []).map((manager: any) => manager.phone),
-        `[PrimeLiving] ${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}. Please review.`
+        `[PrimeLiving] ${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
+        { unit_id: unit_id || null, client_id }
       );
 
       await createNotifications(
         (managers || []).map((manager: any) => ({
           client_id,
+          unit_id: unit_id || null,
           recipient_role: "manager" as const,
           recipient_id: manager.id,
           type: "payment_proof_submitted",
@@ -354,7 +356,7 @@ export async function submitPaymentProof(
       .insert({
         tenant_id,
         client_id,
-        apartment_id: apartment_id || null,
+        unit_id: unit_id || null,
         amount: amount || 0,
         payment_date: new Date().toISOString(),
         status: "pending",
@@ -388,12 +390,14 @@ export async function submitPaymentProof(
 
     await sendSmsToMany(
       (managers || []).map((manager: any) => manager.phone),
-      `[PrimeLiving] ${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}. Please review.`
+      `[PrimeLiving] ${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
+      { unit_id: unit_id || null, client_id }
     );
 
     await createNotifications(
       (managers || []).map((manager: any) => ({
         client_id,
+        unit_id: unit_id || null,
         recipient_role: "manager" as const,
         recipient_id: manager.id,
         type: "payment_proof_submitted",
@@ -479,7 +483,7 @@ export async function verifyPayment(
 
     const { data: payment, error: paymentError } = await supabaseAdmin
       .from("payments")
-      .select("id, client_id, apartment_id, amount, payment_date")
+      .select("id, client_id, unit_id, amount, payment_date")
       .eq("id", id)
       .single();
 
@@ -520,7 +524,7 @@ export async function verifyPayment(
 
       if (!existingRevenue) {
         await supabaseAdmin.from("revenues").insert({
-          apartment_id: payment.apartment_id,
+          unit_id: payment.unit_id,
           client_id: payment.client_id,
           amount: payment.amount,
           month: payment.payment_date || new Date().toISOString(),
@@ -537,12 +541,14 @@ export async function verifyPayment(
 
     await sendSmsToMany(
       [tenant?.phone],
-      `[PrimeLiving] Your payment has been ${verification_status}.`
+      `[PrimeLiving] Your payment has been ${verification_status}.`,
+      { unit_id: data.unit_id, client_id: data.client_id }
     );
 
     if (data.client_id && data.tenant_id) {
       await createNotification({
         client_id: data.client_id,
+        unit_id: data.unit_id,
         recipient_role: "tenant",
         recipient_id: data.tenant_id,
         type: "payment_verification_updated",
@@ -577,7 +583,7 @@ export async function generateMonthlyBillings(
 
     // 1. Get all apartments for this client
     const { data: apartments } = await supabaseAdmin
-      .from("apartments")
+      .from("units")
       .select("id, payment_due_day, monthly_rent")
       .eq("client_id", client_id)
       .eq("status", "active");
@@ -593,8 +599,8 @@ export async function generateMonthlyBillings(
     // 2. Get all active tenants
     const { data: allTenants } = await supabaseAdmin
       .from("tenants")
-      .select("id, apartment_id")
-      .in("apartment_id", apartmentIds)
+      .select("id, unit_id")
+      .in("unit_id", apartmentIds)
       .eq("status", "active");
 
     if (!allTenants || allTenants.length === 0) {
@@ -626,7 +632,7 @@ export async function generateMonthlyBillings(
     for (const tenant of allTenants) {
       if (paidOrPendingTenants.has(tenant.id)) continue;
 
-      const apt = apartmentMap.get(tenant.apartment_id);
+      const apt = apartmentMap.get(tenant.unit_id);
       if (!apt || !apt.payment_due_day) continue;
 
       const dueDay = Math.min(
@@ -644,7 +650,7 @@ export async function generateMonthlyBillings(
       newPayments.push({
         client_id,
         tenant_id: tenant.id,
-        apartment_id: tenant.apartment_id,
+        unit_id: tenant.unit_id,
         amount: apt.monthly_rent || 0,
         payment_date: dueDate.toISOString(),
         status: isPastDue ? "overdue" : "pending",
@@ -677,7 +683,7 @@ export async function generateMonthlyBillings(
           .from("payments")
           .update({ status: "overdue" })
           .eq("client_id", client_id)
-          .eq("apartment_id", apt.id)
+          .eq("unit_id", apt.id)
           .eq("status", "pending")
           .gte("period_from", monthStart)
           .lte("period_from", monthEnd);
@@ -712,7 +718,7 @@ export async function getPendingVerifications(
 
     const { data, error } = await supabaseAdmin
       .from("payments")
-      .select("*, tenants:tenant_id(name), apartments:apartment_id(name)")
+      .select("*, tenants:tenant_id(name), apartments:unit_id(name)")
       .eq("client_id", clientId)
       .eq("verification_status", "pending_verification")
       .order("created_at", { ascending: false });
@@ -850,7 +856,7 @@ export async function getPaymentQrByApartment(
     }
 
     const { data: apartment, error: apartmentError } = await supabaseAdmin
-      .from("apartments")
+      .from("units")
       .select("client_id")
       .eq("id", apartmentId)
       .single();
@@ -895,7 +901,7 @@ export async function getPaymentQrByTenant(
 
     const { data: tenant, error: tenantError } = await supabaseAdmin
       .from("tenants")
-      .select("id, apartment_id, client_id")
+      .select("id, unit_id, client_id")
       .eq("id", tenantId)
       .single();
 
@@ -906,11 +912,11 @@ export async function getPaymentQrByTenant(
 
     let resolvedClientId: string | null = tenant.client_id || null;
 
-    if (!resolvedClientId && tenant.apartment_id) {
+    if (!resolvedClientId && tenant.unit_id) {
       const { data: apartment } = await supabaseAdmin
-        .from("apartments")
+        .from("units")
         .select("client_id")
-        .eq("id", tenant.apartment_id)
+        .eq("id", tenant.unit_id)
         .single();
       resolvedClientId = apartment?.client_id || null;
     }

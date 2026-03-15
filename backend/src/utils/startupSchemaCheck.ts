@@ -2,13 +2,14 @@ import { supabaseAdmin } from "../config/supabase";
 
 const CRITICAL_TABLES = [
   "clients",
+  "apartments",
+  "units",
   "managers",
   "tenants",
-  "apartments",
   "announcements",
   "notifications",
   "payments",
-  "maintenance_requests",
+  "maintenance",
 ] as const;
 
 export async function verifyCriticalSchema(): Promise<void> {

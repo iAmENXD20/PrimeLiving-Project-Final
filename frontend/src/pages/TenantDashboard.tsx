@@ -34,15 +34,15 @@ export default function TenantDashboard() {
         const data = await getCurrentTenant()
         if (data) {
           let clientId: string | null = data.client_id || null
-          if (data.apartment_id) {
-            const aptInfo = await getTenantApartmentInfo(data.apartment_id)
+          if (data.unit_id) {
+            const aptInfo = await getTenantApartmentInfo(data.unit_id)
             clientId = aptInfo?.client_id || clientId
           }
           setTenant({
             id: data.id,
             name: data.name,
             phone: data.phone,
-            apartmentId: data.apartment_id,
+            apartmentId: data.unit_id,
             clientId,
           })
 

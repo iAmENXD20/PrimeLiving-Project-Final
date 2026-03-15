@@ -5,7 +5,7 @@ import { supabase } from './supabase'
 export interface MaintenanceRequest {
   id: string
   tenant_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   client_id: string | null
   title: string
   description: string
@@ -20,7 +20,7 @@ export interface MaintenanceRequest {
 
 export interface Revenue {
   id: string
-  apartment_id: string | null
+  unit_id: string | null
   client_id: string | null
   amount: number
   month: string
@@ -100,7 +100,7 @@ export async function getOwnerMaintenanceRequests(clientId: string) {
   return (data || []).map(m => ({
     ...m,
     tenant_name: m.tenant_id ? tenantMap[m.tenant_id] || 'Unknown' : undefined,
-    apartment_name: m.apartment_id ? aptMap[m.apartment_id] || 'Unknown' : undefined,
+    apartment_name: m.unit_id ? aptMap[m.unit_id] || 'Unknown' : undefined,
   })) as MaintenanceRequest[]
 }
 
@@ -163,7 +163,7 @@ export interface OwnerTenant {
   id: string
   name: string
   phone: string | null
-  apartment_id: string | null
+  unit_id: string | null
   status: 'active' | 'inactive'
   monthly_rent?: number
 }
@@ -282,7 +282,7 @@ export async function deleteOwnerAnnouncement(id: string) {
 export interface OwnerDocument {
   id: string
   client_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   tenant_id: string | null
   uploaded_by: string | null
   file_name: string
@@ -310,7 +310,7 @@ export interface OwnerPayment {
   id: string
   client_id: string
   tenant_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   amount: number
   payment_date: string
   status: 'paid' | 'pending' | 'overdue'
@@ -333,7 +333,7 @@ export async function getOwnerPayments(clientId: string): Promise<OwnerPayment[]
 export async function createOwnerPayment(payment: {
   client_id: string
   tenant_id: string | null
-  apartment_id: string | null
+  unit_id: string | null
   amount: number
   payment_date: string
   status: 'paid' | 'pending' | 'overdue'

@@ -26,7 +26,7 @@ export async function getOverviewStats(
           .select("*", { count: "exact", head: true })
           .eq("status", "active"),
         supabaseAdmin
-          .from("apartments")
+          .from("units")
           .select("*", { count: "exact", head: true })
           .eq("status", "active"),
         supabaseAdmin
@@ -74,7 +74,7 @@ export async function getOwnerStats(
 
     // Get apartment IDs for this client first
     const { data: apartments } = await supabaseAdmin
-      .from("apartments")
+      .from("units")
       .select("id")
       .eq("client_id", clientId);
 
@@ -96,12 +96,12 @@ export async function getOwnerStats(
 
     const [apartmentsRes, maintenanceRes, revenueRes] = await Promise.all([
       supabaseAdmin
-        .from("apartments")
+        .from("units")
         .select("*", { count: "exact", head: true })
         .eq("client_id", clientId)
         .eq("status", "active"),
       supabaseAdmin
-        .from("maintenance_requests")
+        .from("maintenance")
         .select("*", { count: "exact", head: true })
         .eq("client_id", clientId)
         .eq("status", "pending"),
@@ -114,7 +114,7 @@ export async function getOwnerStats(
       const { count } = await supabaseAdmin
         .from("tenants")
         .select("*", { count: "exact", head: true })
-        .in("apartment_id", aptIds)
+        .in("unit_id", aptIds)
         .eq("status", "active");
       activeTenants = count ?? 0;
     }
@@ -149,7 +149,7 @@ export async function getClientDetailStats(
 
     // Get apartments for this client
     const { data: apartments } = await supabaseAdmin
-      .from("apartments")
+      .from("units")
       .select("id")
       .eq("client_id", clientId);
 
@@ -161,7 +161,7 @@ export async function getClientDetailStats(
       const { data } = await supabaseAdmin
         .from("tenants")
         .select("id, status")
-        .in("apartment_id", aptIds);
+        .in("unit_id", aptIds);
       tenantList = data || [];
     }
 
@@ -209,7 +209,7 @@ export async function getManagerStats(
 
     // Get apartments managed by this manager
     const { data: managedApartments } = await supabaseAdmin
-      .from("apartments")
+      .from("units")
       .select("id")
       .eq("manager_id", managerId)
       .eq("status", "active");
@@ -219,7 +219,7 @@ export async function getManagerStats(
     // Fallback: if manager_id links are missing, use active apartments under the same client
     if (apartmentIds.length === 0) {
       const { data: clientApartments } = await supabaseAdmin
-        .from("apartments")
+        .from("units")
         .select("id")
         .eq("client_id", clientId)
         .eq("status", "active");
@@ -232,14 +232,14 @@ export async function getManagerStats(
         .from("tenants")
         .select("*", { count: "exact", head: true })
         .eq("status", "active")
-        .in("apartment_id", apartmentIds.length ? apartmentIds : ["__none__"]),
+        .in("unit_id", apartmentIds.length ? apartmentIds : ["__none__"]),
       supabaseAdmin
-        .from("maintenance_requests")
+        .from("maintenance")
         .select("*", { count: "exact", head: true })
         .eq("status", "pending")
         .eq("client_id", clientId),
       supabaseAdmin
-        .from("maintenance_requests")
+        .from("maintenance")
         .select("*", { count: "exact", head: true })
         .eq("client_id", clientId),
     ]);
@@ -303,7 +303,7 @@ export async function getTenantStats(
 
     const [maintenance, payments] = await Promise.all([
       supabaseAdmin
-        .from("maintenance_requests")
+        .from("maintenance")
         .select("id, status")
         .eq("tenant_id", tenantId),
       supabaseAdmin
@@ -381,7 +381,7 @@ export async function getTenantsPerApartment(
   try {
     // Get all active apartments with tenant counts
     const { data: apartments, error: aptError } = await supabaseAdmin
-      .from("apartments")
+      .from("units")
       .select("*")
       .eq("status", "active")
       .order("name");
@@ -393,7 +393,7 @@ export async function getTenantsPerApartment(
 
     const { data: tenants, error: tenError } = await supabaseAdmin
       .from("tenants")
-      .select("apartment_id")
+      .select("unit_id")
       .eq("status", "active");
 
     if (tenError) {
@@ -404,8 +404,8 @@ export async function getTenantsPerApartment(
     // Count tenants per apartment
     const countMap: Record<string, number> = {};
     (tenants || []).forEach((t: any) => {
-      if (t.apartment_id) {
-        countMap[t.apartment_id] = (countMap[t.apartment_id] || 0) + 1;
+      if (t.unit_id) {
+        countMap[t.unit_id] = (countMap[t.unit_id] || 0) + 1;
       }
     });
 
@@ -536,7 +536,7 @@ export async function getAllUsers(
         .order("created_at", { ascending: false }),
       supabaseAdmin
         .from("tenants")
-        .select("*, apartments(address)")
+        .select("*, clients(apartment_address)")
         .order("created_at", { ascending: false }),
     ]);
 
@@ -576,7 +576,7 @@ export async function getAllUsers(
         phone: t.phone,
         role: "tenant",
         status: t.status || "active",
-        address: t.apartments?.address || null,
+        address: t.clients?.apartment_address || null,
         created_at: t.created_at,
       });
     });
@@ -610,7 +610,7 @@ export async function getMaintenanceByMonth(
     }
 
     const { data, error } = await supabaseAdmin
-      .from("maintenance_requests")
+      .from("maintenance")
       .select("created_at, status")
       .eq("client_id", clientId)
       .order("created_at", { ascending: true });

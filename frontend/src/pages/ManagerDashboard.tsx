@@ -50,7 +50,7 @@ export default function ManagerDashboard() {
     if (!manager?.clientId) return
     async function fetchPendingCount() {
       const { count } = await supabase
-        .from('maintenance_requests')
+        .from('maintenance')
         .select('id', { count: 'exact', head: true })
         .eq('client_id', manager!.clientId!)
         .eq('status', 'pending')

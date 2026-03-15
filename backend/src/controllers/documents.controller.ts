@@ -64,7 +64,7 @@ export async function getDocuments(
 
     let query = supabaseAdmin
       .from("documents")
-      .select("*, tenants(name), apartments(name)")
+      .select("*, tenants(name), apartments:unit_id(name)")
       .order("created_at", { ascending: false });
 
     if (requesterRole === "tenant") {
@@ -72,7 +72,6 @@ export async function getDocuments(
         .from("tenants")
         .select("id")
         .eq("auth_user_id", requesterAuthUserId)
-        .eq("status", "active")
         .maybeSingle();
 
       if (tenantProfileError) {
@@ -91,8 +90,8 @@ export async function getDocuments(
     if (req.query.client_id) {
       query = query.eq("client_id", req.query.client_id as string);
     }
-    if (req.query.apartment_id) {
-      query = query.eq("apartment_id", req.query.apartment_id as string);
+    if (req.query.unit_id) {
+      query = query.eq("unit_id", req.query.unit_id as string);
     }
     if (req.query.tenant_id) {
       query = query.eq("tenant_id", req.query.tenant_id as string);
@@ -142,7 +141,7 @@ export async function getDocumentById(
 
     const { data, error } = await supabaseAdmin
       .from("documents")
-      .select("*, tenants(name), apartments(name)")
+      .select("*, tenants(name), apartments:unit_id(name)")
       .eq("id", id)
       .single();
 
@@ -194,7 +193,7 @@ export async function uploadDocument(
   try {
     const {
       client_id,
-      apartment_id,
+      unit_id,
       tenant_id,
       uploaded_by,
       file_name,
@@ -203,7 +202,7 @@ export async function uploadDocument(
       file_data,
     } = req.body as {
       client_id?: string;
-      apartment_id?: string | null;
+      unit_id?: string | null;
       tenant_id?: string | null;
       uploaded_by?: string | null;
       file_name?: string;
@@ -258,7 +257,7 @@ export async function uploadDocument(
       .from("documents")
       .insert({
         client_id,
-        apartment_id: apartment_id || null,
+        unit_id: unit_id || null,
         tenant_id: tenant_id || null,
         uploaded_by: uploaded_by || null,
         file_name,

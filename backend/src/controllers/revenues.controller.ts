@@ -14,7 +14,7 @@ export async function getRevenues(
   try {
     let query = supabaseAdmin
       .from("revenues")
-      .select("*, apartments(name)")
+      .select("*, apartments:unit_id(name)")
       .order("month", { ascending: false });
 
     if (req.query.client_id) {

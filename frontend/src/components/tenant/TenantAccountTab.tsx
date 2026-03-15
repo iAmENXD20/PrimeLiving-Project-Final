@@ -53,7 +53,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
         tenantId
           ? supabase
               .from('tenants')
-              .select('status, move_in_date, apartment_id, client_id')
+              .select('status, move_in_date, unit_id, client_id')
               .eq('id', tenantId)
               .maybeSingle()
           : Promise.resolve({ data: null } as any),
@@ -61,7 +61,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
 
       setUserEmail(userData.user?.email ?? null)
 
-      const resolvedApartmentId = (tenantRes?.data?.apartment_id as string | null) || apartmentId || null
+      const resolvedApartmentId = (tenantRes?.data?.unit_id as string | null) || apartmentId || null
       const resolvedClientId = (tenantRes?.data?.client_id as string | null) || clientId || null
 
       if (tenantRes?.data?.status) setTenantStatus(tenantRes.data.status)
@@ -69,7 +69,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
 
       if (resolvedApartmentId) {
         const { data: apartment } = await supabase
-          .from('apartments')
+          .from('units')
           .select('name')
           .eq('id', resolvedApartmentId)
           .maybeSingle()
@@ -138,6 +138,11 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
 
   const labelClass = isDark ? 'text-gray-300' : 'text-gray-700'
   const sectionClass = `${cardClass} rounded-2xl border p-6 lg:p-8 shadow-sm`
+  const infoGridClass = `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 [&>div]:rounded-xl [&>div]:border [&>div]:p-4 [&>div]:min-h-[88px] [&_p]:truncate ${
+    isDark
+      ? '[&>div]:border-[#1E293B] [&>div]:bg-[#0A1628]/70'
+      : '[&>div]:border-gray-200 [&>div]:bg-gray-50'
+  }`
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-up">
@@ -167,7 +172,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className={infoGridClass}>
           <div>
             <Label className={`text-sm ${labelClass}`}>Name</Label>
             <p className={`mt-1 text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
@@ -242,7 +247,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 min-w-0">
                 <p className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                   {phone || 'Not provided'}
                 </p>

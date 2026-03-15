@@ -10,6 +10,7 @@ export async function getNotifications(req: AuthenticatedRequest, res: Response)
     const recipientRole = req.query.recipient_role as string | undefined;
     const recipientId = req.query.recipient_id as string | undefined;
     const clientId = req.query.client_id as string | undefined;
+    const apartmentId = req.query.apartment_id as string | undefined;
 
     let query = supabaseAdmin
       .from("notifications")
@@ -20,6 +21,7 @@ export async function getNotifications(req: AuthenticatedRequest, res: Response)
     if (recipientRole) query = query.eq("recipient_role", recipientRole);
     if (recipientId) query = query.eq("recipient_id", recipientId);
     if (clientId) query = query.eq("client_id", clientId);
+    if (apartmentId) query = query.eq("apartment_id", apartmentId);
 
     const { data, error } = await query;
     if (error) {

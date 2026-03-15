@@ -59,7 +59,7 @@ export interface Tenant {
   name: string;
   email: string;
   phone: string;
-  apartment_id: string;
+  unit_id: string;
   client_id: string;
   status: string;
   move_in_date: string;
@@ -80,7 +80,7 @@ export interface Inquiry {
 export interface MaintenanceRequest {
   id: string;
   tenant_id: string;
-  apartment_id: string;
+  unit_id: string;
   client_id: string;
   title: string;
   description: string;
@@ -92,7 +92,7 @@ export interface MaintenanceRequest {
 
 export interface Revenue {
   id: string;
-  apartment_id: string;
+  unit_id: string;
   client_id: string;
   amount: number;
   month: string;
@@ -104,7 +104,7 @@ export interface Payment {
   id: string;
   client_id: string;
   tenant_id: string;
-  apartment_id: string;
+  unit_id: string;
   amount: number;
   payment_date: string;
   status: string;
@@ -119,7 +119,7 @@ export interface Payment {
 export interface Document {
   id: string;
   client_id: string;
-  apartment_id: string;
+  unit_id: string;
   tenant_id: string | null;
   uploaded_by: string;
   file_name: string;
@@ -132,7 +132,7 @@ export interface Document {
 export interface Announcement {
   id: string;
   client_id: string;
-  apartment_id: string | null;
+  unit_id: string | null;
   title: string;
   content: string;
   created_by: string;

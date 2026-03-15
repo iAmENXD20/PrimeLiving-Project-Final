@@ -8,6 +8,7 @@ import OwnerDashboard from './pages/OwnerDashboard'
 import ManagerDashboard from './pages/ManagerDashboard'
 import TenantDashboard from './pages/TenantDashboard'
 import InviteConfirmPage from './pages/InviteConfirmPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/invite/confirm" element={<InviteConfirmPage />} />
         <Route path="/invite/confirm/invite/confirm" element={<InviteConfirmPage />} />
         <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />

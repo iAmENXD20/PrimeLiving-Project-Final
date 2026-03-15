@@ -13,7 +13,7 @@ function getInviteRedirectUrl(): string {
 
 /**
  * GET /api/tenants
- * Get all tenants (optionally filtered by apartment_id or client_id)
+ * Get all tenants (optionally filtered by unit_id or client_id)
  */
 export async function getTenants(
   req: AuthenticatedRequest,
@@ -33,13 +33,13 @@ export async function getTenants(
       query = query.neq("status", "inactive");
     }
 
-    if (req.query.apartment_id) {
-      query = query.eq("apartment_id", req.query.apartment_id as string);
+    if (req.query.unit_id) {
+      query = query.eq("unit_id", req.query.unit_id as string);
     }
 
     if (clientId) {
       const { data: apartments, error: apartmentsError } = await supabaseAdmin
-        .from("apartments")
+        .from("units")
         .select("id")
         .eq("client_id", clientId);
 
@@ -52,7 +52,7 @@ export async function getTenants(
 
       if (apartmentIds.length > 0) {
         query = query.or(
-          `client_id.eq.${clientId},apartment_id.in.(${apartmentIds.join(",")})`
+          `client_id.eq.${clientId},unit_id.in.(${apartmentIds.join(",")})`
         );
       } else {
         query = query.eq("client_id", clientId);
@@ -138,7 +138,7 @@ export async function createTenant(
   res: Response
 ): Promise<void> {
   try {
-    const { name, email, phone, apartment_id, client_id, create_auth_account } =
+    const { name, email, phone, unit_id, client_id, create_auth_account } =
       req.body;
     const normalizedEmail =
       typeof email === "string" ? email.trim().toLowerCase() : null;
@@ -178,7 +178,7 @@ export async function createTenant(
         name,
         email: normalizedEmail,
         phone,
-        apartment_id,
+        unit_id,
         client_id,
         status: create_auth_account ? "pending" : "active",
         move_in_date: new Date().toISOString().split("T")[0],
@@ -251,7 +251,7 @@ export async function deleteTenant(
       .from("tenants")
       .update({
         status: "inactive",
-        apartment_id: null,
+        unit_id: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -296,7 +296,7 @@ export async function assignTenantToUnit(
 
     // Get apartment to know client_id
     const { data: apt, error: aptErr } = await supabaseAdmin
-      .from("apartments")
+      .from("units")
       .select("client_id")
       .eq("id", unit_id)
       .single();
@@ -310,7 +310,7 @@ export async function assignTenantToUnit(
     const { data: existing } = await supabaseAdmin
       .from("tenants")
       .select("id")
-      .eq("apartment_id", unit_id)
+      .eq("unit_id", unit_id)
       .eq("status", "active")
       .maybeSingle();
 
@@ -346,7 +346,7 @@ export async function assignTenantToUnit(
       const { error: assignError } = await supabaseAdmin
         .from("tenants")
         .update({
-          apartment_id: unit_id,
+          unit_id: unit_id,
           client_id: apt.client_id,
           status: "active",
           move_in_date: resolvedStartDate,
@@ -374,7 +374,7 @@ export async function assignTenantToUnit(
         const { error } = await supabaseAdmin.from("tenants").insert({
           name,
           phone: phone || null,
-          apartment_id: unit_id,
+          unit_id: unit_id,
           client_id: apt.client_id,
           status: "active",
           move_in_date: resolvedStartDate,
@@ -392,7 +392,7 @@ export async function assignTenantToUnit(
     // Update rent if provided
     if (monthly_rent !== undefined) {
       await supabaseAdmin
-        .from("apartments")
+        .from("units")
         .update({ monthly_rent, updated_at: new Date().toISOString() })
         .eq("id", unit_id);
     }
@@ -416,19 +416,19 @@ export async function removeTenantFromUnit(
 
     const updates = preserve_account
       ? {
-          apartment_id: null,
+          unit_id: null,
           updated_at: new Date().toISOString(),
         }
       : {
           status: "inactive",
-          apartment_id: null,
+          unit_id: null,
           updated_at: new Date().toISOString(),
         };
 
     const { error } = await supabaseAdmin
       .from("tenants")
       .update(updates)
-      .eq("apartment_id", unit_id)
+      .eq("unit_id", unit_id)
       .eq("status", "active");
 
     if (error) {
@@ -450,7 +450,7 @@ export async function removeTenantFromUnit(
 
 /**
  * GET /api/tenants/count
- * Get tenant count (optionally filtered by client_id or apartment_id)
+ * Get tenant count (optionally filtered by client_id or unit_id)
  */
 export async function getTenantCount(
   req: AuthenticatedRequest,
@@ -464,8 +464,8 @@ export async function getTenantCount(
     if (req.query.client_id) {
       query = query.eq("client_id", req.query.client_id as string);
     }
-    if (req.query.apartment_id) {
-      query = query.eq("apartment_id", req.query.apartment_id as string);
+    if (req.query.unit_id) {
+      query = query.eq("unit_id", req.query.unit_id as string);
     }
 
     const { count, error } = await query;

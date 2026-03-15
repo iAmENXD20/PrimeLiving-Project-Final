@@ -22,6 +22,10 @@ export async function getAnnouncements(
       query = query.eq("client_id", req.query.client_id as string);
     }
 
+    if (req.query.apartment_id) {
+      query = query.eq("apartment_id", req.query.apartment_id as string);
+    }
+
     if (req.query.tenant_id) {
       const tenantId = req.query.tenant_id as string;
       query = query.or(
@@ -79,7 +83,7 @@ export async function createAnnouncement(
   res: Response
 ): Promise<void> {
   try {
-    const { client_id, title, message } = req.body;
+    const { client_id, apartment_id, title, message } = req.body;
     const senderName =
       typeof req.body.created_by === "string" && req.body.created_by.trim().length > 0
         ? req.body.created_by.trim()
@@ -100,6 +104,7 @@ export async function createAnnouncement(
 
     const insertPayload = {
       ...req.body,
+      apartment_id: apartment_id || null,
       recipient_tenant_ids:
         recipientTenantIds.length > 0 ? recipientTenantIds : null,
     };
@@ -130,6 +135,7 @@ export async function createAnnouncement(
 
       const tenantNotifications = (tenants || []).map((tenant: any) => ({
         client_id,
+        apartment_id: apartment_id || null,
         recipient_role: "tenant" as const,
         recipient_id: tenant.id,
         type: "announcement_created",
@@ -156,6 +162,7 @@ export async function createAnnouncement(
         managerNotifications.push(
           ...(managers || []).map((manager: any) => ({
             client_id,
+            apartment_id: apartment_id || null,
             recipient_role: "manager" as const,
             recipient_id: manager.id,
             type: "announcement_created",

@@ -3,6 +3,54 @@ import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 
+async function getOrCreateApartmentForClient(
+  clientId: string,
+  nameHint?: string | null,
+  addressHint?: string | null
+): Promise<string | null> {
+  if (!clientId) {
+    return null;
+  }
+
+  const { data: existing } = await supabaseAdmin
+    .from("apartments")
+    .select("id")
+    .eq("client_id", clientId)
+    .maybeSingle();
+
+  if (existing?.id) {
+    return existing.id;
+  }
+
+  const { data: created, error } = await supabaseAdmin
+    .from("apartments")
+    .insert({
+      client_id: clientId,
+      name: nameHint || "Apartment",
+      address: addressHint || null,
+      status: "active",
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return created?.id || null;
+}
+
+function withFlatAddress(unit: any) {
+  const address = unit?.apartment?.address ?? null;
+  const apartmentName = unit?.apartment?.name ?? null;
+  return {
+    ...unit,
+    address,
+    apartment_name: apartmentName,
+    apartment: undefined,
+  };
+}
+
 /**
  * GET /api/apartments
  * Get all apartments (optionally filtered by client_id or manager_id)
@@ -13,8 +61,8 @@ export async function getApartments(
 ): Promise<void> {
   try {
     let query = supabaseAdmin
-      .from("apartments")
-      .select("*")
+      .from("units")
+      .select("*, apartment:apartment_id(address,name)")
       .order("created_at", { ascending: false });
 
     if (req.query.client_id) {
@@ -31,7 +79,7 @@ export async function getApartments(
       return;
     }
 
-    sendSuccess(res, data);
+    sendSuccess(res, (data || []).map(withFlatAddress));
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -49,8 +97,8 @@ export async function getApartmentById(
     const { id } = req.params;
 
     const { data, error } = await supabaseAdmin
-      .from("apartments")
-      .select("*")
+      .from("units")
+      .select("*, apartment:apartment_id(address,name)")
       .eq("id", id)
       .single();
 
@@ -59,7 +107,7 @@ export async function getApartmentById(
       return;
     }
 
-    sendSuccess(res, data);
+    sendSuccess(res, withFlatAddress(data));
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -74,15 +122,33 @@ export async function createApartment(
   res: Response
 ): Promise<void> {
   try {
+    const { address, ...rawPayload } = req.body || {};
+    const payload = { ...rawPayload } as any;
+
+    if (!payload.apartment_id && payload.client_id) {
+      payload.apartment_id = await getOrCreateApartmentForClient(
+        payload.client_id,
+        payload.name,
+        address
+      );
+    }
+
     const { data, error } = await supabaseAdmin
-      .from("apartments")
-      .insert(req.body)
+      .from("units")
+      .insert(payload)
       .select()
       .single();
 
     if (error) {
       sendError(res, error.message, 500);
       return;
+    }
+
+    if (address && payload.client_id) {
+      await supabaseAdmin
+        .from("apartments")
+        .update({ address, updated_at: new Date().toISOString() })
+        .eq("client_id", payload.client_id);
     }
 
     sendSuccess(res, data, "Apartment created successfully", 201);
@@ -102,9 +168,32 @@ export async function createApartmentsBulk(
   try {
     const { apartments } = req.body;
 
+    const preparedRows: any[] = [];
+    for (const row of apartments || []) {
+      const { address, ...rawPayload } = row || {};
+      const payload = { ...rawPayload } as any;
+
+      if (!payload.apartment_id && payload.client_id) {
+        payload.apartment_id = await getOrCreateApartmentForClient(
+          payload.client_id,
+          payload.name,
+          address
+        );
+      }
+
+      if (address && payload.client_id) {
+        await supabaseAdmin
+          .from("apartments")
+          .update({ address, updated_at: new Date().toISOString() })
+          .eq("client_id", payload.client_id);
+      }
+
+      preparedRows.push(payload);
+    }
+
     const { data, error } = await supabaseAdmin
-      .from("apartments")
-      .insert(apartments)
+      .from("units")
+      .insert(preparedRows)
       .select();
 
     if (error) {
@@ -128,10 +217,19 @@ export async function updateApartment(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { address, ...rawUpdates } = req.body || {};
+    const updates = { ...rawUpdates } as any;
+
+    if (!updates.apartment_id && updates.client_id) {
+      updates.apartment_id = await getOrCreateApartmentForClient(
+        updates.client_id,
+        updates.name,
+        address
+      );
+    }
 
     const { data, error } = await supabaseAdmin
-      .from("apartments")
+      .from("units")
       .update(updates)
       .eq("id", id)
       .select()
@@ -140,6 +238,14 @@ export async function updateApartment(
     if (error) {
       sendError(res, error.message, 500);
       return;
+    }
+
+    const clientIdForAddress = updates.client_id || data?.client_id;
+    if (address && clientIdForAddress) {
+      await supabaseAdmin
+        .from("apartments")
+        .update({ address, updated_at: new Date().toISOString() })
+        .eq("client_id", clientIdForAddress);
     }
 
     sendSuccess(res, data, "Apartment updated successfully");
@@ -164,13 +270,13 @@ export async function deleteApartment(
       .from("tenants")
       .update({
         status: "inactive",
-        apartment_id: null,
+        unit_id: null,
         updated_at: new Date().toISOString(),
       })
-      .eq("apartment_id", id);
+      .eq("unit_id", id);
 
     const { error } = await supabaseAdmin
-      .from("apartments")
+      .from("units")
       .delete()
       .eq("id", id);
 
@@ -195,8 +301,8 @@ export async function getApartmentsWithTenants(
 ): Promise<void> {
   try {
     let query = supabaseAdmin
-      .from("apartments")
-      .select("*")
+      .from("units")
+      .select("*, apartment:apartment_id(address,name)")
       .order("name", { ascending: true });
 
     if (req.query.client_id) {
@@ -222,9 +328,9 @@ export async function getApartmentsWithTenants(
     // Get active tenants for these apartments
     const { data: tenants, error: tenError } = await supabaseAdmin
       .from("tenants")
-      .select("id, name, phone, apartment_id")
+      .select("id, name, phone, unit_id")
       .eq("status", "active")
-      .in("apartment_id", aptIds);
+      .in("unit_id", aptIds);
 
     if (tenError) {
       sendError(res, tenError.message, 500);
@@ -237,8 +343,8 @@ export async function getApartmentsWithTenants(
       { id: string; name: string; phone: string | null }
     > = {};
     (tenants || []).forEach((t: any) => {
-      if (t.apartment_id) {
-        tenantMap[t.apartment_id] = {
+      if (t.unit_id) {
+        tenantMap[t.unit_id] = {
           id: t.id,
           name: t.name,
           phone: t.phone,
@@ -249,7 +355,7 @@ export async function getApartmentsWithTenants(
     const results = (apartments || []).map((apt: any) => ({
       id: apt.id,
       name: apt.name,
-      address: apt.address,
+      address: apt.apartment?.address ?? null,
       monthly_rent: Number(apt.monthly_rent) || 0,
       total_units: apt.total_units,
       client_id: apt.client_id,
@@ -282,7 +388,7 @@ export async function setPaymentDueDay(
     if (client_id) {
       // Update all apartments for the given client
       const { error } = await supabaseAdmin
-        .from("apartments")
+        .from("units")
         .update({ payment_due_day: day })
         .eq("client_id", client_id);
 
@@ -295,7 +401,7 @@ export async function setPaymentDueDay(
     } else {
       const { id } = req.params;
       const { data, error } = await supabaseAdmin
-        .from("apartments")
+        .from("units")
         .update({ payment_due_day: day })
         .eq("id", id)
         .select()
@@ -323,7 +429,7 @@ export async function getApartmentCount(
 ): Promise<void> {
   try {
     let query = supabaseAdmin
-      .from("apartments")
+      .from("units")
       .select("*", { count: "exact", head: true });
 
     if (req.query.client_id) {

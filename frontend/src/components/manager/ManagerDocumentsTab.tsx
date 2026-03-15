@@ -63,7 +63,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
           name: unit.tenant_name || 'Unknown',
           email: null,
           phone: unit.tenant_phone || null,
-          apartment_id: unit.id,
+          unit_id: unit.id,
           client_id: unit.client_id,
           status: 'active',
           move_in_date: null,
@@ -124,7 +124,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
         selectedFile,
         clientId,
         managerId,
-        unit?.id || tenant.apartment_id || null,
+        unit?.id || tenant.unit_id || null,
         tenant.id,
         description,
       )

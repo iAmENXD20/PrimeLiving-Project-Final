@@ -30,7 +30,7 @@ export interface Tenant {
   name: string
   email: string | null
   phone: string | null
-  apartment_id: string | null
+  unit_id: string | null
   status: 'active' | 'inactive'
   move_in_date: string
 }

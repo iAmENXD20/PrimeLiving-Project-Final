@@ -291,7 +291,7 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
           <table className="w-full text-base bg-transparent">
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B] bg-[#0F1B30]' : 'border-gray-200 bg-white'}`}>
-                {['Title', 'Names', 'Apartment', 'Photo', 'Priority', 'Status', 'Actions', 'Date'].map((h) => (
+                {['Title', 'Names', 'Photo', 'Priority', 'Status', 'Actions', 'Date'].map((h) => (
                   <th key={h} className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {h}
                   </th>
@@ -308,7 +308,6 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
                     </p>
                   </td>
                   <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{req.tenant_name}</td>
-                  <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{req.apartment_name}</td>
                   <td className="py-3 px-4">
                     {(() => {
                       const urls = parsePhotoUrls(req.photo_url)

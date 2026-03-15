@@ -51,7 +51,7 @@ export async function getMaintenanceRequests(
 ): Promise<void> {
   try {
     let query = supabaseAdmin
-      .from("maintenance_requests")
+      .from("maintenance")
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -90,7 +90,7 @@ export async function getMaintenanceRequestById(
     const { id } = req.params;
 
     const { data, error } = await supabaseAdmin
-      .from("maintenance_requests")
+      .from("maintenance")
       .select("*")
       .eq("id", id)
       .single();
@@ -115,14 +115,14 @@ export async function createMaintenanceRequest(
   res: Response
 ): Promise<void> {
   try {
-    const { tenant_id, apartment_id, client_id, title, description, priority, photo_url } =
+    const { tenant_id, unit_id, client_id, title, description, priority, photo_url } =
       req.body;
 
     const { data, error } = await supabaseAdmin
-      .from("maintenance_requests")
+      .from("maintenance")
       .insert({
         tenant_id,
-        apartment_id,
+        unit_id,
         client_id,
         title,
         description,
@@ -153,11 +153,11 @@ export async function createMaintenanceRequest(
 
     let managers = managersByClient || [];
 
-    if (managers.length === 0 && apartment_id) {
+    if (managers.length === 0 && unit_id) {
       const { data: apartment } = await supabaseAdmin
-        .from("apartments")
+        .from("units")
         .select("manager_id")
-        .eq("id", apartment_id)
+        .eq("id", unit_id)
         .maybeSingle();
 
       if (apartment?.manager_id) {
@@ -176,12 +176,14 @@ export async function createMaintenanceRequest(
 
     await sendSmsToMany(
       (managers || []).map((manager: any) => manager.phone),
-      `[PrimeLiving] New maintenance request from ${tenant?.name || "tenant"}: ${title} (${priority})`
+      `[PrimeLiving] New maintenance request from ${tenant?.name || "tenant"}: ${title} (${priority})`,
+      { unit_id, client_id }
     );
 
     await createNotifications(
       (managers || []).map((manager: any) => ({
         client_id,
+        unit_id,
         recipient_role: "manager" as const,
         recipient_id: manager.id,
         type: "maintenance_request_created",
@@ -209,7 +211,7 @@ export async function updateMaintenanceStatus(
     const { status } = req.body;
 
     const { data, error } = await supabaseAdmin
-      .from("maintenance_requests")
+      .from("maintenance")
       .update({ status })
       .eq("id", id)
       .select()
@@ -229,12 +231,14 @@ export async function updateMaintenanceStatus(
 
       await sendSmsToMany(
         [tenant?.phone],
-        `[PrimeLiving] Your maintenance request "${data.title}" is now ${status.replace("_", " ")}.`
+        `[PrimeLiving] Your maintenance request "${data.title}" is now ${status.replace("_", " ")}.`,
+        { unit_id: data.unit_id, client_id: data.client_id }
       );
 
       if (data.client_id && data.tenant_id) {
         await createNotification({
           client_id: data.client_id,
+          unit_id: data.unit_id,
           recipient_role: "tenant",
           recipient_id: data.tenant_id,
           type: "maintenance_status_updated",
@@ -260,7 +264,7 @@ export async function getPendingMaintenanceCount(
 ): Promise<void> {
   try {
     let query = supabaseAdmin
-      .from("maintenance_requests")
+      .from("maintenance")
       .select("*", { count: "exact", head: true })
       .eq("status", "pending");
 

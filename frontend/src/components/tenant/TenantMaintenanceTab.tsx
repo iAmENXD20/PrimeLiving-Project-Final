@@ -116,7 +116,7 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, clientId }
 
       await createTenantMaintenanceRequest({
         tenant_id: tenantId,
-        apartment_id: apartmentId,
+        unit_id: apartmentId,
         client_id: clientId,
         title: data.title,
         description: data.description,
