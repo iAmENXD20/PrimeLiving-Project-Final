@@ -31,11 +31,12 @@ export interface Revenue {
 
 // ── Get current owner (client) from auth user ─────────────
 export async function getCurrentOwner() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const { data: { session } } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+  if (!userId) return null
 
   try {
-    return await api.get<any>(`/clients/by-auth/${user.id}`)
+    return await api.get<any>(`/clients/by-auth/${userId}`)
   } catch {
     return null
   }
@@ -44,7 +45,7 @@ export async function getCurrentOwner() {
 // ── Get Owner Apartment Address ─────────────────────────────
 export async function getOwnerApartmentAddress(clientId: string): Promise<string | null> {
   try {
-    const data = await api.get<any>(`/clients/${clientId}`)
+    const data = await api.get<any>(`/clients/${clientId}/location`)
     return data?.apartment_address || null
   } catch {
     return null

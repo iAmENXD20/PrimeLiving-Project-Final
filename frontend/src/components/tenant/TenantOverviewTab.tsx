@@ -7,7 +7,7 @@ import {
   getTenantMaintenanceRequests,
   type TenantMaintenanceRequest,
 } from '../../lib/tenantApi'
-import { getOwnerApartmentAddress } from '../../lib/ownerApi'
+import { getClientApartmentName, getOwnerApartmentAddress } from '../../lib/ownerApi'
 
 interface TenantOverviewTabProps {
   tenantId: string
@@ -38,13 +38,19 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, c
           const info = await getTenantApartmentInfo(apartmentId)
           setApartmentInfo(info)
           const fallbackClientId = info?.client_id || clientId || null
-          const fallbackAddress = fallbackClientId
-            ? await getOwnerApartmentAddress(fallbackClientId)
-            : null
-          setApartmentAddress(info?.address || fallbackAddress || null)
+          const [fallbackAddress, fallbackApartmentName] = fallbackClientId
+            ? await Promise.all([
+                getOwnerApartmentAddress(fallbackClientId),
+                getClientApartmentName(fallbackClientId),
+              ])
+            : [null, null]
+          setApartmentAddress(fallbackAddress || info?.address || info?.name || fallbackApartmentName || null)
         } else if (clientId) {
-          const fallbackAddress = await getOwnerApartmentAddress(clientId)
-          setApartmentAddress(fallbackAddress || null)
+          const [fallbackAddress, fallbackApartmentName] = await Promise.all([
+            getOwnerApartmentAddress(clientId),
+            getClientApartmentName(clientId),
+          ])  
+          setApartmentAddress(fallbackAddress || fallbackApartmentName || null)
         }
       } catch (err) {
         console.error('Failed to load tenant overview:', err)

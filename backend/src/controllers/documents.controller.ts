@@ -59,16 +59,43 @@ export async function getDocuments(
   try {
     await ensureDocumentsBucket();
 
+    const requesterRole = req.user?.role;
+    const requesterAuthUserId = req.user?.id;
+
     let query = supabaseAdmin
       .from("documents")
       .select("*, tenants(name), apartments(name)")
       .order("created_at", { ascending: false });
+
+    if (requesterRole === "tenant") {
+      const { data: tenantProfile, error: tenantProfileError } = await supabaseAdmin
+        .from("tenants")
+        .select("id")
+        .eq("auth_user_id", requesterAuthUserId)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (tenantProfileError) {
+        sendError(res, tenantProfileError.message, 500);
+        return;
+      }
+
+      if (!tenantProfile?.id) {
+        sendSuccess(res, []);
+        return;
+      }
+
+      query = query.eq("tenant_id", tenantProfile.id);
+    }
 
     if (req.query.client_id) {
       query = query.eq("client_id", req.query.client_id as string);
     }
     if (req.query.apartment_id) {
       query = query.eq("apartment_id", req.query.apartment_id as string);
+    }
+    if (req.query.tenant_id) {
+      query = query.eq("tenant_id", req.query.tenant_id as string);
     }
 
     const { data, error } = await query;

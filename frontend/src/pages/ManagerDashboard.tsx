@@ -86,7 +86,7 @@ export default function ManagerDashboard() {
       case 'notifications':
         return <ManagerNotificationsTab managerId={manager.id} clientId={manager.clientId || ''} />
       case 'settings':
-        return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} />
+        return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} clientId={manager.clientId} />
       default:
         return <ManagerOverviewTab managerId={manager.id} clientId={manager.clientId || ''} managerName={manager.name} />
     }

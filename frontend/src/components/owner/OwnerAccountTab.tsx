@@ -55,6 +55,11 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [ownerName, setOwnerName] = useState<string | null>(null)
   const [ownerPhone, setOwnerPhone] = useState<string | null>(null)
+  const [ownerStatus, setOwnerStatus] = useState<string>('active')
+  const [memberSince, setMemberSince] = useState<string | null>(null)
+  const [unitsCount, setUnitsCount] = useState(0)
+  const [activeManagersCount, setActiveManagersCount] = useState(0)
+  const [activeTenantsCount, setActiveTenantsCount] = useState(0)
   const [editingPhone, setEditingPhone] = useState(false)
   const [phoneInput, setPhoneInput] = useState('')
   const [phoneSaving, setPhoneSaving] = useState(false)
@@ -66,9 +71,21 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? null)
     })
-    supabase.from('clients').select('name, phone').eq('id', clientId).single().then(({ data }) => {
+    supabase.from('clients').select('name, phone, status, created_at').eq('id', clientId).single().then(({ data }) => {
       setOwnerName(data?.name ?? null)
       setOwnerPhone(data?.phone ?? null)
+      setOwnerStatus(data?.status || 'active')
+      setMemberSince(data?.created_at || null)
+    })
+
+    Promise.all([
+      supabase.from('apartments').select('id', { count: 'exact', head: true }).eq('client_id', clientId),
+      supabase.from('managers').select('id', { count: 'exact', head: true }).eq('client_id', clientId).eq('status', 'active'),
+      supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('client_id', clientId).eq('status', 'active'),
+    ]).then(([unitsRes, managersRes, tenantsRes]) => {
+      setUnitsCount(unitsRes.count || 0)
+      setActiveManagersCount(managersRes.count || 0)
+      setActiveTenantsCount(tenantsRes.count || 0)
     })
     getOwnerApartmentAddress(clientId).then((addr) => {
       if (addr) {
@@ -177,7 +194,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <Label className={`text-sm ${labelClass}`}>Name</Label>
             <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
@@ -194,6 +211,36 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
             <Label className={`text-sm ${labelClass}`}>Role</Label>
             <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
               Owner
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Status</Label>
+            <p className={`mt-1 text-base font-medium capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {ownerStatus}
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Member Since</Label>
+            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {memberSince ? new Date(memberSince).toLocaleDateString() : 'Not set'}
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Total Units</Label>
+            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {unitsCount}
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Active Managers</Label>
+            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {activeManagersCount}
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Active Tenants</Label>
+            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {activeTenantsCount}
             </p>
           </div>
           <div>

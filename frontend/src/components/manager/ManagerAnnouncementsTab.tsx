@@ -26,7 +26,7 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
   const [submitting, setSubmitting] = useState(false)
   const [smsSending, setSmsSending] = useState(false)
   const [tenants, setTenants] = useState<{ id: string; name: string; phone: string | null }[]>([])
-  const [recipientMode, setRecipientMode] = useState<'all' | 'multiple' | 'specific'>('all')
+  const [recipientMode, setRecipientMode] = useState<'all' | 'multiple'>('all')
   const [selectedTenantIds, setSelectedTenantIds] = useState<string[]>([])
 
   async function load() {
@@ -56,10 +56,6 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
     if (!title.trim() || !message.trim()) return
 
     let recipients = tenants
-
-    if (recipientMode === 'specific') {
-      recipients = tenants.filter((t) => selectedTenantIds[0] === t.id)
-    }
 
     if (recipientMode === 'multiple') {
       recipients = tenants.filter((t) => selectedTenantIds.includes(t.id))
@@ -170,10 +166,10 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
 
           <div className="space-y-2">
             <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              SMS Recipients
+              Select the tenants to notify
             </label>
             <div className="flex flex-wrap gap-2">
-              {(['all', 'multiple', 'specific'] as const).map((mode) => (
+              {(['all', 'multiple'] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -207,15 +203,9 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
                   return (
                     <label key={tenant.id} className="flex items-center gap-2 text-sm cursor-pointer">
                       <input
-                        type={recipientMode === 'specific' ? 'radio' : 'checkbox'}
-                        name="specific-tenant"
+                        type="checkbox"
                         checked={checked}
                         onChange={(e) => {
-                          if (recipientMode === 'specific') {
-                            setSelectedTenantIds(e.target.checked ? [tenant.id] : [])
-                            return
-                          }
-
                           if (e.target.checked) {
                             setSelectedTenantIds((prev) => [...prev, tenant.id])
                           } else {

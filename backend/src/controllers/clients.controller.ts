@@ -58,6 +58,75 @@ export async function getClientById(
 }
 
 /**
+ * GET /api/clients/:id/location
+ * Get client apartment location for authorized users tied to the same client.
+ */
+export async function getClientLocation(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    if (!user) {
+      sendError(res, "Authentication required", 401);
+      return;
+    }
+
+    let allowed = false;
+
+    if (user.role === "admin") {
+      allowed = true;
+    } else if (user.role === "owner") {
+      const { data: owner } = await supabaseAdmin
+        .from("clients")
+        .select("id")
+        .eq("id", id)
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+      allowed = Boolean(owner);
+    } else if (user.role === "manager") {
+      const { data: manager } = await supabaseAdmin
+        .from("managers")
+        .select("client_id")
+        .eq("auth_user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+      allowed = manager?.client_id === id;
+    } else if (user.role === "tenant") {
+      const { data: tenant } = await supabaseAdmin
+        .from("tenants")
+        .select("client_id")
+        .eq("auth_user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+      allowed = tenant?.client_id === id;
+    }
+
+    if (!allowed) {
+      sendError(res, "Access denied", 403);
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("clients")
+      .select("id, apartment_address, name")
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      sendError(res, error.message, 404);
+      return;
+    }
+
+    sendSuccess(res, data);
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
  * GET /api/clients/by-auth/:authUserId
  * Get a client by their auth_user_id
  */

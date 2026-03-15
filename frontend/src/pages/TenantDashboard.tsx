@@ -9,6 +9,7 @@ import TenantMaintenanceTab from '../components/tenant/TenantMaintenanceTab'
 import TenantPaymentsTab from '../components/tenant/TenantPaymentsTab'
 import TenantNotificationsTab from '../components/tenant/TenantNotificationsTab'
 import TenantAccountTab from '../components/tenant/TenantAccountTab'
+import TenantDocumentsTab from '../components/tenant/TenantDocumentsTab'
 import { getCurrentTenant, getTenantApartmentInfo, getUnreadNotificationCount } from '../lib/tenantApi'
 
 export default function TenantDashboard() {
@@ -121,10 +122,12 @@ export default function TenantDashboard() {
         return <TenantMaintenanceTab tenantId={tenant.id} apartmentId={tenant.apartmentId} clientId={tenant.clientId} />
       case 'payments':
         return <TenantPaymentsTab tenantId={tenant.id} clientId={tenant.clientId} apartmentId={tenant.apartmentId} />
+      case 'documents':
+        return <TenantDocumentsTab tenantId={tenant.id} clientId={tenant.clientId} />
       case 'notifications':
         return <TenantNotificationsTab tenantId={tenant.id} clientId={tenant.clientId} onRead={refreshNotificationCount} />
       case 'account':
-        return <TenantAccountTab tenantId={tenant.id} tenantName={tenant.name} tenantPhone={tenant.phone} />
+        return <TenantAccountTab tenantId={tenant.id} tenantName={tenant.name} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} clientId={tenant.clientId} />
       default:
         return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={tenant.name} clientId={tenant.clientId} />
     }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -27,9 +27,10 @@ interface ManagerSettingsTabProps {
   managerId?: string
   managerName?: string
   managerPhone?: string | null
+  clientId?: string | null
 }
 
-export default function ManagerSettingsTab({ managerId, managerName, managerPhone }: ManagerSettingsTabProps) {
+export default function ManagerSettingsTab({ managerId, managerName, managerPhone, clientId }: ManagerSettingsTabProps) {
   const { isDark } = useTheme()
   const [showCurrent, setShowCurrent] = useState(false)
   const [showNew, setShowNew] = useState(false)
@@ -39,12 +40,47 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
   const [editingPhone, setEditingPhone] = useState(false)
   const [phoneInput, setPhoneInput] = useState('')
   const [phoneSaving, setPhoneSaving] = useState(false)
+  const [managerStatus, setManagerStatus] = useState<string>('active')
+  const [joinedDate, setJoinedDate] = useState<string | null>(null)
+  const [ownerName, setOwnerName] = useState<string | null>(null)
+  const [propertyAddress, setPropertyAddress] = useState<string | null>(null)
 
-  useState(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserEmail(data.user?.email ?? null)
+  useEffect(() => {
+    async function loadProfile() {
+      const [{ data: userData }, managerRes] = await Promise.all([
+        supabase.auth.getUser(),
+        managerId
+          ? supabase
+              .from('managers')
+              .select('status, joined_date, client_id')
+              .eq('id', managerId)
+              .maybeSingle()
+          : Promise.resolve({ data: null } as any),
+      ])
+
+      setUserEmail(userData.user?.email ?? null)
+
+      const resolvedClientId = (managerRes?.data?.client_id as string | null) || clientId || null
+
+      if (managerRes?.data?.status) setManagerStatus(managerRes.data.status)
+      if (managerRes?.data?.joined_date) setJoinedDate(managerRes.data.joined_date)
+
+      if (resolvedClientId) {
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('name, apartment_address')
+          .eq('id', resolvedClientId)
+          .maybeSingle()
+
+        setOwnerName(clientData?.name || null)
+        setPropertyAddress(clientData?.apartment_address || null)
+      }
+    }
+
+    loadProfile().catch(() => {
+      // silent fallback
     })
-  })
+  }, [managerId, clientId])
 
   const {
     register,
@@ -117,7 +153,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <Label className={`text-sm ${labelClass}`}>Name</Label>
             <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
@@ -134,6 +170,30 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
             <Label className={`text-sm ${labelClass}`}>Role</Label>
             <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
               Apartment Manager
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Status</Label>
+            <p className={`mt-1 text-base font-medium capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {managerStatus}
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Joined Date</Label>
+            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {joinedDate ? new Date(joinedDate).toLocaleDateString() : 'Not set'}
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Owner</Label>
+            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {ownerName || 'Not linked'}
+            </p>
+          </div>
+          <div className="sm:col-span-2 lg:col-span-2">
+            <Label className={`text-sm ${labelClass}`}>Managed Property Address</Label>
+            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {propertyAddress || 'Not set'}
             </p>
           </div>
           <div>

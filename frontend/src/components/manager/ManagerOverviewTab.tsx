@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Users, AlertTriangle, MapPin, CheckCircle, XCircle } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { getManagerDashboardStats, getManagerMaintenanceRequests, getManagedApartments, type MaintenanceRequest } from '../../lib/managerApi'
-import { getOwnerApartmentAddress } from '../../lib/ownerApi'
+import { getClientApartmentName, getOwnerApartmentAddress } from '../../lib/ownerApi'
 
 interface ManagerOverviewTabProps {
   managerId: string
@@ -26,12 +26,15 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
           getManagedApartments(managerId),
         ])
         const resolvedClientId = clientId || apartments?.[0]?.client_id || ''
-        const ownerAddress = resolvedClientId
-          ? await getOwnerApartmentAddress(resolvedClientId)
-          : null
+        const [ownerAddress, ownerApartmentName] = resolvedClientId
+          ? await Promise.all([
+              getOwnerApartmentAddress(resolvedClientId),
+              getClientApartmentName(resolvedClientId),
+            ])
+          : [null, null]
         setStats(s)
         setRecentRequests(requests.slice(0, 5))
-        setApartmentAddress(apartments?.[0]?.address || ownerAddress || null)
+        setApartmentAddress(ownerAddress || apartments?.[0]?.address || apartments?.[0]?.name || ownerApartmentName || null)
       } catch (err) {
         console.error('Failed to load manager overview:', err)
       } finally {

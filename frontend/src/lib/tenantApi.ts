@@ -77,13 +77,28 @@ export interface TenantNotification {
   created_at: string
 }
 
+export interface TenantDocument {
+  id: string
+  client_id: string | null
+  apartment_id: string | null
+  tenant_id: string | null
+  uploaded_by: string | null
+  file_name: string
+  file_url: string
+  file_type: string
+  description: string | null
+  created_at: string
+  unit_name?: string | null
+}
+
 // ── Get current tenant from auth user ──────────────────────
 export async function getCurrentTenant(): Promise<TenantProfile | null> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const { data: { session } } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+  if (!userId) return null
 
   try {
-    return await api.get<TenantProfile>(`/tenants/by-auth/${user.id}`)
+    return await api.get<TenantProfile>(`/tenants/by-auth/${userId}`)
   } catch {
     return null
   }
@@ -212,6 +227,19 @@ export async function submitCashPaymentVerification(params: {
 // ── Announcements / Notifications ──────────────────────────
 export async function getTenantAnnouncements(clientId: string): Promise<TenantAnnouncement[]> {
   return api.get<TenantAnnouncement[]>(`/announcements?client_id=${clientId}`)
+}
+
+export async function getTenantDocuments(tenantId: string, clientId?: string | null): Promise<TenantDocument[]> {
+  const params = new URLSearchParams({ tenant_id: tenantId })
+  if (clientId) params.set('client_id', clientId)
+
+  const data = await api.get<any[]>(`/documents?${params.toString()}`)
+  return (data || []).map((doc: any) => ({
+    ...doc,
+    unit_name: doc.apartments?.name ?? null,
+    apartments: undefined,
+    tenants: undefined,
+  }))
 }
 
 export async function getTenantNotifications(tenantId: string, clientId?: string | null): Promise<TenantNotification[]> {

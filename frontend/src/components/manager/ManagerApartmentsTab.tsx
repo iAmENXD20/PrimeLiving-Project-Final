@@ -22,6 +22,7 @@ interface ManagerApartmentsTabProps {
 
 export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabProps) {
   const { isDark } = useTheme()
+  const todayDate = new Date().toISOString().split('T')[0]
   const [units, setUnits] = useState<UnitWithTenant[]>([])
   const [tenants, setTenants] = useState<TenantAccount[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,7 +30,7 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
   // Edit modal
   const [selectedUnit, setSelectedUnit] = useState<UnitWithTenant | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [editForm, setEditForm] = useState({ name: '', tenantId: '', monthlyRent: '' })
+  const [editForm, setEditForm] = useState({ name: '', tenantId: '', monthlyRent: '', billingStartAt: todayDate })
 
   useEffect(() => {
     loadUnits()
@@ -52,11 +53,16 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
   }
 
   function openEditModal(unit: UnitWithTenant) {
+    const assignedTenant = unit.tenant_id
+      ? tenants.find((tenant) => tenant.id === unit.tenant_id)
+      : null
+
     setSelectedUnit(unit)
     setEditForm({
       name: unit.name,
       tenantId: unit.tenant_id || '',
       monthlyRent: unit.monthly_rent?.toString() || '',
+      billingStartAt: assignedTenant?.move_in_date?.slice(0, 10) || todayDate,
     })
     setShowEditModal(true)
   }
@@ -73,8 +79,18 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
       const hadTenant = !!selectedUnit.tenant_id
       const hasTenantNow = !!editForm.tenantId
 
+      if (hasTenantNow && !editForm.billingStartAt) {
+        toast.error('Please select a billing start date')
+        return
+      }
+
       if (hasTenantNow) {
-        await assignExistingTenantToUnit(selectedUnit.id, editForm.tenantId, Number(editForm.monthlyRent) || undefined)
+        await assignExistingTenantToUnit(
+          selectedUnit.id,
+          editForm.tenantId,
+          Number(editForm.monthlyRent) || undefined,
+          editForm.billingStartAt,
+        )
       } else if (hadTenant && !hasTenantNow) {
         await removeTenantFromUnit(selectedUnit.id)
       }
@@ -90,6 +106,17 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
 
   const occupiedCount = units.filter((u) => u.tenant_name).length
   const availableCount = units.length - occupiedCount
+
+  const selectedTenantDetails = editForm.tenantId
+    ? tenants.find((tenant) => tenant.id === editForm.tenantId)
+    : null
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return '—'
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return '—'
+    return parsed.toLocaleDateString()
+  }
 
   const inputClass = isDark
     ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder:text-gray-500'
@@ -132,6 +159,9 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {units.map((unit) => {
               const isOccupied = !!unit.tenant_name
+              const tenantDetails = unit.tenant_id
+                ? tenants.find((tenant) => tenant.id === unit.tenant_id)
+                : null
               return (
                 <div
                   key={unit.id}
@@ -154,10 +184,13 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
                     <span className={`text-base font-bold tracking-wide ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {unit.name.toUpperCase()}
                     </span>
-                    <span
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: isOccupied ? '#DC2626' : '#059669' }}
-                    />
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                      isOccupied
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-emerald-500/20 text-emerald-400'
+                    }`}>
+                      {isOccupied ? 'Occupied' : 'Vacant'}
+                    </span>
                   </div>
 
                   {/* Body */}
@@ -172,6 +205,24 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
                       <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Contact</span>
                       <span className={`truncate ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                         {unit.tenant_phone || '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Email</span>
+                      <span className={`truncate ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {tenantDetails?.email || '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Tenant Status</span>
+                      <span className={`capitalize ml-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {tenantDetails?.status || '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Billing Start</span>
+                      <span className={`ml-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {formatDate(tenantDetails?.move_in_date)}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -224,7 +275,15 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
                 <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Assign Tenant Account</Label>
                 <select
                   value={editForm.tenantId}
-                  onChange={(e) => setEditForm({ ...editForm, tenantId: e.target.value })}
+                  onChange={(e) => {
+                    const nextTenantId = e.target.value
+                    const selectedTenant = tenants.find((tenant) => tenant.id === nextTenantId)
+                    setEditForm({
+                      ...editForm,
+                      tenantId: nextTenantId,
+                      billingStartAt: selectedTenant?.move_in_date?.slice(0, 10) || todayDate,
+                    })
+                  }}
                   className={`mt-2 w-full rounded-lg border px-3 py-2.5 text-sm ${inputClass}`}
                 >
                   <option value="">— No tenant assigned —</option>
@@ -235,6 +294,17 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
                   ))}
                 </select>
               </div>
+              {selectedTenantDetails && (
+                <div className={`rounded-lg border p-3 text-sm space-y-2 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
+                  <p className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>Selected Tenant Details</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Email: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedTenantDetails.email || '—'}</span></p>
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Phone: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedTenantDetails.phone || '—'}</span></p>
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Status: <span className={`capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedTenantDetails.status || '—'}</span></p>
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Move-in: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{formatDate(selectedTenantDetails.move_in_date)}</span></p>
+                  </div>
+                </div>
+              )}
               <div>
                 <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Monthly Rent (₱)</Label>
                 <Input
@@ -245,6 +315,17 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
                   className={`mt-2 ${inputClass}`}
                 />
               </div>
+              {editForm.tenantId && (
+                <div>
+                  <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Billing Start Date</Label>
+                  <Input
+                    type="date"
+                    value={editForm.billingStartAt}
+                    onChange={(e) => setEditForm({ ...editForm, billingStartAt: e.target.value })}
+                    className={`mt-2 ${inputClass}`}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 mt-6">

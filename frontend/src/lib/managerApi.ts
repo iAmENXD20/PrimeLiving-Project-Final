@@ -32,11 +32,12 @@ export interface ManagerProfile {
 
 // ── Get current manager from auth user ─────────────────────
 export async function getCurrentManager(): Promise<ManagerProfile | null> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const { data: { session } } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+  if (!userId) return null
 
   try {
-    const manager = await api.get<ManagerProfile>(`/managers/by-auth/${user.id}`)
+    const manager = await api.get<ManagerProfile>(`/managers/by-auth/${userId}`)
 
     if (manager && !manager.client_id) {
       const apartments = await api.get<any[]>(`/apartments?manager_id=${manager.id}`).catch(() => [])
@@ -170,12 +171,14 @@ export async function assignTenantToUnit(
   unitId: string,
   tenant: { name: string; phone?: string },
   monthlyRent?: number,
+  startAt?: string,
 ) {
   await api.post('/tenants/assign-unit', {
     unit_id: unitId,
     name: tenant.name,
     phone: tenant.phone || null,
     monthly_rent: monthlyRent,
+    start_at: startAt,
   })
 }
 
@@ -183,11 +186,13 @@ export async function assignExistingTenantToUnit(
   unitId: string,
   tenantId: string,
   monthlyRent?: number,
+  startAt?: string,
 ) {
   await api.post('/tenants/assign-unit', {
     unit_id: unitId,
     tenant_id: tenantId,
     monthly_rent: monthlyRent,
+    start_at: startAt,
   })
 }
 

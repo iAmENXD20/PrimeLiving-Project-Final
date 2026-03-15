@@ -5,6 +5,7 @@ import { invalidateCache } from "../middleware/cache.middleware";
 import {
   getClients,
   getClientById,
+  getClientLocation,
   getClientByAuthId,
   createClient,
   updateClient,
@@ -20,6 +21,7 @@ router.use(authenticate);
 router.get("/count", authorize("admin"), getClientCount);
 router.get("/by-auth/:authUserId", authorize("admin", "owner"), getClientByAuthId);
 router.get("/", authorize("admin"), getClients);
+router.get("/:id/location", authorize("admin", "owner", "manager", "tenant"), getClientLocation);
 router.get("/:id", authorize("admin", "owner"), getClientById);
 router.post("/", authorize("admin"), invalidateCache(["clients", "analytics"]), createClient);
 router.put("/:id", authorize("admin", "owner"), invalidateCache(["clients", "analytics"]), updateClient);

@@ -37,7 +37,12 @@ export interface ApiResponse<T = unknown> {
  */
 async function getAccessToken(): Promise<string | null> {
   const { data } = await supabase.auth.getSession()
-  return data.session?.access_token ?? null
+  if (data.session?.access_token) {
+    return data.session.access_token
+  }
+
+  const { data: refreshed } = await supabase.auth.refreshSession()
+  return refreshed.session?.access_token ?? null
 }
 
 /**

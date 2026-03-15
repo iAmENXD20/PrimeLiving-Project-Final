@@ -268,7 +268,17 @@ export async function assignTenantToUnit(
   res: Response
 ): Promise<void> {
   try {
-    const { unit_id, tenant_id, name, phone, monthly_rent } = req.body;
+    const { unit_id, tenant_id, name, phone, monthly_rent, start_at } = req.body;
+    const resolvedStartDate =
+      typeof start_at === "string" && start_at.trim().length > 0
+        ? start_at.trim()
+        : new Date().toISOString().split("T")[0];
+
+    const parsedStartDate = new Date(`${resolvedStartDate}T00:00:00`);
+    if (Number.isNaN(parsedStartDate.getTime())) {
+      sendError(res, "start_at must be a valid date (YYYY-MM-DD)", 400);
+      return;
+    }
 
     // Get apartment to know client_id
     const { data: apt, error: aptErr } = await supabaseAdmin
@@ -325,6 +335,7 @@ export async function assignTenantToUnit(
           apartment_id: unit_id,
           client_id: apt.client_id,
           status: "active",
+          move_in_date: resolvedStartDate,
           updated_at: new Date().toISOString(),
         })
         .eq("id", tenant_id);
@@ -338,7 +349,7 @@ export async function assignTenantToUnit(
         // Update existing tenant's info
         const { error } = await supabaseAdmin
           .from("tenants")
-          .update({ name, phone: phone || null })
+          .update({ name, phone: phone || null, move_in_date: resolvedStartDate })
           .eq("id", existing.id);
         if (error) {
           sendError(res, error.message, 500);
@@ -352,7 +363,7 @@ export async function assignTenantToUnit(
           apartment_id: unit_id,
           client_id: apt.client_id,
           status: "active",
-          move_in_date: new Date().toISOString().split("T")[0],
+          move_in_date: resolvedStartDate,
         });
         if (error) {
           sendError(res, error.message, 500);

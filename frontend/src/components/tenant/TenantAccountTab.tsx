@@ -27,9 +27,11 @@ interface TenantAccountTabProps {
   tenantId?: string
   tenantName?: string
   tenantPhone?: string | null
+  apartmentId?: string | null
+  clientId?: string | null
 }
 
-export default function TenantAccountTab({ tenantId, tenantName, tenantPhone }: TenantAccountTabProps) {
+export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, apartmentId, clientId }: TenantAccountTabProps) {
   const { isDark } = useTheme()
   const [showCurrent, setShowCurrent] = useState(false)
   const [showNew, setShowNew] = useState(false)
@@ -39,12 +41,55 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone }: 
   const [editingPhone, setEditingPhone] = useState(false)
   const [phoneInput, setPhoneInput] = useState('')
   const [phoneSaving, setPhoneSaving] = useState(false)
+  const [tenantStatus, setTenantStatus] = useState<string>('active')
+  const [moveInDate, setMoveInDate] = useState<string | null>(null)
+  const [apartmentName, setApartmentName] = useState<string | null>(null)
+  const [ownerName, setOwnerName] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserEmail(data.user?.email ?? null)
+    async function loadProfile() {
+      const [{ data: userData }, tenantRes] = await Promise.all([
+        supabase.auth.getUser(),
+        tenantId
+          ? supabase
+              .from('tenants')
+              .select('status, move_in_date, apartment_id, client_id')
+              .eq('id', tenantId)
+              .maybeSingle()
+          : Promise.resolve({ data: null } as any),
+      ])
+
+      setUserEmail(userData.user?.email ?? null)
+
+      const resolvedApartmentId = (tenantRes?.data?.apartment_id as string | null) || apartmentId || null
+      const resolvedClientId = (tenantRes?.data?.client_id as string | null) || clientId || null
+
+      if (tenantRes?.data?.status) setTenantStatus(tenantRes.data.status)
+      if (tenantRes?.data?.move_in_date) setMoveInDate(tenantRes.data.move_in_date)
+
+      if (resolvedApartmentId) {
+        const { data: apartment } = await supabase
+          .from('apartments')
+          .select('name')
+          .eq('id', resolvedApartmentId)
+          .maybeSingle()
+        setApartmentName(apartment?.name || null)
+      }
+
+      if (resolvedClientId) {
+        const { data: owner } = await supabase
+          .from('clients')
+          .select('name')
+          .eq('id', resolvedClientId)
+          .maybeSingle()
+        setOwnerName(owner?.name || null)
+      }
+    }
+
+    loadProfile().catch(() => {
+      // silent fallback
     })
-  }, [])
+  }, [tenantId, apartmentId, clientId])
 
   const {
     register,
@@ -121,7 +166,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone }: 
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <Label className={`text-sm ${labelClass}`}>Name</Label>
             <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
@@ -138,6 +183,30 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone }: 
             <Label className={`text-sm ${labelClass}`}>Role</Label>
             <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
               Tenant
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Status</Label>
+            <p className={`mt-1 text-base font-medium capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {tenantStatus}
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Move-in Date</Label>
+            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {moveInDate ? new Date(moveInDate).toLocaleDateString() : 'Not set'}
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Assigned Unit</Label>
+            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {apartmentName || 'Unassigned'}
+            </p>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Property Owner</Label>
+            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {ownerName || 'Not linked'}
             </p>
           </div>
           <div>
