@@ -398,11 +398,22 @@ export async function removeTenantFromUnit(
   res: Response
 ): Promise<void> {
   try {
-    const { unit_id } = req.body;
+    const { unit_id, preserve_account } = req.body;
+
+    const updates = preserve_account
+      ? {
+          apartment_id: null,
+          updated_at: new Date().toISOString(),
+        }
+      : {
+          status: "inactive",
+          apartment_id: null,
+          updated_at: new Date().toISOString(),
+        };
 
     const { error } = await supabaseAdmin
       .from("tenants")
-      .update({ status: "inactive", updated_at: new Date().toISOString() })
+      .update(updates)
       .eq("apartment_id", unit_id)
       .eq("status", "active");
 
@@ -411,7 +422,13 @@ export async function removeTenantFromUnit(
       return;
     }
 
-    sendSuccess(res, null, "Tenant removed from unit successfully");
+    sendSuccess(
+      res,
+      null,
+      preserve_account
+        ? "Tenant account preserved and unit emptied successfully"
+        : "Tenant removed from unit successfully"
+    );
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

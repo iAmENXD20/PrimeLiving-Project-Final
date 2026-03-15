@@ -128,19 +128,22 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
     : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-primary'
 
   const labelClass = isDark ? 'text-gray-300' : 'text-gray-700'
+  const sectionClass = `${cardClass} rounded-2xl border p-6 lg:p-8 shadow-sm`
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-up">
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-up">
       {/* Header */}
-      <div>
-        <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Settings</h2>
-        <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+      <div className={sectionClass}>
+        <h2 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Account Settings
+        </h2>
+        <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
           Manage your account security and update your password.
         </p>
       </div>
 
       {/* Account Info */}
-      <div className={`rounded-xl border p-6 ${cardClass}`}>
+      <div className={sectionClass}>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
             <ShieldCheck className="w-5 h-5 text-primary" />
@@ -156,7 +159,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <Label className={`text-sm ${labelClass}`}>Name</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+            <p className={`mt-1 text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
               {managerName || 'Loading...'}
             </p>
           </div>
@@ -206,7 +209,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
                   onChange={(e) => setPhoneInput(e.target.value)}
                   placeholder="Enter phone number"
                 />
-                <button onClick={async () => {
+                <button type="button" onClick={async () => {
                   if (!managerId) return
                   setPhoneSaving(true)
                   try {
@@ -223,7 +226,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
                 }} disabled={phoneSaving} className="text-green-500 hover:text-green-400">
                   <Check className="w-5 h-5" />
                 </button>
-                <button onClick={() => setEditingPhone(false)} className="text-red-500 hover:text-red-400">
+                <button type="button" onClick={() => setEditingPhone(false)} className="text-red-500 hover:text-red-400">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -232,7 +235,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
                 <p className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                   {phone || 'Not provided'}
                 </p>
-                <button onClick={() => { setPhoneInput(phone || ''); setEditingPhone(true) }} className={`${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                <button type="button" onClick={() => { setPhoneInput(phone || ''); setEditingPhone(true) }} className={`${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
                   <Pencil className="w-4 h-4" />
                 </button>
               </div>
@@ -242,10 +245,10 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
       </div>
 
       {/* Change Password */}
-      <div className={`rounded-xl border p-6 ${cardClass}`}>
+      <div className={sectionClass}>
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center">
-            <Lock className="w-5 h-5 text-amber-500" />
+          <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
+            <Lock className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -257,7 +260,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
           </div>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <div className="space-y-2">
             <Label className={labelClass}>Current Password</Label>
             <div className="relative">
@@ -265,7 +268,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
                 type={showCurrent ? 'text' : 'password'}
                 placeholder="Enter current password"
                 {...register('currentPassword')}
-                className={`${inputClass} pr-10 ${errors.currentPassword ? 'border-red-500/50' : ''}`}
+                className={`${inputClass} pr-10 h-11 ${errors.currentPassword ? 'border-red-500/50' : ''}`}
               />
               <button
                 type="button"
@@ -285,7 +288,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
                 type={showNew ? 'text' : 'password'}
                 placeholder="Enter new password"
                 {...register('newPassword')}
-                className={`${inputClass} pr-10 ${errors.newPassword ? 'border-red-500/50' : ''}`}
+                className={`${inputClass} pr-10 h-11 ${errors.newPassword ? 'border-red-500/50' : ''}`}
               />
               <button
                 type="button"
@@ -305,7 +308,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
                 type={showConfirm ? 'text' : 'password'}
                 placeholder="Confirm new password"
                 {...register('confirmPassword')}
-                className={`${inputClass} pr-10 ${errors.confirmPassword ? 'border-red-500/50' : ''}`}
+                className={`${inputClass} pr-10 h-11 ${errors.confirmPassword ? 'border-red-500/50' : ''}`}
               />
               <button
                 type="button"
@@ -318,7 +321,11 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
             {errors.confirmPassword && <p className="text-red-400 text-xs">{errors.confirmPassword.message}</p>}
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full sm:w-auto px-8 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors"
+          >
             {isSubmitting ? 'Updating...' : 'Update Password'}
           </Button>
         </form>

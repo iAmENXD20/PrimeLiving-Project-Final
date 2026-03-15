@@ -1,4 +1,4 @@
-import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, Building2, Users, UserCheck, AlertTriangle } from 'lucide-react'
+import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, Building2, Users, UserCheck } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
@@ -6,6 +6,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import {
   getOwnerUnits,
   getOwnerTenants,
@@ -40,7 +41,9 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
   const [unitsLoading, setUnitsLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [addForm, setAddForm] = useState({ count: '1' })
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
+  const [confirmAction, setConfirmAction] = useState<
+    { type: 'unit'; id: string; name: string } | { type: 'manager'; id: string; name: string } | null
+  >(null)
   const [deleting, setDeleting] = useState(false)
 
   // ─── Managers state ───────────────────────────────────────────
@@ -131,22 +134,29 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
   }
 
   async function handleDeleteUnit(unitId: string, unitName: string) {
-    setDeleteConfirm({ id: unitId, name: unitName })
+    setConfirmAction({ type: 'unit', id: unitId, name: unitName })
   }
 
-  async function confirmDeleteUnit() {
-    if (!deleteConfirm) return
+  async function confirmDeleteAction() {
+    if (!confirmAction) return
     setDeleting(true)
     try {
-      await deleteOwnerApartment(deleteConfirm.id)
-      await loadUnits()
-      toast.success(`${deleteConfirm.name} deleted successfully`)
+      if (confirmAction.type === 'unit') {
+        await deleteOwnerApartment(confirmAction.id)
+        await loadUnits()
+        toast.success(`${confirmAction.name} deleted successfully`)
+      } else {
+        await deleteOwnerManager(confirmAction.id)
+        setManagers((prev) => prev.filter((m) => m.id !== confirmAction.id))
+        setOpenMenu(null)
+        toast.success('Manager deleted')
+      }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to delete unit'
+      const message = err instanceof Error ? err.message : 'Failed to delete item'
       toast.error(message)
     } finally {
       setDeleting(false)
-      setDeleteConfirm(null)
+      setConfirmAction(null)
     }
   }
 
@@ -223,15 +233,9 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
   }
 
   async function handleDeleteManager(id: string) {
-    try {
-      await deleteOwnerManager(id)
-      setManagers((prev) => prev.filter((m) => m.id !== id))
-      setOpenMenu(null)
-      toast.success('Manager deleted')
-    } catch (err) {
-      console.error('Failed to delete manager:', err)
-      toast.error('Failed to delete manager')
-    }
+    const manager = managers.find((item) => item.id === id)
+    setConfirmAction({ type: 'manager', id, name: manager?.name || 'this manager' })
+    setOpenMenu(null)
   }
 
   const filtered = managers.filter(
@@ -969,50 +973,20 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !deleting && setDeleteConfirm(null)} />
-          <div
-            className={`relative w-full max-w-sm mx-4 rounded-xl border p-6 ${
-              isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
-            }`}
-          >
-            <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mb-4">
-                <AlertTriangle className="w-6 h-6 text-red-500" />
-              </div>
-              <h3 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Delete {deleteConfirm.name}?
-              </h3>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                This will permanently delete this unit and remove any tenants assigned to it. This action cannot be undone.
-              </p>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                disabled={deleting}
-                className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isDark
-                    ? 'bg-[#1E293B] text-gray-300 hover:bg-[#2a3a50]'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                } disabled:opacity-50`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDeleteUnit}
-                disabled={deleting}
-                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
-              >
-                {deleting ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationModal
+        open={Boolean(confirmAction)}
+        isDark={isDark}
+        title={confirmAction ? `Delete ${confirmAction.name}?` : 'Delete item?'}
+        description={
+          confirmAction?.type === 'unit'
+            ? 'This will permanently delete this unit and remove any tenants assigned to it. This action cannot be undone.'
+            : 'This will deactivate this manager account. This action cannot be undone.'
+        }
+        confirmText="Delete"
+        loading={deleting}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={confirmDeleteAction}
+      />
     </>
   )
 }

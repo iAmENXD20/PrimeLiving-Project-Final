@@ -13,6 +13,7 @@ import {
   type TenantAccount,
 } from '../../lib/managerApi'
 import { toast } from 'sonner'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 
 interface ManagerDocumentsTabProps {
   clientId: string
@@ -35,6 +36,8 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false)
   const tenantDropdownRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   async function load() {
     try {
@@ -152,14 +155,17 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
   }
 
   const handleDelete = async (doc: Document) => {
-    if (!confirm(`Delete "${doc.file_name}"?`)) return
     try {
+      setDeleting(true)
       await deleteDocument(doc.id, doc.file_url)
       toast.success('Document deleted')
       setDocuments(prev => prev.filter(d => d.id !== doc.id))
     } catch (err) {
       console.error('Delete failed:', err)
       toast.error('Failed to delete document')
+    } finally {
+      setDeleting(false)
+      setDocumentToDelete(null)
     }
   }
 
@@ -341,7 +347,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
                           <Download className="w-4 h-4" />
                         </a>
                         <button
-                          onClick={() => handleDelete(doc)}
+                          onClick={() => setDocumentToDelete(doc)}
                           title="Delete"
                           className={`p-2 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-red-400 hover:bg-red-400/10' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'}`}
                         >
@@ -366,6 +372,19 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
           </div>
         )}
       </div>
+
+      <ConfirmationModal
+        open={Boolean(documentToDelete)}
+        isDark={isDark}
+        title="Delete Document?"
+        description={documentToDelete ? `This will permanently delete “${documentToDelete.file_name}”.` : 'This action cannot be undone.'}
+        confirmText="Delete"
+        loading={deleting}
+        onCancel={() => setDocumentToDelete(null)}
+        onConfirm={() => {
+          if (documentToDelete) handleDelete(documentToDelete)
+        }}
+      />
     </div>
   )
 }

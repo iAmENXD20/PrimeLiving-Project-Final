@@ -165,21 +165,22 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
     : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-primary'
 
   const labelClass = isDark ? 'text-gray-300' : 'text-gray-700'
+  const sectionClass = `${cardClass} rounded-2xl border p-6 lg:p-8 shadow-sm`
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-up">
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-up">
       {/* Header */}
-      <div>
-        <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      <div className={sectionClass}>
+        <h2 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Account Settings
         </h2>
-        <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+        <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
           Manage your account security and update your password.
         </p>
       </div>
 
       {/* Account Info */}
-      <div className={`rounded-xl border p-6 ${cardClass} opacity-0 animate-fade-up-delay-1`}>
+      <div className={`${sectionClass} opacity-0 animate-fade-up-delay-1`}>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
             <ShieldCheck className="w-5 h-5 text-primary" />
@@ -197,7 +198,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <Label className={`text-sm ${labelClass}`}>Name</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+            <p className={`mt-1 text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
               {ownerName ?? 'Loading...'}
             </p>
           </div>
@@ -253,10 +254,10 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
                   onChange={(e) => setPhoneInput(e.target.value)}
                   placeholder="Enter phone number"
                 />
-                <button onClick={handleSavePhone} disabled={phoneSaving} className="text-green-500 hover:text-green-400">
+                <button type="button" onClick={handleSavePhone} disabled={phoneSaving} className="text-green-500 hover:text-green-400">
                   <Check className="w-5 h-5" />
                 </button>
-                <button onClick={() => setEditingPhone(false)} className="text-red-500 hover:text-red-400">
+                <button type="button" onClick={() => setEditingPhone(false)} className="text-red-500 hover:text-red-400">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -265,7 +266,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
                 <p className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                   {ownerPhone || 'Not provided'}
                 </p>
-                <button onClick={() => { setPhoneInput(ownerPhone || ''); setEditingPhone(true) }} className={`${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                <button type="button" onClick={() => { setPhoneInput(ownerPhone || ''); setEditingPhone(true) }} className={`${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
                   <Pencil className="w-4 h-4" />
                 </button>
               </div>
@@ -275,7 +276,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
       </div>
 
       {/* Apartment Address */}
-      <div className={`rounded-xl border p-6 ${cardClass} opacity-0 animate-fade-up-delay-1 relative z-10 overflow-visible`}>
+      <div className={`${sectionClass} opacity-0 animate-fade-up-delay-1 relative z-10 overflow-visible`}>
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
             <MapPin className="w-5 h-5 text-primary" />
@@ -395,7 +396,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
       </div>
 
       {/* Change Password */}
-      <div className={`rounded-xl border p-6 ${cardClass} opacity-0 animate-fade-up-delay-2`}>
+      <div className={`${sectionClass} opacity-0 animate-fade-up-delay-2`}>
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
             <Lock className="w-5 h-5 text-primary" />
@@ -418,7 +419,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
               <Input
                 type={showCurrent ? 'text' : 'password'}
                 placeholder="Enter current password"
-                className={`pr-10 ${inputClass}`}
+                className={`pr-10 h-11 ${inputClass}`}
                 {...register('currentPassword')}
               />
               <button
@@ -443,7 +444,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
               <Input
                 type={showNew ? 'text' : 'password'}
                 placeholder="Enter new password"
-                className={`pr-10 ${inputClass}`}
+                className={`pr-10 h-11 ${inputClass}`}
                 {...register('newPassword')}
               />
               <button
@@ -468,7 +469,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
               <Input
                 type={showConfirm ? 'text' : 'password'}
                 placeholder="Confirm new password"
-                className={`pr-10 ${inputClass}`}
+                className={`pr-10 h-11 ${inputClass}`}
                 {...register('confirmPassword')}
               />
               <button

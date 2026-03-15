@@ -11,6 +11,7 @@ import {
   updateOwnerManager,
   deleteOwnerManager,
 } from '../../lib/ownerApi'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 
 interface OwnerManagersTabProps {
   clientId: string
@@ -43,6 +44,8 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
   const [smsSent, setSmsSent] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const [managerToDelete, setManagerToDelete] = useState<Manager | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     loadManagers()
@@ -123,6 +126,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
 
   async function handleDelete(id: string) {
     try {
+      setDeleting(true)
       await deleteOwnerManager(id)
       setManagers((prev) => prev.filter((m) => m.id !== id))
       setOpenMenu(null)
@@ -130,6 +134,9 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
     } catch (err) {
       console.error('Failed to delete manager:', err)
       toast.error('Failed to delete manager')
+    } finally {
+      setDeleting(false)
+      setManagerToDelete(null)
     }
   }
 
@@ -261,7 +268,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                             <Edit2 className="w-3.5 h-3.5" /> Edit
                           </button>
                           <button
-                            onClick={() => handleDelete(manager.id)}
+                            onClick={() => setManagerToDelete(manager)}
                             className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-red-400 ${
                               isDark ? 'hover:bg-red-500/10' : 'hover:bg-red-50'
                             }`}
@@ -467,6 +474,19 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        open={Boolean(managerToDelete)}
+        isDark={isDark}
+        title="Delete Manager?"
+        description={managerToDelete ? `This will deactivate ${managerToDelete.name}'s manager account.` : 'This action cannot be undone.'}
+        confirmText="Delete"
+        loading={deleting}
+        onCancel={() => setManagerToDelete(null)}
+        onConfirm={() => {
+          if (managerToDelete) handleDelete(managerToDelete.id)
+        }}
+      />
     </>
   )
 }

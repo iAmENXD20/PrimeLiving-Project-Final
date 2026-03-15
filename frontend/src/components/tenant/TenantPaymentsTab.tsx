@@ -4,6 +4,7 @@ import { PhilippinePeso, QrCode, CreditCard, Upload, Trash2, Receipt, Eye, FileT
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { getTenantPayments, getTenantDueSchedule, getClientPaymentQrUrl, getCurrentTenant, submitCashPaymentVerification, type TenantPayment, type TenantDueScheduleItem } from '../../lib/tenantApi'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 
 interface TenantPaymentsTabProps {
   tenantId: string
@@ -24,6 +25,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null)
   const [receiptUploading, setReceiptUploading] = useState(false)
   const [showReceiptModal, setShowReceiptModal] = useState(false)
+  const [confirmReceiptDelete, setConfirmReceiptDelete] = useState(false)
   const receiptInputRef = useRef<HTMLInputElement>(null)
 
   // Payment form state
@@ -442,7 +444,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
                         <Upload className="w-3.5 h-3.5" /> Replace
                       </button>
                       <button
-                        onClick={handleReceiptDelete}
+                        onClick={() => setConfirmReceiptDelete(true)}
                         className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" /> Remove
@@ -616,6 +618,19 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
             </tbody>
           </table>
         </div>
+
+        <ConfirmationModal
+          open={confirmReceiptDelete}
+          isDark={isDark}
+          title="Remove Uploaded Receipt?"
+          description="This removes your currently uploaded proof image from local storage for this device."
+          confirmText="Remove"
+          onCancel={() => setConfirmReceiptDelete(false)}
+          onConfirm={() => {
+            handleReceiptDelete()
+            setConfirmReceiptDelete(false)
+          }}
+        />
       </div>
 
       {/* QR Preview Modal */}

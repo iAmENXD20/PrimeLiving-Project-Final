@@ -32,7 +32,7 @@ export default function TenantSidebar({ activeTab, onTabChange, isOpen, onClose,
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen w-64 lg:w-56 flex flex-col z-30 border-r transition-transform duration-300 ${
+      className={`fixed left-0 top-0 h-screen w-64 lg:w-60 flex flex-col z-30 border-r transition-transform duration-300 ${
         isDark
           ? 'bg-[#0A1628] border-[#1E293B]'
           : 'bg-white border-gray-200'

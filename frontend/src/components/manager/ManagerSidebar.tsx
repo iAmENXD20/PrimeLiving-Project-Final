@@ -9,6 +9,7 @@ interface ManagerSidebarProps {
   isOpen: boolean
   onClose: () => void
   pendingMaintenanceCount?: number
+  notificationCount?: number
 }
 
 const navItems = [
@@ -20,9 +21,10 @@ const navItems = [
   { id: 'settings', label: 'Account Settings', icon: Settings },
 ]
 
-export default function ManagerSidebar({ activeTab, onTabChange, isOpen, onClose, pendingMaintenanceCount = 0 }: ManagerSidebarProps) {
+export default function ManagerSidebar({ activeTab, onTabChange, isOpen, onClose, pendingMaintenanceCount = 0, notificationCount = 0 }: ManagerSidebarProps) {
   const { isDark } = useTheme()
   const navigate = useNavigate()
+  const unreadCount = Number.isFinite(notificationCount) ? Math.max(0, Math.floor(notificationCount)) : 0
 
   const handleLogout = async () => {
     await supabase.auth.signOut({ scope: 'local' })
@@ -31,13 +33,13 @@ export default function ManagerSidebar({ activeTab, onTabChange, isOpen, onClose
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen w-64 lg:w-56 flex flex-col z-30 border-r transition-transform duration-300 ${
+      className={`fixed left-0 top-0 h-screen w-64 lg:w-60 flex flex-col z-30 border-r transition-transform duration-300 ${
         isDark
           ? 'bg-[#0A1628] border-[#1E293B]'
           : 'bg-white border-gray-200'
       } ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
     >
-      {/* Logo + Close */}
+      {/* Logo + Close button */}
       <div className="flex items-center justify-between px-5 py-5">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
@@ -63,11 +65,12 @@ export default function ManagerSidebar({ activeTab, onTabChange, isOpen, onClose
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = activeTab === item.id
+          const showNotificationBadge = item.id === 'notifications' && unreadCount > 0
           return (
             <button
               key={item.id}
               onClick={() => onTabChange(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+              className={`w-full flex items-center justify-between gap-3 px-3 py-3 rounded-lg text-base font-medium transition-all duration-200 ${
                 isActive
                   ? isDark
                     ? 'bg-primary/15 text-primary'
@@ -77,8 +80,17 @@ export default function ManagerSidebar({ activeTab, onTabChange, isOpen, onClose
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
-              <Icon className="w-[18px] h-[18px]" />
-              {item.label}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative">
+                  <Icon className="w-[18px] h-[18px]" />
+                  {showNotificationBadge && (
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span className="truncate">{item.label}</span>
+              </div>
               {item.id === 'maintenance' && pendingMaintenanceCount > 0 && (
                 <span className="ml-auto bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
                   {pendingMaintenanceCount}

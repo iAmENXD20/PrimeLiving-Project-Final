@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { HelpCircle, X, ChevronDown } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
@@ -10,7 +10,8 @@ import TenantPaymentsTab from '../components/tenant/TenantPaymentsTab'
 import TenantNotificationsTab from '../components/tenant/TenantNotificationsTab'
 import TenantAccountTab from '../components/tenant/TenantAccountTab'
 import TenantDocumentsTab from '../components/tenant/TenantDocumentsTab'
-import { getCurrentTenant, getTenantApartmentInfo, getUnreadNotificationCount } from '../lib/tenantApi'
+import { getCurrentTenant, getTenantApartmentInfo, getUnreadNotificationCount, getTenantNotifications } from '../lib/tenantApi'
+import useBrowserNotifications from '../hooks/useBrowserNotifications'
 
 export default function TenantDashboard() {
   const { isDark } = useTheme()
@@ -92,6 +93,18 @@ export default function TenantDashboard() {
     return () => clearInterval(interval)
   }, [tenant?.id, tenant?.clientId])
 
+  const fetchTenantNotifications = useCallback(async () => {
+    if (!tenant?.id) return []
+    return getTenantNotifications(tenant.id, tenant.clientId)
+  }, [tenant?.id, tenant?.clientId])
+
+  useBrowserNotifications({
+    enabled: Boolean(tenant?.id),
+    storageKey: `primeliving_browser_notifs_tenant_${tenant?.id || 'unknown'}`,
+    fetchNotifications: fetchTenantNotifications,
+    pollMs: 30000,
+  })
+
   const handleTabChange = (tab: string) => {
     setActiveTab(tab)
     setSidebarOpen(false)
@@ -157,7 +170,7 @@ export default function TenantDashboard() {
       />
 
       {/* Main content area */}
-      <div className="lg:ml-56 flex flex-col min-h-screen">
+      <div className="lg:ml-60 flex flex-col min-h-screen">
         <TenantTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           tenantName={tenant?.name}

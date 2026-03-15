@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { UserMinus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
@@ -6,6 +6,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import {
   getManagerUnits,
   getManagerTenants,
@@ -31,6 +32,8 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
   const [selectedUnit, setSelectedUnit] = useState<UnitWithTenant | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editForm, setEditForm] = useState({ name: '', tenantId: '', monthlyRent: '', billingStartAt: todayDate })
+  const [emptyingUnitId, setEmptyingUnitId] = useState<string | null>(null)
+  const [unitToEmpty, setUnitToEmpty] = useState<UnitWithTenant | null>(null)
 
   useEffect(() => {
     loadUnits()
@@ -92,15 +95,31 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
           editForm.billingStartAt,
         )
       } else if (hadTenant && !hasTenantNow) {
-        await removeTenantFromUnit(selectedUnit.id)
+        await removeTenantFromUnit(selectedUnit.id, true)
       }
 
       await loadUnits()
       setShowEditModal(false)
-      toast.success('Unit updated')
+      toast.success(hadTenant && !hasTenantNow ? 'Unit emptied. Tenant account was preserved.' : 'Unit updated')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to update unit'
       toast.error(message)
+    }
+  }
+
+  async function handleEmptyUnit(unit: UnitWithTenant) {
+    if (!unit.tenant_id) return
+    try {
+      setEmptyingUnitId(unit.id)
+      await removeTenantFromUnit(unit.id, true)
+      await loadUnits()
+      toast.success('Unit emptied. Tenant account was preserved.')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to empty unit'
+      toast.error(message)
+    } finally {
+      setEmptyingUnitId(null)
+        setUnitToEmpty(null)
     }
   }
 
@@ -231,6 +250,31 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
                         {unit.monthly_rent ? `₱${unit.monthly_rent.toLocaleString()}` : '—'}
                       </span>
                     </div>
+
+                    {isOccupied && (
+                      <div className="pt-2 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          title="Empty Unit"
+                          aria-label="Empty Unit"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setUnitToEmpty(unit)
+                          }}
+                          disabled={emptyingUnitId === unit.id}
+                          className={`h-9 w-9 p-0 border-red-500/40 text-red-500 hover:bg-red-500/10 hover:text-red-400 ${
+                            isDark ? 'bg-transparent' : 'bg-white'
+                          }`}
+                        >
+                          {emptyingUnitId === unit.id ? (
+                            <span className="text-xs">...</span>
+                          ) : (
+                            <UserMinus className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )
@@ -347,6 +391,19 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
         </div>,
         document.body
       )}
+
+      <ConfirmationModal
+        open={Boolean(unitToEmpty)}
+        isDark={isDark}
+        title={unitToEmpty ? `Empty ${unitToEmpty.name}?` : 'Empty Unit?'}
+        description="This will mark the unit as vacant while keeping the tenant account active for future reassignment."
+        confirmText="Empty Unit"
+        loading={Boolean(unitToEmpty && emptyingUnitId === unitToEmpty.id)}
+        onCancel={() => setUnitToEmpty(null)}
+        onConfirm={() => {
+          if (unitToEmpty) handleEmptyUnit(unitToEmpty)
+        }}
+      />
     </>
   )
 }

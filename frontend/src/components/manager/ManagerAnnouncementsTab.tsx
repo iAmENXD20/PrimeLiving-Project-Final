@@ -9,6 +9,7 @@ import {
   type Announcement,
 } from '../../lib/managerApi'
 import { toast } from 'sonner'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 
 interface ManagerAnnouncementsTabProps {
   clientId: string
@@ -28,6 +29,8 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
   const [tenants, setTenants] = useState<{ id: string; name: string; phone: string | null }[]>([])
   const [recipientMode, setRecipientMode] = useState<'all' | 'multiple'>('all')
   const [selectedTenantIds, setSelectedTenantIds] = useState<string[]>([])
+  const [announcementToDelete, setAnnouncementToDelete] = useState<Announcement | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   async function load() {
     try {
@@ -110,11 +113,15 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
 
   const handleDelete = async (id: string) => {
     try {
+      setDeleting(true)
       await deleteAnnouncement(id)
       toast.success('Announcement deleted')
       setAnnouncements((prev) => prev.filter((a) => a.id !== id))
     } catch {
       toast.error('Failed to delete announcement')
+    } finally {
+      setDeleting(false)
+      setAnnouncementToDelete(null)
     }
   }
 
@@ -274,7 +281,7 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
               </p>
             </div>
             <button
-              onClick={() => handleDelete(a.id)}
+              onClick={() => setAnnouncementToDelete(a)}
               className={`p-2 rounded-lg transition-colors ${
                 isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/10' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
               }`}
@@ -284,6 +291,19 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
           </div>
         </div>
       ))}
+
+      <ConfirmationModal
+        open={Boolean(announcementToDelete)}
+        isDark={isDark}
+        title="Delete Announcement?"
+        description={announcementToDelete ? `This will permanently delete “${announcementToDelete.title}”.` : 'This will permanently delete this announcement.'}
+        confirmText="Delete"
+        loading={deleting}
+        onCancel={() => setAnnouncementToDelete(null)}
+        onConfirm={() => {
+          if (announcementToDelete) handleDelete(announcementToDelete.id)
+        }}
+      />
     </div>
   )
 }

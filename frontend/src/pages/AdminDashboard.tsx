@@ -78,7 +78,7 @@ export default function AdminDashboard() {
       />
 
       {/* Main content area */}
-      <div className="lg:ml-56 flex flex-col h-screen">
+      <div className="lg:ml-60 flex flex-col h-screen">
         <TopBar onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
 
         {/* Page content */}

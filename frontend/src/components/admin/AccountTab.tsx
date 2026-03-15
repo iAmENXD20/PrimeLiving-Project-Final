@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -30,12 +30,11 @@ export default function AccountTab() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
 
-  // Get current user email
-  useState(() => {
+  useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? null)
     })
-  })
+  }, [])
 
   const {
     register,
@@ -85,21 +84,25 @@ export default function AccountTab() {
     : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-primary'
 
   const labelClass = isDark ? 'text-gray-300' : 'text-gray-700'
+  const sectionClass = `${cardClass} rounded-2xl border p-6 lg:p-8 shadow-sm`
+  const tileClass = isDark
+    ? 'rounded-xl border border-[#1E293B] bg-[#0A1628]/70 p-4'
+    : 'rounded-xl border border-gray-200 bg-gray-50 p-4'
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-up">
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-up">
       {/* Header */}
-      <div>
-        <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      <div className={`${sectionClass}`}>
+        <h2 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Account Settings
         </h2>
-        <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+        <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
           Manage your account security and update your password.
         </p>
       </div>
 
       {/* Account Info */}
-      <div className={`rounded-xl border p-6 ${cardClass} opacity-0 animate-fade-up-delay-1`}>
+      <div className={`${sectionClass} opacity-0 animate-fade-up-delay-1`}>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
             <ShieldCheck className="w-5 h-5 text-primary" />
@@ -114,10 +117,10 @@ export default function AccountTab() {
           </div>
         </div>
 
-        <div className="space-y-3">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className={tileClass}>
             <Label className={`text-sm ${labelClass}`}>Email</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+            <p className={`mt-1 text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
               {userEmail ?? 'Loading...'}
             </p>
           </div>
@@ -125,7 +128,7 @@ export default function AccountTab() {
       </div>
 
       {/* Change Password */}
-      <div className={`rounded-xl border p-6 ${cardClass} opacity-0 animate-fade-up-delay-2`}>
+      <div className={`${sectionClass} opacity-0 animate-fade-up-delay-2`}>
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
             <Lock className="w-5 h-5 text-primary" />
@@ -148,7 +151,7 @@ export default function AccountTab() {
               <Input
                 type={showCurrent ? 'text' : 'password'}
                 placeholder="Enter current password"
-                className={`pr-10 ${inputClass}`}
+                className={`pr-10 h-11 ${inputClass}`}
                 {...register('currentPassword')}
               />
               <button
@@ -167,13 +170,14 @@ export default function AccountTab() {
           </div>
 
           {/* New Password */}
-          <div className="space-y-1.5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
             <Label className={labelClass}>New Password</Label>
             <div className="relative">
               <Input
                 type={showNew ? 'text' : 'password'}
                 placeholder="Enter new password"
-                className={`pr-10 ${inputClass}`}
+                className={`pr-10 h-11 ${inputClass}`}
                 {...register('newPassword')}
               />
               <button
@@ -189,16 +193,16 @@ export default function AccountTab() {
             {errors.newPassword && (
               <p className="text-red-500 text-sm">{errors.newPassword.message}</p>
             )}
-          </div>
+            </div>
 
           {/* Confirm Password */}
-          <div className="space-y-1.5">
+            <div className="space-y-1.5">
             <Label className={labelClass}>Confirm New Password</Label>
             <div className="relative">
               <Input
                 type={showConfirm ? 'text' : 'password'}
                 placeholder="Confirm new password"
-                className={`pr-10 ${inputClass}`}
+                className={`pr-10 h-11 ${inputClass}`}
                 {...register('confirmPassword')}
               />
               <button
@@ -214,6 +218,7 @@ export default function AccountTab() {
             {errors.confirmPassword && (
               <p className="text-red-500 text-sm">{errors.confirmPassword.message}</p>
             )}
+            </div>
           </div>
 
           {/* Submit Button */}

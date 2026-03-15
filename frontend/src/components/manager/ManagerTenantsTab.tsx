@@ -13,6 +13,7 @@ import {
   deleteTenantAccount,
   type TenantAccount,
 } from '../../lib/managerApi'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 
 interface ManagerTenantsTabProps {
   clientId: string
@@ -36,6 +37,8 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
   const [smsSent, setSmsSent] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const [tenantToDelete, setTenantToDelete] = useState<TenantAccount | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -121,6 +124,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
 
   async function handleDelete(id: string) {
     try {
+      setDeleting(true)
       await deleteTenantAccount(id)
       setTenants((prev) => prev.filter((t) => t.id !== id))
       setOpenMenu(null)
@@ -128,6 +132,9 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
     } catch (err) {
       console.error('Failed to delete tenant:', err)
       toast.error('Failed to delete tenant')
+    } finally {
+      setDeleting(false)
+      setTenantToDelete(null)
     }
   }
 
@@ -255,7 +262,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                               <Edit2 className="w-3.5 h-3.5" /> Edit
                             </button>
                             <button
-                              onClick={() => handleDelete(tenant.id)}
+                              onClick={() => setTenantToDelete(tenant)}
                               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
                             >
                               <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -477,6 +484,19 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
         </div>,
         document.body
       )}
+
+      <ConfirmationModal
+        open={Boolean(tenantToDelete)}
+        isDark={isDark}
+        title="Delete Tenant?"
+        description={tenantToDelete ? `This will deactivate ${tenantToDelete.name}'s tenant account.` : 'This action cannot be undone.'}
+        confirmText="Delete"
+        loading={deleting}
+        onCancel={() => setTenantToDelete(null)}
+        onConfirm={() => {
+          if (tenantToDelete) handleDelete(tenantToDelete.id)
+        }}
+      />
     </>
   )
 }

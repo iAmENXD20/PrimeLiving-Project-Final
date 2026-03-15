@@ -9,16 +9,20 @@ import {
   deleteAllManagerNotifications,
   type ManagerNotification,
 } from '../../lib/managerApi'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 
 interface ManagerNotificationsTabProps {
   managerId: string
   clientId: string
+  onRead?: () => void
 }
 
-export default function ManagerNotificationsTab({ managerId, clientId }: ManagerNotificationsTabProps) {
+export default function ManagerNotificationsTab({ managerId, clientId, onRead }: ManagerNotificationsTabProps) {
   const { isDark } = useTheme()
   const [notifications, setNotifications] = useState<ManagerNotification[]>([])
   const [loading, setLoading] = useState(true)
+  const [confirmAction, setConfirmAction] = useState<{ type: 'one'; id: string } | { type: 'all' } | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   const loadNotifications = async () => {
     try {
@@ -64,6 +68,7 @@ export default function ManagerNotificationsTab({ managerId, clientId }: Manager
       setNotifications((prev) => prev.map((item) => (
         item.id === notification.id ? { ...item, is_read: true } : item
       )))
+      onRead?.()
     } catch (error) {
       console.error('Failed to mark notification as read:', error)
     }
@@ -73,6 +78,7 @@ export default function ManagerNotificationsTab({ managerId, clientId }: Manager
     try {
       await markAllManagerNotificationsRead(managerId)
       setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })))
+      onRead?.()
     } catch (error) {
       console.error('Failed to mark all as read:', error)
     }
@@ -80,19 +86,29 @@ export default function ManagerNotificationsTab({ managerId, clientId }: Manager
 
   const handleDeleteOne = async (id: string) => {
     try {
+      setConfirming(true)
       await deleteManagerNotification(id)
       setNotifications((prev) => prev.filter((item) => item.id !== id))
+      onRead?.()
     } catch (error) {
       console.error('Failed to delete notification:', error)
+    } finally {
+      setConfirming(false)
+      setConfirmAction(null)
     }
   }
 
   const handleDeleteAll = async () => {
     try {
+      setConfirming(true)
       await deleteAllManagerNotifications(managerId, clientId)
       setNotifications([])
+      onRead?.()
     } catch (error) {
       console.error('Failed to delete all notifications:', error)
+    } finally {
+      setConfirming(false)
+      setConfirmAction(null)
     }
   }
 
@@ -117,7 +133,7 @@ export default function ManagerNotificationsTab({ managerId, clientId }: Manager
             Mark all read
           </button>
           <button
-            onClick={handleDeleteAll}
+            onClick={() => setConfirmAction({ type: 'all' })}
             className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               isDark ? 'bg-red-500/15 text-red-300 hover:bg-red-500/25' : 'bg-red-50 text-red-600 hover:bg-red-100'
             }`}
@@ -172,7 +188,7 @@ export default function ManagerNotificationsTab({ managerId, clientId }: Manager
                         </button>
                       )}
                       <button
-                        onClick={() => handleDeleteOne(notification.id)}
+                        onClick={() => setConfirmAction({ type: 'one', id: notification.id })}
                         className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium ${
                           isDark ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30' : 'bg-red-50 text-red-600 hover:bg-red-100'
                         }`}
@@ -197,6 +213,28 @@ export default function ManagerNotificationsTab({ managerId, clientId }: Manager
           Refresh notifications
         </button>
       )}
+
+      <ConfirmationModal
+        open={Boolean(confirmAction)}
+        isDark={isDark}
+        title={confirmAction?.type === 'all' ? 'Delete all notifications?' : 'Delete notification?'}
+        description={
+          confirmAction?.type === 'all'
+            ? 'This will remove all notifications from your list.'
+            : 'This will remove this notification from your list.'
+        }
+        confirmText="Delete"
+        loading={confirming}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          if (!confirmAction) return
+          if (confirmAction.type === 'all') {
+            handleDeleteAll()
+            return
+          }
+          handleDeleteOne(confirmAction.id)
+        }}
+      />
     </div>
   )
 }

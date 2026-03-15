@@ -197,8 +197,11 @@ export async function assignExistingTenantToUnit(
 }
 
 // ── Remove tenant from a unit ──────────────────────────────
-export async function removeTenantFromUnit(unitId: string) {
-  await api.post('/tenants/remove-from-unit', { unit_id: unitId })
+export async function removeTenantFromUnit(unitId: string, preserveAccount = false) {
+  await api.post('/tenants/remove-from-unit', {
+    unit_id: unitId,
+    preserve_account: preserveAccount,
+  })
 }
 
 // ── Announcements ──────────────────────────────────────────

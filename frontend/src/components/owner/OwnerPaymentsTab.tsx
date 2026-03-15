@@ -11,6 +11,7 @@ import {
   updateOwnerPaymentStatus,
   type OwnerPayment,
 } from '../../lib/ownerApi'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 
 interface OwnerPaymentsTabProps {
   clientId: string
@@ -36,6 +37,8 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [qrUploading, setQrUploading] = useState(false)
   const [showQrPreview, setShowQrPreview] = useState(false)
+  const [confirmQrDelete, setConfirmQrDelete] = useState(false)
+  const [deletingQr, setDeletingQr] = useState(false)
   const qrInputRef = useRef<HTMLInputElement>(null)
 
   // Filter dropdown
@@ -130,11 +133,15 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
 
   async function handleQrDelete() {
     try {
+      setDeletingQr(true)
       await deletePaymentQr(clientId)
       setQrUrl(null)
       toast.success('Payment QR code removed')
     } catch (err: any) {
       toast.error(err?.message || 'Failed to remove QR code')
+    } finally {
+      setDeletingQr(false)
+      setConfirmQrDelete(false)
     }
   }
 
@@ -374,7 +381,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
                     Replace
                   </button>
                   <button
-                    onClick={handleQrDelete}
+                    onClick={() => setConfirmQrDelete(true)}
                     className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 transition-colors bg-red-500/10 hover:bg-red-500/20"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -426,6 +433,17 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
               )}
             </div>
           </div>
+
+          <ConfirmationModal
+            open={confirmQrDelete}
+            isDark={isDark}
+            title="Remove Payment QR Code?"
+            description="Tenants will no longer see a QR code until you upload a new one."
+            confirmText="Remove"
+            loading={deletingQr}
+            onCancel={() => setConfirmQrDelete(false)}
+            onConfirm={handleQrDelete}
+          />
         </div>
 
         {/* Stats Column */}

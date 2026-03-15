@@ -3,6 +3,7 @@ import { Search, Filter, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucid
 import { useTheme } from '../../context/ThemeContext'
 import { toast } from 'sonner'
 import { getManagerMaintenanceRequests, updateMaintenanceStatus, type MaintenanceRequest } from '../../lib/managerApi'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 
 /** Parse photo_url field — may be a JSON array string or a single URL */
 function parsePhotoUrls(photoUrl: string | null | undefined): string[] {
@@ -53,6 +54,7 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
   const [photoModalUrls, setPhotoModalUrls] = useState<string[]>([])
   const [photoModalIndex, setPhotoModalIndex] = useState(0)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [requestToClose, setRequestToClose] = useState<MaintenanceRequest | null>(null)
   const statusRef = useRef<HTMLDivElement>(null)
   const priorityRef = useRef<HTMLDivElement>(null)
 
@@ -101,12 +103,7 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
     loadRequests()
   }, [clientId])
 
-  async function handleStatusChange(requestId: string, nextStatus: 'in_progress' | 'resolved' | 'closed') {
-    if (nextStatus === 'closed') {
-      const confirmed = window.confirm('Close this request? Use close only for invalid/cancelled requests.')
-      if (!confirmed) return
-    }
-
+  async function performStatusChange(requestId: string, nextStatus: 'in_progress' | 'resolved' | 'closed') {
     try {
       setUpdatingId(requestId)
       await updateMaintenanceStatus(requestId, nextStatus)
@@ -120,6 +117,15 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
     } finally {
       setUpdatingId(null)
     }
+  }
+
+  async function handleStatusChange(requestId: string, nextStatus: 'in_progress' | 'resolved' | 'closed') {
+    if (nextStatus === 'closed') {
+      setRequestToClose(requests.find((request) => request.id === requestId) || null)
+      return
+    }
+
+    await performStatusChange(requestId, nextStatus)
   }
 
   const filtered = requests.filter((r) => {
@@ -446,6 +452,21 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        open={Boolean(requestToClose)}
+        isDark={isDark}
+        title="Close this maintenance request?"
+        description="Use close only for invalid or cancelled requests. For completed work, use Resolve instead."
+        confirmText="Close Request"
+        loading={Boolean(requestToClose && updatingId === requestToClose.id)}
+        onCancel={() => setRequestToClose(null)}
+        onConfirm={async () => {
+          if (!requestToClose) return
+          await performStatusChange(requestToClose.id, 'closed')
+          setRequestToClose(null)
+        }}
+      />
     </div>
   )
 }

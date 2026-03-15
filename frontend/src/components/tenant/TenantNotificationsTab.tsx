@@ -9,6 +9,7 @@ import {
   deleteAllTenantNotifications,
   type TenantNotification,
 } from '../../lib/tenantApi'
+import ConfirmationModal from '@/components/ui/ConfirmationModal'
 
 interface TenantNotificationsTabProps {
   tenantId: string
@@ -20,6 +21,8 @@ export default function TenantNotificationsTab({ tenantId, clientId, onRead }: T
   const { isDark } = useTheme()
   const [notifications, setNotifications] = useState<TenantNotification[]>([])
   const [loading, setLoading] = useState(true)
+  const [confirmAction, setConfirmAction] = useState<{ type: 'one'; id: string } | { type: 'all' } | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -64,11 +67,15 @@ export default function TenantNotificationsTab({ tenantId, clientId, onRead }: T
 
   const handleDelete = async (id: string) => {
     try {
+      setConfirming(true)
       await deleteTenantNotification(id)
       setNotifications((prev) => prev.filter((notification) => notification.id !== id))
       onRead?.()
     } catch (error) {
       console.error('Failed to delete notification:', error)
+    } finally {
+      setConfirming(false)
+      setConfirmAction(null)
     }
   }
 
@@ -84,11 +91,15 @@ export default function TenantNotificationsTab({ tenantId, clientId, onRead }: T
 
   const handleDeleteAll = async () => {
     try {
+      setConfirming(true)
       await deleteAllTenantNotifications(tenantId, clientId)
       setNotifications([])
       onRead?.()
     } catch (error) {
       console.error('Failed to delete all notifications:', error)
+    } finally {
+      setConfirming(false)
+      setConfirmAction(null)
     }
   }
 
@@ -115,7 +126,7 @@ export default function TenantNotificationsTab({ tenantId, clientId, onRead }: T
             Mark all read
           </button>
           <button
-            onClick={handleDeleteAll}
+            onClick={() => setConfirmAction({ type: 'all' })}
             className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border ${
               isDark
                 ? 'bg-[#111D32] border-[#1E293B] text-red-300 hover:bg-[#0F1A2F]'
@@ -185,7 +196,7 @@ export default function TenantNotificationsTab({ tenantId, clientId, onRead }: T
                     </button>
                   )}
                   <button
-                    onClick={() => handleDelete(notification.id)}
+                    onClick={() => setConfirmAction({ type: 'one', id: notification.id })}
                     className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${
                       isDark
                         ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
@@ -201,6 +212,28 @@ export default function TenantNotificationsTab({ tenantId, clientId, onRead }: T
           </div>
         ))}
       </div>
+
+      <ConfirmationModal
+        open={Boolean(confirmAction)}
+        isDark={isDark}
+        title={confirmAction?.type === 'all' ? 'Delete all notifications?' : 'Delete notification?'}
+        description={
+          confirmAction?.type === 'all'
+            ? 'This will permanently remove all notifications from your list.'
+            : 'This will permanently remove this notification from your list.'
+        }
+        confirmText="Delete"
+        loading={confirming}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          if (!confirmAction) return
+          if (confirmAction.type === 'all') {
+            handleDeleteAll()
+            return
+          }
+          handleDelete(confirmAction.id)
+        }}
+      />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import ManagerSidebar from '../components/manager/ManagerSidebar'
 import ManagerTopBar from '../components/manager/ManagerTopBar'
@@ -8,8 +8,9 @@ import ManagerManageApartmentTab from '../components/manager/ManagerManageApartm
 import ManagerSettingsTab from '../components/manager/ManagerSettingsTab'
 import ManagerPaymentsTab from '../components/manager/ManagerPaymentsTab'
 import ManagerNotificationsTab from '../components/manager/ManagerNotificationsTab'
-import { getCurrentManager } from '../lib/managerApi'
+import { getCurrentManager, getManagerNotifications } from '../lib/managerApi'
 import { supabase } from '../lib/supabase'
+import useBrowserNotifications from '../hooks/useBrowserNotifications'
 
 export default function ManagerDashboard() {
   const { isDark } = useTheme()
@@ -18,6 +19,7 @@ export default function ManagerDashboard() {
   const [manager, setManager] = useState<{ id: string; name: string; clientId: string | null; phone: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
   const [pendingMaintenanceCount, setPendingMaintenanceCount] = useState(0)
+  const [notificationCount, setNotificationCount] = useState(0)
 
   useEffect(() => {
     async function loadManager() {
@@ -50,6 +52,40 @@ export default function ManagerDashboard() {
     const interval = setInterval(fetchPendingCount, 30000)
     return () => clearInterval(interval)
   }, [manager?.clientId])
+
+  const fetchManagerNotifications = useCallback(async () => {
+    if (!manager?.id || !manager.clientId) return []
+    return getManagerNotifications(manager.id, manager.clientId)
+  }, [manager?.id, manager?.clientId])
+
+  const refreshNotificationCount = useCallback(async () => {
+    const notifications = await fetchManagerNotifications()
+    const unread = notifications.filter((notification) => !notification.is_read).length
+    setNotificationCount(unread)
+  }, [fetchManagerNotifications])
+
+  useEffect(() => {
+    if (!manager?.id || !manager.clientId) return
+
+    refreshNotificationCount().catch(() => {
+      // silent
+    })
+
+    const interval = setInterval(() => {
+      refreshNotificationCount().catch(() => {
+        // silent
+      })
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [manager?.id, manager?.clientId, refreshNotificationCount])
+
+  useBrowserNotifications({
+    enabled: Boolean(manager?.id && manager?.clientId),
+    storageKey: `primeliving_browser_notifs_manager_${manager?.id || 'unknown'}`,
+    fetchNotifications: fetchManagerNotifications,
+    pollMs: 30000,
+  })
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab)
@@ -84,7 +120,7 @@ export default function ManagerDashboard() {
       case 'payments':
         return <ManagerPaymentsTab clientId={manager.clientId || ''} />
       case 'notifications':
-        return <ManagerNotificationsTab managerId={manager.id} clientId={manager.clientId || ''} />
+        return <ManagerNotificationsTab managerId={manager.id} clientId={manager.clientId || ''} onRead={refreshNotificationCount} />
       case 'settings':
         return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} clientId={manager.clientId} />
       default:
@@ -113,10 +149,11 @@ export default function ManagerDashboard() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         pendingMaintenanceCount={pendingMaintenanceCount}
+        notificationCount={notificationCount}
       />
 
       {/* Main content area */}
-      <div className="lg:ml-56 flex flex-col h-screen">
+      <div className="lg:ml-60 flex flex-col h-screen">
         <ManagerTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           managerName={manager?.name}
