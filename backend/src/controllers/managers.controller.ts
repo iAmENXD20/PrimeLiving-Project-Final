@@ -1,7 +1,15 @@
 import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
+import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError, generateRandomPassword } from "../utils/helpers";
+import { sendSuccess, sendError } from "../utils/helpers";
+
+function getInviteRedirectUrl(): string {
+  const normalizedBase = env.FRONTEND_URL.replace(/\/+$/, "");
+  return normalizedBase.endsWith("/invite/confirm")
+    ? normalizedBase
+    : `${normalizedBase}/invite/confirm`;
+}
 
 /**
  * GET /api/managers
@@ -100,14 +108,12 @@ export async function createManager(
 ): Promise<void> {
   try {
     const { name, email, phone, client_id } = req.body;
+    const normalizedEmail = String(email || "").trim().toLowerCase();
 
-    const password = generateRandomPassword();
-    const { data: authData, error: authError } =
-      await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { role: "manager", name },
+    const { data: inviteData, error: authError } =
+      await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail, {
+        redirectTo: getInviteRedirectUrl(),
+        data: { role: "manager", name },
       });
 
     if (authError) {
@@ -115,21 +121,26 @@ export async function createManager(
       return;
     }
 
+    if (!inviteData.user?.id) {
+      sendError(res, "Failed to create manager auth account", 500);
+      return;
+    }
+
     const { data, error } = await supabaseAdmin
       .from("managers")
       .insert({
-        auth_user_id: authData.user.id,
+        auth_user_id: inviteData.user.id,
         name,
-        email,
+        email: normalizedEmail,
         phone,
         client_id,
-        status: "active",
+        status: "pending",
       })
       .select()
       .single();
 
     if (error) {
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      await supabaseAdmin.auth.admin.deleteUser(inviteData.user.id);
       sendError(res, error.message, 500);
       return;
     }
@@ -138,9 +149,7 @@ export async function createManager(
       res,
       {
         ...data,
-        generatedPassword: password,
-        generated_password: password,
-        password,
+        invitationEmailSent: true,
       },
       "Manager created successfully",
       201

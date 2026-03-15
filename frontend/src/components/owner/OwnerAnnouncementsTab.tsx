@@ -9,6 +9,7 @@ import {
 } from '../../lib/ownerApi'
 import { toast } from 'sonner'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface OwnerAnnouncementsTabProps {
   clientId: string
@@ -43,12 +44,20 @@ export default function OwnerAnnouncementsTab({ clientId, ownerName }: OwnerAnno
     if (!title.trim() || !message.trim()) return
     setSubmitting(true)
     try {
-      await createOwnerAnnouncement(clientId, title.trim(), message.trim(), ownerName)
+      const createdAnnouncement = await createOwnerAnnouncement(clientId, title.trim(), message.trim(), ownerName)
       toast.success('Announcement created')
+      setAnnouncements((prev) => [
+        {
+          ...createdAnnouncement,
+          id: createdAnnouncement.id || `temp-${Date.now()}`,
+          created_by: createdAnnouncement.created_by || ownerName,
+          created_at: createdAnnouncement.created_at || new Date().toISOString(),
+        },
+        ...prev,
+      ])
       setTitle('')
       setMessage('')
       setShowForm(false)
-      await load()
     } catch {
       toast.error('Failed to create announcement')
     } finally {
@@ -128,8 +137,14 @@ export default function OwnerAnnouncementsTab({ clientId, ownerName }: OwnerAnno
             <button
               onClick={handleCreate}
               disabled={submitting || !title.trim() || !message.trim()}
-              className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
             >
+              {submitting && (
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                  <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" className="opacity-90" />
+                </svg>
+              )}
               {submitting ? 'Posting...' : 'Post Announcement'}
             </button>
           </div>
@@ -138,9 +153,7 @@ export default function OwnerAnnouncementsTab({ clientId, ownerName }: OwnerAnno
 
       {/* Loading */}
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading announcements…
-        </div>
+        <TableSkeleton rows={5} />
       )}
 
       {/* Empty state */}

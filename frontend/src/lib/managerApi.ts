@@ -206,11 +206,12 @@ export async function removeTenantFromUnit(unitId: string, preserveAccount = fal
 
 // ── Announcements ──────────────────────────────────────────
 export interface Announcement {
-  id: string
+  id: string | null
   client_id: string
   title: string
   message: string
   created_by: string
+  recipient_tenant_ids?: string[] | null
   created_at: string
 }
 
@@ -218,8 +219,20 @@ export async function getAnnouncements(clientId: string): Promise<Announcement[]
   return api.get<Announcement[]>(`/announcements?client_id=${clientId}`)
 }
 
-export async function createAnnouncement(clientId: string, title: string, message: string, createdBy: string) {
-  await api.post('/announcements', { client_id: clientId, title, message, created_by: createdBy })
+export async function createAnnouncement(
+  clientId: string,
+  title: string,
+  message: string,
+  createdBy: string,
+  recipientTenantIds?: string[],
+): Promise<Announcement> {
+  return api.post<Announcement>('/announcements', {
+    client_id: clientId,
+    title,
+    message,
+    created_by: createdBy,
+    recipient_tenant_ids: recipientTenantIds && recipientTenantIds.length > 0 ? recipientTenantIds : null,
+  })
 }
 
 export async function deleteAnnouncement(id: string) {
@@ -357,7 +370,7 @@ export async function settleCashBilling(paymentId: string, description?: string)
 export async function getActiveTenants(
   clientId: string,
   managerId?: string,
-): Promise<{ id: string; name: string; phone: string | null }[]> {
+): Promise<{ id: string; name: string; phone: string | null; unit_name?: string | null }[]> {
   let effectiveClientId = clientId
 
   if (managerId) {
@@ -371,10 +384,11 @@ export async function getActiveTenants(
         id: u.tenant_id,
         name: u.tenant_name || 'Unknown',
         phone: u.tenant_phone || null,
+        unit_name: u.name || null,
       }))
 
     if (managerTenants.length > 0) {
-      const deduped = new Map<string, { id: string; name: string; phone: string | null }>()
+      const deduped = new Map<string, { id: string; name: string; phone: string | null; unit_name?: string | null }>()
       managerTenants.forEach((t) => deduped.set(t.id, t))
       return Array.from(deduped.values())
     }
@@ -390,7 +404,7 @@ export async function getActiveTenants(
   }
 
   const data = await api.get<any[]>(`/tenants?client_id=${effectiveClientId}`)
-  return (data || []).map((t: any) => ({ id: t.id, name: t.name, phone: t.phone }))
+  return (data || []).map((t: any) => ({ id: t.id, name: t.name, phone: t.phone, unit_name: null }))
 }
 
 // ── Documents ──────────────────────────────────────────────

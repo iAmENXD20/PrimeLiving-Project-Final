@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CardsSkeleton } from '@/components/ui/skeleton'
 import {
   getOwnerUnits,
   createBulkUnits,
@@ -98,9 +99,7 @@ export default function OwnerApartmentsTab({ clientId }: OwnerApartmentsTabProps
 
         {/* Loading */}
         {loading && (
-          <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            Loading units...
-          </div>
+          <CardsSkeleton count={6} />
         )}
 
         {/* Empty state */}

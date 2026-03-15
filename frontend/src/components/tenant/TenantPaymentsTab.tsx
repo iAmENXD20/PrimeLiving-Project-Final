@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { getTenantPayments, getTenantDueSchedule, getClientPaymentQrUrl, getCurrentTenant, submitCashPaymentVerification, type TenantPayment, type TenantDueScheduleItem } from '../../lib/tenantApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 interface TenantPaymentsTabProps {
   tenantId: string
@@ -32,6 +34,9 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
   const [tenantName, setTenantName] = useState('')
   const [selectedDuePaymentId, setSelectedDuePaymentId] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [duePage, setDuePage] = useState(1)
+  const [historyPage, setHistoryPage] = useState(1)
+  const pageSize = 10
   const [showGeneratedReceipt, setShowGeneratedReceipt] = useState(false)
   const [generatedReceipt, setGeneratedReceipt] = useState<{
     id: string
@@ -144,12 +149,29 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
         })
     ).values()
   )
+  const dueTotalPages = Math.max(1, Math.ceil(normalizedDuePayments.length / pageSize))
+  const paginatedDuePayments = normalizedDuePayments.slice((duePage - 1) * pageSize, duePage * pageSize)
+  const historyTotalPages = Math.max(1, Math.ceil(payments.length / pageSize))
+  const paginatedPayments = payments.slice((historyPage - 1) * pageSize, historyPage * pageSize)
 
   useEffect(() => {
     if (!selectedDuePaymentId && normalizedDuePayments.length > 0) {
       setSelectedDuePaymentId(normalizedDuePayments[0].id)
     }
   }, [normalizedDuePayments, selectedDuePaymentId])
+
+  useEffect(() => {
+    setDuePage(1)
+    setHistoryPage(1)
+  }, [payments.length, duePayments.length])
+
+  useEffect(() => {
+    if (duePage > dueTotalPages) setDuePage(dueTotalPages)
+  }, [duePage, dueTotalPages])
+
+  useEffect(() => {
+    if (historyPage > historyTotalPages) setHistoryPage(historyTotalPages)
+  }, [historyPage, historyTotalPages])
 
   const statusColor = (s: string) => {
     switch (s) {
@@ -441,6 +463,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                       >
+                        {receiptUploading && <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />}
                         <Upload className="w-3.5 h-3.5" /> Replace
                       </button>
                       <button
@@ -459,7 +482,11 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
                       isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-gray-100'
                     }`}
                   >
-                    <Upload className={`w-8 h-8 mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                    {receiptUploading ? (
+                      <div className={`w-8 h-8 mb-2 border-2 border-current border-t-transparent rounded-full animate-spin ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                    ) : (
+                      <Upload className={`w-8 h-8 mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                    )}
                     <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {receiptUploading ? 'Uploading...' : 'Upload Receipt'}
                     </p>
@@ -474,12 +501,13 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
             <button
               onClick={handleSubmitPayment}
               disabled={submitting}
-              className={`w-full py-3 rounded-lg text-sm font-semibold text-white transition-colors shadow-sm ${
+              className={`w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold text-white transition-colors shadow-sm ${
                 submitting
                   ? 'bg-amber-400 cursor-not-allowed'
                   : 'bg-amber-500 hover:bg-amber-600'
               }`}
             >
+              {submitting && <div className="w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full animate-spin" />}
               {submitting ? 'Submitting...' : 'Submit Payment'}
             </button>
           </div>
@@ -508,7 +536,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
                 </tr>
               </thead>
               <tbody>
-                {normalizedDuePayments.map((payment) => (
+                {paginatedDuePayments.map((payment) => (
                   <tr key={payment.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
                     <td className={`py-3 px-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       {payment.period_from && payment.period_to
@@ -532,6 +560,15 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
             </table>
           </div>
         )}
+
+        <TablePagination
+          currentPage={duePage}
+          totalPages={dueTotalPages}
+          totalItems={normalizedDuePayments.length}
+          pageSize={pageSize}
+          onPageChange={setDuePage}
+          isDark={isDark}
+        />
       </div>
 
       {/* Payment History – Full Width Below */}
@@ -541,7 +578,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
         </h3>
 
         {loading && (
-          <p className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</p>
+          <TableSkeleton rows={6} />
         )}
 
         <div className="overflow-x-auto">
@@ -563,7 +600,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
                   </td>
                 </tr>
               )}
-              {payments.map((p) => (
+              {paginatedPayments.map((p) => (
                 <tr
                   key={p.id}
                   className={`border-b last:border-0 transition-colors ${
@@ -618,6 +655,17 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
             </tbody>
           </table>
         </div>
+
+        {!loading && (
+          <TablePagination
+            currentPage={historyPage}
+            totalPages={historyTotalPages}
+            totalItems={payments.length}
+            pageSize={pageSize}
+            onPageChange={setHistoryPage}
+            isDark={isDark}
+          />
+        )}
 
         <ConfirmationModal
           open={confirmReceiptDelete}

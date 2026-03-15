@@ -14,6 +14,8 @@ import {
 } from '../../lib/managerApi'
 import { toast } from 'sonner'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 interface ManagerDocumentsTabProps {
   clientId: string
@@ -28,6 +30,8 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   // Upload form state
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -179,6 +183,16 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
       (d.unit_name ?? '').toLowerCase().includes(q)
     )
   })
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, documents.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const cardClass = `rounded-xl border ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'}`
   const selectedTenantLabel = tenants.find((t) => t.id === selectedTenant)?.name || 'Select tenant *'
@@ -232,7 +246,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
                 className={`absolute left-0 right-0 mt-1 rounded-lg border shadow-lg z-20 max-h-48 overflow-y-auto transition-all duration-200 origin-top ${
                   tenantDropdownOpen
                     ? 'opacity-100 scale-y-100 pointer-events-auto'
-                    : 'opacity-0 scale-y-75 pointer-events-none'
+                    : 'opacity-0 scale-y-95 pointer-events-none'
                 } ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}
               >
                 {tenants.map((tenant) => (
@@ -280,7 +294,14 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
             disabled={uploading || !selectedFile || !selectedTenant}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            <Upload className="w-4 h-4" />
+            {uploading ? (
+              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" className="opacity-90" />
+              </svg>
+            ) : (
+              <Upload className="w-4 h-4" />
+            )}
             {uploading ? 'Uploading…' : 'Upload'}
           </button>
         </div>
@@ -306,7 +327,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
 
         {/* Loading */}
         {loading && (
-          <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading documents…</div>
+          <TableSkeleton rows={6} />
         )}
 
         {/* Table */}
@@ -321,7 +342,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((doc) => (
+                {paginated.map((doc) => (
                   <tr key={doc.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
                     <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       <div className="flex items-center gap-2">
@@ -370,6 +391,17 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
               </tbody>
             </table>
           </div>
+        )}
+
+        {!loading && (
+          <TablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            isDark={isDark}
+          />
         )}
       </div>
 

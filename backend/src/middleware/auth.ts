@@ -20,13 +20,6 @@ function normalizeRole(rawRole: unknown): UserRole | null {
 }
 
 async function resolveUserRole(userId: string, user: any): Promise<UserRole> {
-  const metadataRole =
-    normalizeRole(user?.user_metadata?.role) ||
-    normalizeRole(user?.app_metadata?.role) ||
-    normalizeRole(user?.app_metadata?.user_role);
-
-  if (metadataRole) return metadataRole;
-
   const [ownerRes, managerRes, tenantRes] = await Promise.all([
     supabaseAdmin
       .from("clients")
@@ -49,7 +42,72 @@ async function resolveUserRole(userId: string, user: any): Promise<UserRole> {
   if (managerRes.data) return "manager";
   if (tenantRes.data) return "tenant";
 
+  const metadataRole =
+    normalizeRole(user?.user_metadata?.role) ||
+    normalizeRole(user?.app_metadata?.role) ||
+    normalizeRole(user?.app_metadata?.user_role);
+
+  if (metadataRole === "admin") return "admin";
+
   return "tenant";
+}
+
+async function ensureRoleIsActive(role: UserRole, userId: string): Promise<boolean> {
+  if (role === "admin") {
+    return true;
+  }
+
+  if (role === "owner") {
+    const { data } = await supabaseAdmin
+      .from("clients")
+      .select("id,status")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+
+    return Boolean(data && (data.status || "active") === "active");
+  }
+
+  if (role === "manager") {
+    const { data } = await supabaseAdmin
+      .from("managers")
+      .select("id,status")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+
+    if (!data) {
+      return false;
+    }
+
+    if (data.status === "pending") {
+      await supabaseAdmin
+        .from("managers")
+        .update({ status: "active", updated_at: new Date().toISOString() })
+        .eq("id", data.id);
+      return true;
+    }
+
+    return (data.status || "active") === "active";
+  }
+
+  const { data } = await supabaseAdmin
+    .from("tenants")
+    .select("id,status")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+
+  if (!data) {
+    return false;
+  }
+
+  if (data.status === "pending") {
+    await supabaseAdmin
+      .from("tenants")
+      .update({ status: "active", updated_at: new Date().toISOString() })
+      .eq("id", data.id);
+    return true;
+  }
+
+  return (data.status || "active") === "active";
 }
 
 /**
@@ -91,6 +149,15 @@ export async function authenticate(
 
     // Extract role from metadata and fallback to profile table linkage
     const role = await resolveUserRole(user.id, user);
+
+    const isActive = await ensureRoleIsActive(role, user.id);
+    if (!isActive) {
+      res.status(403).json({
+        success: false,
+        error: "Account is not active yet",
+      });
+      return;
+    }
 
     // Attach user info to the request
     req.user = {

@@ -3,6 +3,8 @@ import { Users, AlertTriangle, MapPin, CheckCircle, XCircle } from 'lucide-react
 import { useTheme } from '../../context/ThemeContext'
 import { getManagerDashboardStats, getManagerMaintenanceRequests, getManagedApartments, type MaintenanceRequest } from '../../lib/managerApi'
 import { getClientApartmentName, getOwnerApartmentAddress } from '../../lib/ownerApi'
+import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 interface ManagerOverviewTabProps {
   managerId: string
@@ -16,6 +18,8 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
   const [recentRequests, setRecentRequests] = useState<MaintenanceRequest[]>([])
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     async function load() {
@@ -33,7 +37,7 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
             ])
           : [null, null]
         setStats(s)
-        setRecentRequests(requests.slice(0, 5))
+        setRecentRequests(requests)
         setApartmentAddress(ownerAddress || apartments?.[0]?.address || apartments?.[0]?.name || ownerApartmentName || null)
       } catch (err) {
         console.error('Failed to load manager overview:', err)
@@ -54,6 +58,16 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
     { label: 'Total Paid Tenants', value: stats.paidTenants, icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-500/15' },
     { label: 'Total Unpaid Tenants', value: stats.unpaidTenants, icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/15' },
   ]
+  const totalPages = Math.max(1, Math.ceil(recentRequests.length / pageSize))
+  const paginatedRequests = recentRequests.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [recentRequests.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const priorityColor: Record<string, string> = {
     low: 'bg-blue-400/15 text-blue-400',
@@ -81,8 +95,9 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
       </div>
 
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading dashboard data...
+        <div className="space-y-4">
+          <CardsSkeleton count={4} />
+          <TableSkeleton rows={4} />
         </div>
       )}
 
@@ -123,7 +138,7 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
               </tr>
             </thead>
             <tbody>
-              {recentRequests.map((req) => (
+              {paginatedRequests.map((req) => (
                 <tr key={req.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
                   <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{req.title}</td>
                   <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{req.tenant_name}</td>
@@ -153,6 +168,17 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
             </tbody>
           </table>
         </div>
+
+        {!loading && (
+          <TablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={recentRequests.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            isDark={isDark}
+          />
+        )}
       </div>
     </div>
   )

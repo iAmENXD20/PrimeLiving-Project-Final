@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Search, FileText, Download } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { getOwnerDocuments, type OwnerDocument } from '../../lib/ownerApi'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 interface OwnerDocumentsTabProps {
   clientId: string
@@ -12,6 +14,8 @@ export default function OwnerDocumentsTab({ clientId }: OwnerDocumentsTabProps) 
   const [documents, setDocuments] = useState<OwnerDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     async function loadDocuments() {
@@ -40,6 +44,17 @@ export default function OwnerDocumentsTab({ clientId }: OwnerDocumentsTabProps) 
     )
   })
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, documents.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
   const cardClass = `rounded-xl border ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'}`
 
   return (
@@ -67,7 +82,7 @@ export default function OwnerDocumentsTab({ clientId }: OwnerDocumentsTabProps) 
       </div>
 
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading documents...</div>
+        <TableSkeleton rows={6} />
       )}
 
       {!loading && (
@@ -83,7 +98,7 @@ export default function OwnerDocumentsTab({ clientId }: OwnerDocumentsTabProps) 
               </tr>
             </thead>
             <tbody>
-              {filtered.map((doc) => (
+              {paginated.map((doc) => (
                 <tr key={doc.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
                   <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     <div className="flex items-center gap-2">
@@ -124,6 +139,17 @@ export default function OwnerDocumentsTab({ clientId }: OwnerDocumentsTabProps) 
             </tbody>
           </table>
         </div>
+      )}
+
+      {!loading && (
+        <TablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          isDark={isDark}
+        />
       )}
     </div>
   )

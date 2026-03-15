@@ -1,7 +1,15 @@
 import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
+import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError, generateRandomPassword } from "../utils/helpers";
+import { sendSuccess, sendError } from "../utils/helpers";
+
+function getInviteRedirectUrl(): string {
+  const normalizedBase = env.FRONTEND_URL.replace(/\/+$/, "");
+  return normalizedBase.endsWith("/invite/confirm")
+    ? normalizedBase
+    : `${normalizedBase}/invite/confirm`;
+}
 
 /**
  * GET /api/tenants
@@ -132,21 +140,22 @@ export async function createTenant(
   try {
     const { name, email, phone, apartment_id, client_id, create_auth_account } =
       req.body;
+    const normalizedEmail =
+      typeof email === "string" ? email.trim().toLowerCase() : null;
 
     let authUserId: string | null = null;
-    let generatedPassword: string | null = null;
 
     // Create auth account if requested
-    if (create_auth_account && email) {
-      const password = generateRandomPassword();
-      generatedPassword = password;
+    if (create_auth_account) {
+      if (!normalizedEmail) {
+        sendError(res, "Email is required when creating a tenant auth account", 400);
+        return;
+      }
 
-      const { data: authData, error: authError } =
-        await supabaseAdmin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: { role: "tenant", name },
+      const { data: inviteData, error: authError } =
+        await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail, {
+          redirectTo: getInviteRedirectUrl(),
+          data: { role: "tenant", name },
         });
 
       if (authError) {
@@ -154,7 +163,12 @@ export async function createTenant(
         return;
       }
 
-      authUserId = authData.user.id;
+      if (!inviteData.user?.id) {
+        sendError(res, "Failed to create tenant auth account", 500);
+        return;
+      }
+
+      authUserId = inviteData.user.id;
     }
 
     const { data, error } = await supabaseAdmin
@@ -162,11 +176,11 @@ export async function createTenant(
       .insert({
         auth_user_id: authUserId,
         name,
-        email,
+        email: normalizedEmail,
         phone,
         apartment_id,
         client_id,
-        status: "active",
+        status: create_auth_account ? "pending" : "active",
         move_in_date: new Date().toISOString().split("T")[0],
       })
       .select()
@@ -183,7 +197,7 @@ export async function createTenant(
 
     sendSuccess(
       res,
-      { ...data, generatedPassword },
+      { ...data, invitationEmailSent: Boolean(create_auth_account && normalizedEmail) },
       "Tenant created successfully",
       201
     );

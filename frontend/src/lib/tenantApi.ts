@@ -225,8 +225,13 @@ export async function submitCashPaymentVerification(params: {
 }
 
 // ── Announcements / Notifications ──────────────────────────
-export async function getTenantAnnouncements(clientId: string): Promise<TenantAnnouncement[]> {
-  return api.get<TenantAnnouncement[]>(`/announcements?client_id=${clientId}`)
+export async function getTenantAnnouncements(clientId: string, tenantId?: string): Promise<TenantAnnouncement[]> {
+  const params = new URLSearchParams({ client_id: clientId })
+  if (tenantId) {
+    params.set('tenant_id', tenantId)
+  }
+
+  return api.get<TenantAnnouncement[]>(`/announcements?${params.toString()}`)
 }
 
 export async function getTenantDocuments(tenantId: string, clientId?: string | null): Promise<TenantDocument[]> {

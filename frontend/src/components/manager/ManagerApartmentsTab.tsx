@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { CardsSkeleton } from '@/components/ui/skeleton'
 import {
   getManagerUnits,
   getManagerTenants,
@@ -155,9 +156,7 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
 
         {/* Loading */}
         {loading && (
-          <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            Loading units...
-          </div>
+          <CardsSkeleton count={6} />
         )}
 
         {/* Empty state */}

@@ -5,6 +5,7 @@
 
 -- Drop existing tables if re-running (remove these lines in production)
 DROP TABLE IF EXISTS documents CASCADE;
+DROP TABLE IF EXISTS announcements CASCADE;
 DROP TABLE IF EXISTS maintenance_requests CASCADE;
 DROP TABLE IF EXISTS revenues CASCADE;
 DROP TABLE IF EXISTS inquiries CASCADE;
@@ -35,7 +36,7 @@ CREATE TABLE managers (
   email TEXT UNIQUE NOT NULL,
   phone TEXT,
   client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'pending')),
   joined_date TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -65,7 +66,7 @@ CREATE TABLE tenants (
   phone TEXT,
   apartment_id UUID REFERENCES apartments(id) ON DELETE SET NULL,
   client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'pending')),
   move_in_date TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -124,6 +125,17 @@ CREATE TABLE documents (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 9. ANNOUNCEMENTS table (Owner/Manager notices shown to tenants)
+CREATE TABLE announcements (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  client_id UUID REFERENCES clients(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_by TEXT,
+  recipient_tenant_ids UUID[] NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ============================================================
 -- Enable Row Level Security (RLS)
 -- ============================================================
@@ -136,6 +148,7 @@ ALTER TABLE inquiries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE maintenance_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE revenues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
 
 -- Policies: allow full access for authenticated users
 CREATE POLICY "Allow all access to clients" ON clients FOR ALL USING (true) WITH CHECK (true);
@@ -146,9 +159,10 @@ CREATE POLICY "Allow all access to inquiries" ON inquiries FOR ALL USING (true) 
 CREATE POLICY "Allow all access to maintenance_requests" ON maintenance_requests FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to revenues" ON revenues FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to documents" ON documents FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access to announcements" ON announcements FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================================
--- 9. PAYMENTS table (Tenant payment records)
+-- 10. PAYMENTS table (Tenant payment records)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS payments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

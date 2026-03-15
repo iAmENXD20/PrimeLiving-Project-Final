@@ -10,6 +10,7 @@ import {
   type TenantNotification,
 } from '../../lib/tenantApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface TenantNotificationsTabProps {
   tenantId: string
@@ -140,9 +141,7 @@ export default function TenantNotificationsTab({ tenantId, clientId, onRead }: T
       )}
 
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading notifications...
-        </div>
+        <TableSkeleton rows={6} />
       )}
 
       {!loading && notifications.length === 0 && (

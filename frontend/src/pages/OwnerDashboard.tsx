@@ -9,6 +9,7 @@ import OwnerMaintenanceTab from '../components/owner/OwnerMaintenanceTab'
 import OwnerPaymentsTab from '../components/owner/OwnerPaymentsTab'
 import OwnerDocumentsTab from '../components/owner/OwnerDocumentsTab'
 import { getCurrentOwner } from '../lib/ownerApi'
+import { CardsSkeleton } from '../components/ui/skeleton'
 
 export default function OwnerDashboard() {
   const { isDark } = useTheme()
@@ -41,8 +42,9 @@ export default function OwnerDashboard() {
   const renderContent = () => {
     if (loading) {
       return (
-        <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading dashboard...
+        <div className="space-y-4">
+          <div className={`h-8 w-48 rounded ${isDark ? 'bg-white/10' : 'bg-gray-200'} animate-pulse`} />
+          <CardsSkeleton count={4} />
         </div>
       )
     }
@@ -97,7 +99,7 @@ export default function OwnerDashboard() {
       />
 
       {/* Main content area */}
-      <div className="lg:ml-60 flex flex-col h-screen">
+      <div className="lg:ml-60 flex flex-col min-h-screen">
         <OwnerTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           ownerName={owner?.name}

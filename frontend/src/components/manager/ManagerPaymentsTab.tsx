@@ -14,6 +14,8 @@ import {
   type Payment,
   type TenantAccount,
 } from '../../lib/managerApi'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 interface ManagerPaymentsTabProps {
   clientId: string
@@ -40,6 +42,8 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<StatusFilter>('all')
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   // Pending cash verifications
   const [pendingVerifications, setPendingVerifications] = useState<Payment[]>([])
@@ -163,6 +167,17 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
     }
     return true
   })
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, filter, selectedMonth, selectedYear, payments.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const cardClass = `rounded-xl border ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'}`
 
@@ -409,7 +424,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
 
       {/* Loading */}
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading payments…</div>
+        <TableSkeleton rows={6} />
       )}
 
       {/* Table */}
@@ -424,7 +439,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => {
+              {paginated.map((p) => {
                 const badge = statusBadge[p.status]
                 return (
                   <tr key={p.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
@@ -470,9 +485,14 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
       )}
 
       {!loading && filtered.length > 0 && (
-        <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          Showing {filtered.length} of {payments.length} payments
-        </p>
+        <TablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          isDark={isDark}
+        />
       )}
 
       {/* Verification Preview Modal */}

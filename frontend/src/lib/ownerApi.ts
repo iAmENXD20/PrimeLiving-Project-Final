@@ -127,8 +127,7 @@ export async function createOwnerManager(manager: { name: string; email: string;
   const generatedPassword =
     result.generatedPassword ||
     result.generated_password ||
-    result.password ||
-    ''
+    result.password
   const {
     generatedPassword: _generatedPassword,
     generated_password: _generatedPasswordSnake,
@@ -259,7 +258,7 @@ export async function getRevenueByMonth(clientId: string) {
 
 // ── Announcements ──────────────────────────────────────────
 export interface Announcement {
-  id: string
+  id: string | null
   client_id: string
   title: string
   message: string
@@ -271,8 +270,8 @@ export async function getOwnerAnnouncements(clientId: string): Promise<Announcem
   return api.get<Announcement[]>(`/announcements?client_id=${clientId}`)
 }
 
-export async function createOwnerAnnouncement(clientId: string, title: string, message: string, createdBy: string) {
-  await api.post('/announcements', { client_id: clientId, title, message, created_by: createdBy })
+export async function createOwnerAnnouncement(clientId: string, title: string, message: string, createdBy: string): Promise<Announcement> {
+  return api.post<Announcement>('/announcements', { client_id: clientId, title, message, created_by: createdBy })
 }
 
 export async function deleteOwnerAnnouncement(id: string) {

@@ -15,6 +15,7 @@ import {
 import { Eye, ArrowLeft, Users, UserCheck } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import StatsOverview from './StatsOverview'
+import { CardsSkeleton } from '@/components/ui/skeleton'
 import {
   getDashboardStats,
   getTenantsPerApartment,
@@ -143,9 +144,7 @@ export default function AnalyticsTab() {
         </div>
 
         {detailLoading && (
-          <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            Loading client details...
-          </div>
+          <CardsSkeleton count={2} />
         )}
 
         {!detailLoading && detailStats && (

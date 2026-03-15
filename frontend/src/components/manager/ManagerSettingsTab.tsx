@@ -160,13 +160,13 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
           <div>
             <Label className={`text-sm ${labelClass}`}>Name</Label>
             <p className={`mt-1 text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-              {managerName || 'Loading...'}
+              {managerName || '—'}
             </p>
           </div>
           <div>
             <Label className={`text-sm ${labelClass}`}>Email</Label>
             <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {userEmail ?? 'Loading...'}
+              {userEmail ?? '—'}
             </p>
           </div>
           <div>

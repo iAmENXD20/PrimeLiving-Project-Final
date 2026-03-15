@@ -12,6 +12,8 @@ import {
   deleteOwnerManager,
 } from '../../lib/ownerApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 interface OwnerManagersTabProps {
   clientId: string
@@ -46,6 +48,8 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
   const [emailSent, setEmailSent] = useState(false)
   const [managerToDelete, setManagerToDelete] = useState<Manager | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     loadManagers()
@@ -101,13 +105,13 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
         })
         setManagers((prev) => [result.manager, ...prev])
         setShowModal(false)
-        // Show credentials modal
-        setCredentials({ email: form.email, password: result.generatedPassword || '' })
-        setShowCredentials(true)
-        if (!result.generatedPassword) {
-          toast.error('Manager created, but password was not returned. Please reset password for this manager.')
+        if (result.generatedPassword) {
+          setCredentials({ email: form.email, password: result.generatedPassword })
+          setShowCredentials(true)
+          toast.success('Manager account created successfully')
+        } else {
+          toast.success('Manager account created. Invitation email has been sent.')
         }
-        toast.success('Manager account created successfully')
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save manager'
@@ -145,6 +149,17 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
       m.name.toLowerCase().includes(search.toLowerCase()) ||
       m.email.toLowerCase().includes(search.toLowerCase())
   )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, managers.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const cardClass = `rounded-xl border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -210,13 +225,13 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6} className={`py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Loading managers...
+                  <td colSpan={6} className="py-3 px-4">
+                    <TableSkeleton rows={5} />
                   </td>
                 </tr>
               )}
               {!loading &&
-                filtered.map((manager) => (
+                paginated.map((manager) => (
                   <tr
                     key={manager.id}
                     className={`border-b last:border-0 transition-colors ${
@@ -291,6 +306,17 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
           </table>
         </div>
       </div>
+
+      {!loading && (
+        <TablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          isDark={isDark}
+        />
+      )}
     </div>
 
       {/* Add/Edit Modal */}

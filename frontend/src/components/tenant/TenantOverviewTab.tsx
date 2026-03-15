@@ -8,6 +8,8 @@ import {
   type TenantMaintenanceRequest,
 } from '../../lib/tenantApi'
 import { getClientApartmentName, getOwnerApartmentAddress } from '../../lib/ownerApi'
+import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 interface TenantOverviewTabProps {
   tenantId: string
@@ -23,6 +25,8 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, c
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [recentMaintenance, setRecentMaintenance] = useState<TenantMaintenanceRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     async function load() {
@@ -32,7 +36,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, c
           getTenantMaintenanceRequests(tenantId),
         ])
         setStats(s)
-        setRecentMaintenance(requests.slice(0, 5))
+        setRecentMaintenance(requests)
 
         if (apartmentId) {
           const info = await getTenantApartmentInfo(apartmentId)
@@ -70,6 +74,16 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, c
     { label: 'Resolved Requests', value: stats.resolvedMaintenance, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
     { label: 'Pending Payments', value: stats.pendingPayments, icon: PhilippinePeso, color: 'text-red-400', bg: 'bg-red-500/15' },
   ]
+  const totalPages = Math.max(1, Math.ceil(recentMaintenance.length / pageSize))
+  const paginatedMaintenance = recentMaintenance.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [recentMaintenance.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const priorityColor = (p: string) => {
     switch (p) {
@@ -91,8 +105,9 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, c
       </div>
 
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading dashboard data...
+        <div className="space-y-4">
+          <CardsSkeleton count={3} />
+          <TableSkeleton rows={4} />
         </div>
       )}
 
@@ -157,7 +172,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, c
               </tr>
             </thead>
             <tbody>
-              {recentMaintenance.map((req) => (
+              {paginatedMaintenance.map((req) => (
                 <tr
                   key={req.id}
                   className={`border-b last:border-0 transition-colors ${
@@ -194,6 +209,17 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, c
           </table>
           )}
         </div>
+
+        {!loading && (
+          <TablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={recentMaintenance.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            isDark={isDark}
+          />
+        )}
       </div>
     </div>
   )

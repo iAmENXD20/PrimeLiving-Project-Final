@@ -10,6 +10,7 @@ import {
 } from '../../lib/managerApi'
 import { toast } from 'sonner'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface ManagerAnnouncementsTabProps {
   clientId: string
@@ -26,7 +27,7 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [smsSending, setSmsSending] = useState(false)
-  const [tenants, setTenants] = useState<{ id: string; name: string; phone: string | null }[]>([])
+  const [tenants, setTenants] = useState<{ id: string; name: string; phone: string | null; unit_name?: string | null }[]>([])
   const [recipientMode, setRecipientMode] = useState<'all' | 'multiple'>('all')
   const [selectedTenantIds, setSelectedTenantIds] = useState<string[]>([])
   const [announcementToDelete, setAnnouncementToDelete] = useState<Announcement | null>(null)
@@ -65,13 +66,20 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
     }
 
     if (recipientMode !== 'all' && recipients.length === 0) {
-      toast.error('Please select recipient tenant(s) with valid phone number')
+      toast.error('Please select at least one tenant recipient')
       return
     }
 
     setSubmitting(true)
     try {
-      await createAnnouncement(clientId, title.trim(), message.trim(), managerName)
+      const recipientTenantIds = recipientMode === 'all' ? [] : selectedTenantIds
+      const createdAnnouncement = await createAnnouncement(
+        clientId,
+        title.trim(),
+        message.trim(),
+        managerName,
+        recipientTenantIds,
+      )
 
       // Simulate SMS sending to selected recipients
       setSmsSending(true)
@@ -98,12 +106,20 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
       }
 
       toast.success('Announcement created and posted to tenant dashboard')
+      setAnnouncements((prev) => [
+        {
+          ...createdAnnouncement,
+          id: createdAnnouncement.id || `temp-${Date.now()}`,
+          created_by: createdAnnouncement.created_by || managerName,
+          created_at: createdAnnouncement.created_at || new Date().toISOString(),
+        },
+        ...prev,
+      ])
       setTitle('')
       setMessage('')
       setRecipientMode('all')
       setSelectedTenantIds([])
       setShowForm(false)
-      await load()
     } catch (err) {
       toast.error('Failed to create announcement')
     } finally {
@@ -111,7 +127,11 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string | null) => {
+    if (!id) {
+      toast.error('This announcement is not yet persisted. Please refresh and try again.')
+      return
+    }
     try {
       setDeleting(true)
       await deleteAnnouncement(id)
@@ -126,6 +146,28 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
   }
 
   const cardClass = `rounded-xl border ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'}`
+
+  const getAnnouncementAudienceLabel = (announcement: Announcement) => {
+    const recipientIds = announcement.recipient_tenant_ids || []
+
+    if (recipientIds.length === 0) {
+      return 'Sent to all tenants'
+    }
+
+    const recipientDetails = recipientIds
+      .map((recipientId) => tenants.find((tenant) => tenant.id === recipientId))
+      .filter(Boolean)
+      .map((tenant) => {
+        const unitName = tenant?.unit_name?.trim()
+        return unitName ? `${tenant?.name} (${unitName})` : `${tenant?.name}`
+      })
+
+    if (recipientDetails.length === 0) {
+      return `Sent to ${recipientIds.length} selected tenant${recipientIds.length > 1 ? 's' : ''}`
+    }
+
+    return `Sent to: ${recipientDetails.join(', ')}`
+  }
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-6 animate-fade-up">
@@ -221,6 +263,11 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
                         }}
                       />
                       <span className={isDark ? 'text-gray-200' : 'text-gray-700'}>{tenant.name}</span>
+                      {tenant.unit_name && (
+                        <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ({tenant.unit_name})
+                        </span>
+                      )}
                       <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {tenant.phone || 'No phone'}
                       </span>
@@ -254,9 +301,7 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
 
       {/* Loading */}
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading announcements…
-        </div>
+        <TableSkeleton rows={5} />
       )}
 
       {/* List */}
@@ -278,6 +323,9 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
               <p className={`text-base mt-1 whitespace-pre-wrap ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{a.message}</p>
               <p className={`text-xs mt-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                 Posted by {a.created_by} • {new Date(a.created_at).toLocaleDateString()}
+              </p>
+              <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                {getAnnouncementAudienceLabel(a)}
               </p>
             </div>
             <button

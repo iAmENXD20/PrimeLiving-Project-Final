@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 import {
   getOwnerUnits,
   getOwnerTenants,
@@ -69,6 +71,9 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
   const [ownerTenants, setOwnerTenants] = useState<OwnerTenant[]>([])
   const [tenantsTabLoading, setTenantsTabLoading] = useState(true)
   const [showInactiveTenants, setShowInactiveTenants] = useState(false)
+  const [managersPage, setManagersPage] = useState(1)
+  const [tenantsPage, setTenantsPage] = useState(1)
+  const pageSize = 10
 
   // ─── Load data ────────────────────────────────────────────────
   useEffect(() => {
@@ -243,6 +248,8 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
       m.name.toLowerCase().includes(search.toLowerCase()) ||
       m.email.toLowerCase().includes(search.toLowerCase())
   )
+  const managersTotalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginatedManagers = filtered.slice((managersPage - 1) * pageSize, managersPage * pageSize)
 
   // ─── Shared styles ────────────────────────────────────────────
   const cardClass = `rounded-xl border ${
@@ -266,6 +273,24 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
       rent: tenant.apartment_id ? (unitRentById.get(tenant.apartment_id) || 0) : 0,
       status: tenant.status,
     }))
+  const tenantsTotalPages = Math.max(1, Math.ceil(tenantsList.length / pageSize))
+  const paginatedTenants = tenantsList.slice((tenantsPage - 1) * pageSize, tenantsPage * pageSize)
+
+  useEffect(() => {
+    setManagersPage(1)
+  }, [search, managers.length])
+
+  useEffect(() => {
+    if (managersPage > managersTotalPages) setManagersPage(managersTotalPages)
+  }, [managersPage, managersTotalPages])
+
+  useEffect(() => {
+    setTenantsPage(1)
+  }, [showInactiveTenants, ownerTenants.length])
+
+  useEffect(() => {
+    if (tenantsPage > tenantsTotalPages) setTenantsPage(tenantsTotalPages)
+  }, [tenantsPage, tenantsTotalPages])
 
   const activeTenantCount = ownerTenants.filter((tenant) => tenant.status === 'active').length
 
@@ -397,9 +422,7 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
 
           {/* Loading */}
           {unitsLoading && (
-            <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              Loading units...
-            </div>
+            <CardsSkeleton count={6} />
           )}
 
           {/* Empty state */}
@@ -547,13 +570,13 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
                 <tbody>
                   {managersLoading && (
                     <tr>
-                      <td colSpan={6} className={`py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Loading managers...
+                      <td colSpan={6} className="py-3 px-4">
+                        <TableSkeleton rows={5} />
                       </td>
                     </tr>
                   )}
                   {!managersLoading &&
-                    filtered.map((manager) => (
+                    paginatedManagers.map((manager) => (
                       <tr
                         key={manager.id}
                         className={`border-b last:border-0 transition-colors ${
@@ -628,6 +651,16 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
               </table>
             </div>
           </div>
+          {!managersLoading && (
+            <TablePagination
+              currentPage={managersPage}
+              totalPages={managersTotalPages}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setManagersPage}
+              isDark={isDark}
+            />
+          )}
         </section>
         )}
 
@@ -669,12 +702,12 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
                 <tbody>
                   {tenantsTabLoading && (
                     <tr>
-                      <td colSpan={5} className={`py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Loading tenants...
+                      <td colSpan={5} className="py-3 px-4">
+                        <TableSkeleton rows={5} />
                       </td>
                     </tr>
                   )}
-                  {!tenantsTabLoading && tenantsList.map((t) => (
+                  {!tenantsTabLoading && paginatedTenants.map((t) => (
                     <tr
                       key={t.id}
                       className={`border-b last:border-0 transition-colors ${
@@ -717,6 +750,16 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
               </table>
             </div>
           </div>
+          {!tenantsTabLoading && (
+            <TablePagination
+              currentPage={tenantsPage}
+              totalPages={tenantsTotalPages}
+              totalItems={tenantsList.length}
+              pageSize={pageSize}
+              onPageChange={setTenantsPage}
+              isDark={isDark}
+            />
+          )}
         </section>
         )}
       </div>

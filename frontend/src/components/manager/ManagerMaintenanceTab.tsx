@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Search, Filter, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { toast } from 'sonner'
 import { getManagerMaintenanceRequests, updateMaintenanceStatus, type MaintenanceRequest } from '../../lib/managerApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 /** Parse photo_url field — may be a JSON array string or a single URL */
 function parsePhotoUrls(photoUrl: string | null | undefined): string[] {
@@ -55,6 +58,8 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
   const [photoModalIndex, setPhotoModalIndex] = useState(0)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [requestToClose, setRequestToClose] = useState<MaintenanceRequest | null>(null)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
   const statusRef = useRef<HTMLDivElement>(null)
   const priorityRef = useRef<HTMLDivElement>(null)
 
@@ -142,6 +147,17 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
     }
     return true
   })
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, statusFilter, priorityFilter, requests.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -262,21 +278,19 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
 
       {/* Loading */}
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading maintenance requests…
-        </div>
+        <TableSkeleton rows={6} />
       )}
 
       {/* Requests Table */}
       {!loading && (
         <div
           className={`rounded-xl border overflow-x-auto min-h-[calc(100vh-340px)] ${
-            isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
+            isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
           }`}
         >
-          <table className="w-full text-base">
+          <table className="w-full text-base bg-transparent">
             <thead>
-              <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+              <tr className={`border-b ${isDark ? 'border-[#1E293B] bg-[#0F1B30]' : 'border-gray-200 bg-white'}`}>
                 {['Title', 'Names', 'Apartment', 'Photo', 'Priority', 'Status', 'Actions', 'Date'].map((h) => (
                   <th key={h} className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {h}
@@ -285,8 +299,8 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
               </tr>
             </thead>
             <tbody>
-              {filtered.map((req) => (
-                <tr key={req.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+              {paginated.map((req) => (
+                <tr key={req.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B] hover:bg-white/[0.02]' : 'border-gray-100 hover:bg-gray-50'}`}>
                   <td className="py-3 px-4">
                     <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{req.title}</p>
                     <p className={`text-sm mt-0.5 truncate max-w-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -305,7 +319,9 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
                               <img
                                 src={url}
                                 alt={`Evidence ${i + 1}`}
-                                className="w-10 h-10 object-cover rounded-lg border border-gray-200 dark:border-[#1E293B] hover:opacity-80 transition-opacity"
+                                className={`w-10 h-10 object-cover rounded-lg border hover:opacity-80 transition-opacity ${
+                                  isDark ? 'border-[#1E293B]' : 'border-gray-200'
+                                }`}
                               />
                             </button>
                           ))}
@@ -391,16 +407,21 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
 
       {/* Summary */}
       {!loading && (
-        <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          Showing {filtered.length} of {requests.length} requests
-        </p>
+        <TablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          isDark={isDark}
+        />
       )}
 
-      {photoModalOpen && photoModalUrls.length > 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {photoModalOpen && photoModalUrls.length > 0 && createPortal(
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70" onClick={closePhotoModal} />
           <div className={`relative w-full max-w-3xl rounded-xl border overflow-hidden ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#1E293B]">
+            <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
               <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Photo {photoModalIndex + 1} of {photoModalUrls.length}
               </p>
@@ -450,7 +471,8 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <ConfirmationModal

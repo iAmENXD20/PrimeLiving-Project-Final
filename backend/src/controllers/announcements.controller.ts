@@ -22,6 +22,13 @@ export async function getAnnouncements(
       query = query.eq("client_id", req.query.client_id as string);
     }
 
+    if (req.query.tenant_id) {
+      const tenantId = req.query.tenant_id as string;
+      query = query.or(
+        `recipient_tenant_ids.is.null,recipient_tenant_ids.cs.{${tenantId}}`
+      );
+    }
+
     const { data, error } = await query;
 
     if (error) {
@@ -73,38 +80,61 @@ export async function createAnnouncement(
 ): Promise<void> {
   try {
     const { client_id, title, message } = req.body;
+    const senderName =
+      typeof req.body.created_by === "string" && req.body.created_by.trim().length > 0
+        ? req.body.created_by.trim()
+        : req.user?.email || "System";
+    const senderRoleLabel = req.user?.role === "owner" ? "Owner" : "Manager";
+    const notificationTitle = `Announcement sent by ${senderName} (${senderRoleLabel})`;
+    const notificationMessage = `${title}\n\n${message}`;
+    const recipientTenantIds = Array.isArray(req.body.recipient_tenant_ids)
+      ? Array.from(
+          new Set(
+            req.body.recipient_tenant_ids.filter(
+              (value: unknown): value is string =>
+                typeof value === "string" && value.trim().length > 0
+            )
+          )
+        )
+      : [];
+
+    const insertPayload = {
+      ...req.body,
+      recipient_tenant_ids:
+        recipientTenantIds.length > 0 ? recipientTenantIds : null,
+    };
 
     const { data, error } = await supabaseAdmin
       .from("announcements")
-      .insert(req.body)
+      .insert(insertPayload)
       .select()
       .single();
 
-    const isMissingAnnouncementsTable =
-      Boolean(error) &&
-      /Could not find the table 'public\.announcements'|relation "announcements" does not exist/i.test(
-        error?.message || ""
-      );
-
-    if (error && !isMissingAnnouncementsTable) {
+    if (error) {
       sendError(res, error.message, 500);
       return;
     }
 
     if (client_id) {
-      const { data: tenants } = await supabaseAdmin
+      let tenantQuery = supabaseAdmin
         .from("tenants")
         .select("id")
         .eq("client_id", client_id)
         .eq("status", "active");
+
+      if (recipientTenantIds.length > 0) {
+        tenantQuery = tenantQuery.in("id", recipientTenantIds);
+      }
+
+      const { data: tenants } = await tenantQuery;
 
       const tenantNotifications = (tenants || []).map((tenant: any) => ({
         client_id,
         recipient_role: "tenant" as const,
         recipient_id: tenant.id,
         type: "announcement_created",
-        title,
-        message,
+        title: notificationTitle,
+        message: notificationMessage,
       }));
 
       const managerNotifications: Array<{
@@ -129,8 +159,8 @@ export async function createAnnouncement(
             recipient_role: "manager" as const,
             recipient_id: manager.id,
             type: "announcement_created",
-            title,
-            message,
+            title: notificationTitle,
+            message: notificationMessage,
           }))
         );
       }
@@ -140,18 +170,8 @@ export async function createAnnouncement(
 
     sendSuccess(
       res,
-      data || {
-        id: null,
-        client_id,
-        title,
-        message,
-        created_by: req.body?.created_by || req.user?.email || null,
-        created_at: new Date().toISOString(),
-        notification_only: true,
-      },
-      isMissingAnnouncementsTable
-        ? "Announcement notification sent (announcement table is unavailable)"
-        : "Announcement created successfully",
+      data,
+      "Announcement created successfully",
       201
     );
   } catch (err: any) {

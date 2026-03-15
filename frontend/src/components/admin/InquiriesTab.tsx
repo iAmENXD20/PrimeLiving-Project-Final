@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { getInquiries, updateInquiryStatus, approveInquiry, type Inquiry } from '../../lib/api'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 const statusConfig: Record<Inquiry['status'], { icon: typeof Clock; bg: string; text: string }> = {
   pending: {
@@ -35,6 +37,8 @@ export default function InquiriesTab() {
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [loading, setLoading] = useState(true)
   const [approving, setApproving] = useState(false)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   // Create account form
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -170,6 +174,17 @@ export default function InquiriesTab() {
     return matchesSearch && matchesFilter
   })
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, filter, inquiries.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
   const cardClass = `rounded-xl border ${
     isDark
       ? 'bg-navy-card border-[#1E293B]'
@@ -266,7 +281,14 @@ export default function InquiriesTab() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((inq) => {
+              {loading && (
+                <tr>
+                  <td colSpan={7} className="py-3 px-4">
+                    <TableSkeleton rows={5} />
+                  </td>
+                </tr>
+              )}
+              {!loading && paginated.map((inq) => {
                 const config = statusConfig[inq.status]
                 return (
                   <tr
@@ -311,7 +333,7 @@ export default function InquiriesTab() {
                   </tr>
                 )
               })}
-              {filtered.length === 0 && (
+              {!loading && filtered.length === 0 && (
                 <tr>
                   <td
                     colSpan={7}
@@ -325,6 +347,17 @@ export default function InquiriesTab() {
           </table>
         </div>
       </div>
+
+      {!loading && (
+        <TablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          isDark={isDark}
+        />
+      )}
     </div>
 
       {/* Detail Modal */}

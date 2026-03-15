@@ -32,6 +32,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/invite/confirm" element={<InviteConfirmPage />} />
+        <Route path="/invite/confirm/invite/confirm" element={<InviteConfirmPage />} />
         <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
         <Route path="/owner" element={<ProtectedRoute><OwnerDashboard /></ProtectedRoute>} />
         <Route path="/manager" element={<ProtectedRoute><ManagerDashboard /></ProtectedRoute>} />

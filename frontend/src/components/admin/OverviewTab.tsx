@@ -17,6 +17,8 @@ import {
   getInquiries,
   type Inquiry,
 } from '../../lib/api'
+import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 const USER_COLORS = ['#22C55E', '#22D3EE', '#059669']
 
@@ -31,6 +33,8 @@ export default function OverviewTab({ onTabChange }: OverviewTabProps) {
   const [pieData, setPieData] = useState<{ name: string; value: number }[]>([])
   const [recentInquiries, setRecentInquiries] = useState<Inquiry[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     async function load() {
@@ -42,7 +46,7 @@ export default function OverviewTab({ onTabChange }: OverviewTabProps) {
         ])
         setStats(s)
         setPieData(pie)
-        setRecentInquiries(inq.slice(0, 5))
+        setRecentInquiries(inq)
       } catch (err) {
         console.error('Failed to load overview data:', err)
       } finally {
@@ -51,6 +55,17 @@ export default function OverviewTab({ onTabChange }: OverviewTabProps) {
     }
     load()
   }, [])
+
+  const totalPages = Math.max(1, Math.ceil(recentInquiries.length / pageSize))
+  const paginatedInquiries = recentInquiries.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [recentInquiries.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark
@@ -75,8 +90,9 @@ export default function OverviewTab({ onTabChange }: OverviewTabProps) {
       </div>
 
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading dashboard data...
+        <div className="space-y-4">
+          <CardsSkeleton count={4} />
+          <TableSkeleton rows={4} />
         </div>
       )}
 
@@ -153,7 +169,14 @@ export default function OverviewTab({ onTabChange }: OverviewTabProps) {
               </tr>
             </thead>
             <tbody>
-              {recentInquiries.map((inq) => (
+              {loading && (
+                <tr>
+                  <td colSpan={5} className="py-3 px-4">
+                    <TableSkeleton rows={4} />
+                  </td>
+                </tr>
+              )}
+              {!loading && paginatedInquiries.map((inq) => (
                 <tr
                   key={inq.id}
                   className={`border-b last:border-0 ${
@@ -195,7 +218,7 @@ export default function OverviewTab({ onTabChange }: OverviewTabProps) {
                   </td>
                 </tr>
               ))}
-              {recentInquiries.length === 0 && (
+              {!loading && recentInquiries.length === 0 && (
                 <tr>
                   <td
                     colSpan={5}
@@ -210,6 +233,17 @@ export default function OverviewTab({ onTabChange }: OverviewTabProps) {
             </tbody>
           </table>
         </div>
+
+        {!loading && (
+          <TablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={recentInquiries.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            isDark={isDark}
+          />
+        )}
       </div>
     </div>
   )

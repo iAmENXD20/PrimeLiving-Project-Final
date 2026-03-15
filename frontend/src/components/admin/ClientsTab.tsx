@@ -10,6 +10,8 @@ import {
 } from 'recharts'
 import { useTheme } from '../../context/ThemeContext'
 import { getClients, getClientDetailStats, type Client } from '../../lib/api'
+import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 export default function ClientsTab() {
   const { isDark } = useTheme()
@@ -19,6 +21,8 @@ export default function ClientsTab() {
   const locationRef = useRef<HTMLDivElement>(null)
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   // Detail view state
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -106,6 +110,17 @@ export default function ClientsTab() {
     return true
   })
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, locationFilter, clients.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
   const cardClass = `rounded-xl border ${
     isDark
       ? 'bg-navy-card border-[#1E293B]'
@@ -145,9 +160,7 @@ export default function ClientsTab() {
         </div>
 
         {detailLoading && (
-          <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            Loading client details...
-          </div>
+          <CardsSkeleton count={2} />
         )}
 
         {!detailLoading && detailStats && (
@@ -330,12 +343,12 @@ export default function ClientsTab() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={7} className={`py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Loading clients...
+                  <td colSpan={7} className="py-3 px-4">
+                    <TableSkeleton rows={5} />
                   </td>
                 </tr>
               )}
-              {!loading && filtered.map((client) => (
+              {!loading && paginated.map((client) => (
                 <tr
                   key={client.id}
                   className={`border-b last:border-0 transition-colors ${
@@ -398,6 +411,17 @@ export default function ClientsTab() {
           </table>
         </div>
       </div>
+
+      {!loading && (
+        <TablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          isDark={isDark}
+        />
+      )}
     </div>
   )
 }

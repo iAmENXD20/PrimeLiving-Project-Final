@@ -14,6 +14,8 @@ import {
   uploadMaintenancePhoto,
   type TenantMaintenanceRequest,
 } from '@/lib/tenantApi'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 const MAX_PHOTOS = 4
 
@@ -48,6 +50,8 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, clientId }
   const { isDark } = useTheme()
   const [requests, setRequests] = useState<TenantMaintenanceRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   // 4 photo slots
   const [photos, setPhotos] = useState<(File | null)[]>([null, null, null, null])
@@ -179,6 +183,17 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, clientId }
       default: return 'bg-green-500/15 text-green-400'
     }
   }
+
+  const totalPages = Math.max(1, Math.ceil(requests.length / pageSize))
+  const paginatedRequests = requests.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [requests.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   return (
     <div className="animate-fade-up flex flex-col flex-1 min-h-0 gap-4">
@@ -345,7 +360,7 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, clientId }
           </h3>
 
           {loading && (
-            <p className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</p>
+            <TableSkeleton rows={6} />
           )}
 
           <div className="overflow-auto flex-1 min-h-0 flex flex-col">
@@ -365,7 +380,7 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, clientId }
                 </tr>
               </thead>
               <tbody>
-                {requests.map((req) => (
+                {paginatedRequests.map((req) => (
                   <tr
                     key={req.id}
                     className={`border-b last:border-0 transition-colors ${
@@ -425,6 +440,17 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, clientId }
             </table>
             )}
           </div>
+
+          {!loading && (
+            <TablePagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={requests.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              isDark={isDark}
+            />
+          )}
         </div>
       </div>
     </div>

@@ -2,12 +2,16 @@ import { Search } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTheme } from '../../context/ThemeContext'
 import { getManagers, type Manager } from '../../lib/api'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 export default function ManagersTab() {
   const { isDark } = useTheme()
   const [search, setSearch] = useState('')
   const [managers, setManagers] = useState<Manager[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     loadManagers()
@@ -31,6 +35,17 @@ export default function ManagersTab() {
       m.email.toLowerCase().includes(search.toLowerCase()) ||
       (m.client_name || '').toLowerCase().includes(search.toLowerCase())
   )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, managers.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const cardClass = `rounded-xl border ${
     isDark
@@ -95,12 +110,12 @@ export default function ManagersTab() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6} className={`py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Loading managers...
+                  <td colSpan={6} className="py-3 px-4">
+                    <TableSkeleton rows={5} />
                   </td>
                 </tr>
               )}
-              {!loading && filtered.map((manager) => (
+              {!loading && paginated.map((manager) => (
                 <tr
                   key={manager.id}
                   className={`border-b last:border-0 transition-colors ${
@@ -155,6 +170,17 @@ export default function ManagersTab() {
           </table>
         </div>
       </div>
+
+      {!loading && (
+        <TablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          isDark={isDark}
+        />
+      )}
     </div>
   )
 }

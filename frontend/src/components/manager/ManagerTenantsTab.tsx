@@ -14,6 +14,8 @@ import {
   type TenantAccount,
 } from '../../lib/managerApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import TablePagination from '@/components/ui/table-pagination'
+import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface ManagerTenantsTabProps {
   clientId: string
@@ -39,6 +41,8 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
   const [emailSent, setEmailSent] = useState(false)
   const [tenantToDelete, setTenantToDelete] = useState<TenantAccount | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     loadData()
@@ -103,9 +107,13 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
         })
         setTenants((prev) => [result.tenant, ...prev])
         setShowModal(false)
-        setCredentials({ email: form.email, password: result.generatedPassword })
-        setShowCredentials(true)
-        toast.success('Tenant account created successfully')
+        if (result.generatedPassword) {
+          setCredentials({ email: form.email, password: result.generatedPassword })
+          setShowCredentials(true)
+          toast.success('Tenant account created successfully')
+        } else {
+          toast.success('Tenant account created. Invitation email has been sent.')
+        }
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save tenant'
@@ -143,6 +151,17 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
       t.name.toLowerCase().includes(search.toLowerCase()) ||
       (t.email || '').toLowerCase().includes(search.toLowerCase())
   )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, tenants.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const cardClass = `rounded-xl border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -198,13 +217,13 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={6} className={`py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Loading tenants...
+                    <td colSpan={6} className="py-3 px-4">
+                      <TableSkeleton rows={5} />
                     </td>
                   </tr>
                 )}
                 {!loading &&
-                  filtered.map((tenant) => (
+                  paginated.map((tenant) => (
                     <tr
                       key={tenant.id}
                       className={`border-b last:border-0 transition-colors ${
@@ -286,6 +305,17 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
             </table>
           </div>
         </div>
+
+        {!loading && (
+          <TablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            isDark={isDark}
+          />
+        )}
       </div>
 
       {/* Add/Edit Modal */}

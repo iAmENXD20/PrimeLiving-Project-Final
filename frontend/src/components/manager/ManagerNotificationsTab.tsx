@@ -10,6 +10,7 @@ import {
   type ManagerNotification,
 } from '../../lib/managerApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface ManagerNotificationsTabProps {
   managerId: string
@@ -144,9 +145,7 @@ export default function ManagerNotificationsTab({ managerId, clientId, onRead }:
       </div>
 
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading notifications...
-        </div>
+        <TableSkeleton rows={6} />
       )}
 
       {!loading && (
@@ -161,7 +160,7 @@ export default function ManagerNotificationsTab({ managerId, clientId, onRead }:
               <p className={`text-base font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No notifications yet</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-[#1E293B]">
+            <div className={`divide-y ${isDark ? 'divide-[#1E293B]' : 'divide-gray-100'}`}>
               {notifications.map((notification) => (
                 <div
                   key={notification.id}

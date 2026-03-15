@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Search } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { getAllUsers, type UserRecord } from '../../lib/api'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 const ROLES = ['all', 'owner', 'manager', 'tenant'] as const
 type RoleFilter = (typeof ROLES)[number]
@@ -18,6 +20,8 @@ export default function UsersTab() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     async function load() {
@@ -45,6 +49,17 @@ export default function UsersTab() {
     }
     return true
   })
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, roleFilter, users.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -100,9 +115,7 @@ export default function UsersTab() {
 
       {/* Loading */}
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading users…
-        </div>
+        <TableSkeleton rows={6} />
       )}
 
       {/* Table */}
@@ -128,7 +141,7 @@ export default function UsersTab() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u) => {
+              {paginated.map((u) => {
                 const badge = roleBadge[u.role]
                 return (
                   <tr
@@ -188,9 +201,14 @@ export default function UsersTab() {
 
       {/* Summary */}
       {!loading && (
-        <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          Showing {filtered.length} of {users.length} users
-        </p>
+        <TablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          isDark={isDark}
+        />
       )}
     </div>
   )

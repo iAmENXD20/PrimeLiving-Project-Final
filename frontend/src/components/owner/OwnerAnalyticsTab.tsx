@@ -21,6 +21,7 @@ import {
   getOwnerUnits,
   getOwnerManagers,
 } from '../../lib/ownerApi'
+import { CardsSkeleton } from '@/components/ui/skeleton'
 
 interface OwnerAnalyticsTabProps {
   clientId: string
@@ -87,9 +88,7 @@ export default function OwnerAnalyticsTab({ clientId }: OwnerAnalyticsTabProps) 
       </div>
 
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading analytics...
-        </div>
+        <CardsSkeleton count={3} />
       )}
 
       {/* Charts row */}

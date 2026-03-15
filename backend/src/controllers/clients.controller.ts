@@ -4,6 +4,13 @@ import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 
+function toInviteConfirmUrl(baseUrl: string): string {
+  const normalizedBase = baseUrl.replace(/\/+$/, "");
+  return normalizedBase.endsWith("/invite/confirm")
+    ? normalizedBase
+    : `${normalizedBase}/invite/confirm`;
+}
+
 /**
  * GET /api/clients
  * Get all clients
@@ -188,10 +195,11 @@ export async function createClient(
     }
 
     const requestOrigin = req.headers.origin;
-    const redirectTo =
+    const baseRedirectUrl =
       requestOrigin && /^https?:\/\//i.test(requestOrigin)
         ? requestOrigin
         : env.FRONTEND_URL;
+    const redirectTo = toInviteConfirmUrl(baseRedirectUrl);
 
     // Invite owner via email verification flow
     const { data: inviteData, error: authError } =

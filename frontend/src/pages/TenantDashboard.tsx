@@ -12,6 +12,7 @@ import TenantAccountTab from '../components/tenant/TenantAccountTab'
 import TenantDocumentsTab from '../components/tenant/TenantDocumentsTab'
 import { getCurrentTenant, getTenantApartmentInfo, getUnreadNotificationCount, getTenantNotifications } from '../lib/tenantApi'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
+import { CardsSkeleton } from '../components/ui/skeleton'
 
 export default function TenantDashboard() {
   const { isDark } = useTheme()
@@ -113,8 +114,9 @@ export default function TenantDashboard() {
   const renderContent = () => {
     if (loading) {
       return (
-        <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading dashboard...
+        <div className="space-y-4">
+          <div className={`h-8 w-48 rounded ${isDark ? 'bg-white/10' : 'bg-gray-200'} animate-pulse`} />
+          <CardsSkeleton count={4} />
         </div>
       )
     }

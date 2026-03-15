@@ -7,6 +7,8 @@ import {
   getOwnerApartmentAddress,
   type MaintenanceRequest,
 } from '../../lib/ownerApi'
+import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 interface OwnerOverviewTabProps {
   clientId: string
@@ -19,6 +21,8 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
   const [recentMaintenance, setRecentMaintenance] = useState<MaintenanceRequest[]>([])
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
   const today = new Date()
   const [selectedMonth, setSelectedMonth] = useState<number>(0)
   const [selectedYear, setSelectedYear] = useState(today.getFullYear())
@@ -51,7 +55,7 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
           getOwnerApartmentAddress(clientId),
         ])
         setStats(s)
-        setRecentMaintenance(requests.slice(0, 5))
+        setRecentMaintenance(requests)
         setApartmentAddress(addr)
       } catch (err) {
         console.error('Failed to load owner overview:', err)
@@ -78,6 +82,16 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
     { label: 'Units', value: stats.apartments, icon: Building2, color: 'text-blue-400', bg: 'bg-blue-500/15' },
     { label: 'Pending Maintenance', value: stats.pendingMaintenance, icon: Wrench, color: 'text-red-400', bg: 'bg-red-500/15' },
   ]
+  const totalPages = Math.max(1, Math.ceil(recentMaintenance.length / pageSize))
+  const paginatedMaintenance = recentMaintenance.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [recentMaintenance.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const priorityColor = (p: string) => {
     switch (p) {
@@ -101,8 +115,9 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
       </div>
 
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          Loading dashboard data...
+        <div className="space-y-4">
+          <CardsSkeleton count={4} />
+          <TableSkeleton rows={4} />
         </div>
       )}
 
@@ -182,7 +197,7 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
                   </td>
                 </tr>
               )}
-              {recentMaintenance.map((req) => (
+              {paginatedMaintenance.map((req) => (
                 <tr
                   key={req.id}
                   className={`border-b last:border-0 transition-colors ${
@@ -218,6 +233,17 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
             </tbody>
           </table>
         </div>
+
+        {!loading && (
+          <TablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={recentMaintenance.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            isDark={isDark}
+          />
+        )}
       </div>
     </div>
   )

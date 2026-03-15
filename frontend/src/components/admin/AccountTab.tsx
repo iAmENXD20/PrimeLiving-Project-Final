@@ -121,7 +121,7 @@ export default function AccountTab() {
           <div className={tileClass}>
             <Label className={`text-sm ${labelClass}`}>Email</Label>
             <p className={`mt-1 text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-              {userEmail ?? 'Loading...'}
+              {userEmail ?? '—'}
             </p>
           </div>
         </div>

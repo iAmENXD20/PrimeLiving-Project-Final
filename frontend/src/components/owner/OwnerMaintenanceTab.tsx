@@ -7,6 +7,8 @@ import {
   createOwnerAnnouncement,
   type MaintenanceRequest,
 } from '../../lib/ownerApi'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import TablePagination from '@/components/ui/table-pagination'
 
 const STATUSES = ['all', 'pending', 'in_progress', 'resolved', 'closed'] as const
 type StatusFilter = (typeof STATUSES)[number]
@@ -58,6 +60,8 @@ export default function OwnerMaintenanceTab({ clientId, ownerName }: OwnerMainte
   const priorityRef = useRef<HTMLDivElement>(null)
   const [alertedIds, setAlertedIds] = useState<Set<string>>(new Set())
   const [alertingId, setAlertingId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   async function loadRequests() {
     try {
@@ -114,6 +118,17 @@ export default function OwnerMaintenanceTab({ clientId, ownerName }: OwnerMainte
     }
     return true
   })
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, statusFilter, priorityFilter, requests.length])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const cardClass = `rounded-xl border ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'}`
 
@@ -234,7 +249,7 @@ export default function OwnerMaintenanceTab({ clientId, ownerName }: OwnerMainte
 
       {/* Loading */}
       {loading && (
-        <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading maintenance requests…</div>
+        <TableSkeleton rows={6} />
       )}
 
       {/* Table */}
@@ -249,7 +264,7 @@ export default function OwnerMaintenanceTab({ clientId, ownerName }: OwnerMainte
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {paginated.map((r) => (
                 <tr key={r.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
                   <td className="py-3 px-4">
                     <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{r.title}</div>
@@ -324,9 +339,14 @@ export default function OwnerMaintenanceTab({ clientId, ownerName }: OwnerMainte
       )}
 
       {!loading && filtered.length > 0 && (
-        <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          Showing {filtered.length} of {requests.length} requests
-        </p>
+        <TablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          isDark={isDark}
+        />
       )}
     </div>
   )
