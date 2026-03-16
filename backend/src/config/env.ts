@@ -28,6 +28,10 @@ export const env = {
     "",
   PHILSMS_API_URL: process.env.PHILSMS_API_URL || "https://dashboard.philsms.com/api/v3/sms/send",
   SMS_ENABLED: process.env.SMS_ENABLED,
+  EMAIL_VERIFICATION_API_KEY: process.env.EMAIL_VERIFICATION_API_KEY || "",
+  EMAIL_VERIFICATION_API_URL:
+    process.env.EMAIL_VERIFICATION_API_URL || "https://emailvalidation.abstractapi.com/v1/",
+  EMAIL_VERIFICATION_REQUIRED: process.env.EMAIL_VERIFICATION_REQUIRED || "false",
 };
 
 // Validate required env vars
@@ -46,4 +50,10 @@ for (const varName of requiredVars) {
 
 if (env.SMS_ENABLED !== "false" && !env.PHILSMS_API_KEY) {
   console.warn("SMS is enabled but PHILSMS_API_KEY is missing. SMS delivery will fail.");
+}
+
+if (env.EMAIL_VERIFICATION_REQUIRED === "true" && !env.EMAIL_VERIFICATION_API_KEY) {
+  console.warn(
+    "EMAIL_VERIFICATION_REQUIRED is true but EMAIL_VERIFICATION_API_KEY is missing. Mailbox verification will fail."
+  );
 }

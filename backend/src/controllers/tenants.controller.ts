@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../config/supabase";
 import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
+import { isValidEmailFormat } from "../utils/emailValidation";
 
 function getInviteRedirectUrl(): string {
   const normalizedBase = env.FRONTEND_URL.replace(/\/+$/, "");
@@ -144,6 +145,36 @@ export async function createTenant(
       typeof email === "string" ? email.trim().toLowerCase() : null;
 
     let authUserId: string | null = null;
+
+    if (normalizedEmail) {
+      if (!isValidEmailFormat(normalizedEmail)) {
+        sendError(res, "Please enter a valid email address", 400);
+        return;
+      }
+
+      const [existingClientLookup, existingManagerLookup, existingTenantLookup] = await Promise.all([
+        supabaseAdmin.from("clients").select("id").eq("email", normalizedEmail).maybeSingle(),
+        supabaseAdmin.from("managers").select("id").eq("email", normalizedEmail).maybeSingle(),
+        supabaseAdmin.from("tenants").select("id").eq("email", normalizedEmail).maybeSingle(),
+      ]);
+
+      if (existingClientLookup.error || existingManagerLookup.error || existingTenantLookup.error) {
+        sendError(
+          res,
+          existingClientLookup.error?.message ||
+            existingManagerLookup.error?.message ||
+            existingTenantLookup.error?.message ||
+            "Failed to validate email",
+          500
+        );
+        return;
+      }
+
+      if (existingClientLookup.data || existingManagerLookup.data || existingTenantLookup.data) {
+        sendError(res, "Email is already used by another account", 409);
+        return;
+      }
+    }
 
     // Create auth account if requested
     if (create_auth_account) {

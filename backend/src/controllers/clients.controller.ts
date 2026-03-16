@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../config/supabase";
 import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
+import { isValidEmailFormat } from "../utils/emailValidation";
 
 function toInviteConfirmUrl(baseUrl: string): string {
   const normalizedBase = baseUrl.replace(/\/+$/, "");
@@ -178,19 +179,31 @@ export async function createClient(
       return;
     }
 
-    const { data: existingClient, error: existingClientError } = await supabaseAdmin
-      .from("clients")
-      .select("id")
-      .eq("email", normalizedEmail)
-      .maybeSingle();
-
-    if (existingClientError) {
-      sendError(res, existingClientError.message, 500);
+    if (!isValidEmailFormat(normalizedEmail)) {
+      sendError(res, "Please enter a valid email address", 400);
       return;
     }
 
-    if (existingClient) {
-      sendError(res, "Owner account with this email already exists", 409);
+    const [existingClientLookup, existingManagerLookup, existingTenantLookup] = await Promise.all([
+      supabaseAdmin.from("clients").select("id").eq("email", normalizedEmail).maybeSingle(),
+      supabaseAdmin.from("managers").select("id").eq("email", normalizedEmail).maybeSingle(),
+      supabaseAdmin.from("tenants").select("id").eq("email", normalizedEmail).maybeSingle(),
+    ]);
+
+    if (existingClientLookup.error || existingManagerLookup.error || existingTenantLookup.error) {
+      sendError(
+        res,
+        existingClientLookup.error?.message ||
+          existingManagerLookup.error?.message ||
+          existingTenantLookup.error?.message ||
+          "Failed to validate email",
+        500
+      );
+      return;
+    }
+
+    if (existingClientLookup.data || existingManagerLookup.data || existingTenantLookup.data) {
+      sendError(res, "Email is already used by another account", 409);
       return;
     }
 

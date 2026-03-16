@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { getInquiries, updateInquiryStatus, approveInquiry, type Inquiry } from '../../lib/api'
+import { useEmailValidation } from '@/hooks/useEmailValidation'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
@@ -45,6 +46,7 @@ export default function InquiriesTab() {
   const [createFormData, setCreateFormData] = useState({ firstName: '', lastName: '', email: '', contactNumber: '' })
   const [createFormErrors, setCreateFormErrors] = useState<Record<string, string>>({})
   const [pendingInquiry, setPendingInquiry] = useState<Inquiry | null>(null)
+  const ownerEmailValidation = useEmailValidation(createFormData.email)
 
   // Credentials modal
   const [showCredentials, setShowCredentials] = useState(false)
@@ -52,10 +54,21 @@ export default function InquiriesTab() {
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const [emailCooldown, setEmailCooldown] = useState(0)
 
   useEffect(() => {
     loadInquiries()
   }, [])
+
+  useEffect(() => {
+    if (emailCooldown <= 0) return
+
+    const timerId = window.setInterval(() => {
+      setEmailCooldown((prev) => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+
+    return () => window.clearInterval(timerId)
+  }, [emailCooldown])
 
   // Compute counts per status
   const statusCounts = {
@@ -116,6 +129,14 @@ export default function InquiriesTab() {
     if (!createFormData.contactNumber.trim()) errors.contactNumber = 'Contact number is required'
     if (Object.keys(errors).length > 0) {
       setCreateFormErrors(errors)
+      return
+    }
+
+    if (!ownerEmailValidation.isValid) {
+      setCreateFormErrors((prev) => ({
+        ...prev,
+        email: ownerEmailValidation.message || 'Email could not be verified',
+      }))
       return
     }
 
@@ -556,6 +577,21 @@ export default function InquiriesTab() {
                   placeholder="owner@email.com"
                 />
                 {createFormErrors.email && <p className="text-xs text-red-500 mt-1">{createFormErrors.email}</p>}
+                {!createFormErrors.email && createFormData.email.trim() && (
+                  <p
+                    className={`text-xs mt-1 ${
+                      ownerEmailValidation.isValid
+                        ? 'text-emerald-500'
+                        : ownerEmailValidation.isInvalid
+                        ? 'text-red-500'
+                        : isDark
+                        ? 'text-gray-400'
+                        : 'text-gray-500'
+                    }`}
+                  >
+                    {ownerEmailValidation.message}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -596,7 +632,12 @@ export default function InquiriesTab() {
               </button>
               <button
                 onClick={handleCreateAccountSubmit}
-                disabled={approving}
+                disabled={
+                  approving ||
+                  !createFormData.email.trim() ||
+                  ownerEmailValidation.isChecking ||
+                  ownerEmailValidation.isInvalid
+                }
                 className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-primary hover:bg-primary-600 text-white transition-all disabled:opacity-50"
               >
                 {approving ? 'Creating...' : 'Create Account'}
@@ -684,6 +725,7 @@ export default function InquiriesTab() {
                     try {
                       await new Promise((resolve) => setTimeout(resolve, 1500))
                       setEmailSent(true)
+                      setEmailCooldown(30)
                       toast.success(`Credentials sent to ${credentials.email}`)
                     } catch {
                       toast.error('Failed to send email')
@@ -691,11 +733,17 @@ export default function InquiriesTab() {
                       setEmailSending(false)
                     }
                   }}
-                  disabled={emailSending || emailSent}
+                  disabled={emailSending || emailCooldown > 0}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-primary hover:bg-primary/90 text-white disabled:opacity-50 transition-colors"
                 >
                   <Send className="w-4 h-4" />
-                  {emailSending ? 'Sending...' : emailSent ? 'Sent!' : 'Send Email'}
+                  {emailSending
+                    ? 'Sending...'
+                    : emailCooldown > 0
+                    ? `Resend in ${emailCooldown}s`
+                    : emailSent
+                    ? 'Resend Email'
+                    : 'Send Email'}
                 </button>
               </div>
               {emailSent && (
@@ -711,6 +759,7 @@ export default function InquiriesTab() {
                 onClick={() => {
                   setShowCredentials(false)
                   setEmailSent(false)
+                  setEmailCooldown(0)
                 }}
                 className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-primary hover:bg-primary-600 text-white transition-colors"
               >

@@ -1,7 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
+import * as dotenv from 'dotenv'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 
-const SUPABASE_URL = 'https://hnwcrsxdkfqydfesybkk.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhud2Nyc3hka2ZxeWRmZXN5YmtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMzExOTIsImV4cCI6MjA4NzcwNzE5Mn0.WUwcOHP3FR2D0P-qTrRBoC02GuwYsEzvzU0aytfrltE'
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+dotenv.config({ path: resolve(__dirname, '..', '.env') })
+
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL!
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY!
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 

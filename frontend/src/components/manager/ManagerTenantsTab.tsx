@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
+import { useEmailValidation } from '@/hooks/useEmailValidation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -39,14 +40,26 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
   const [smsSent, setSmsSent] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const [emailCooldown, setEmailCooldown] = useState(0)
   const [tenantToDelete, setTenantToDelete] = useState<TenantAccount | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [page, setPage] = useState(1)
   const pageSize = 10
+  const tenantEmailValidation = useEmailValidation(form.email)
 
   useEffect(() => {
     loadData()
   }, [clientId])
+
+  useEffect(() => {
+    if (emailCooldown <= 0) return
+
+    const timerId = window.setInterval(() => {
+      setEmailCooldown((prev) => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+
+    return () => window.clearInterval(timerId)
+  }, [emailCooldown])
 
   async function loadData() {
     try {
@@ -86,6 +99,12 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
       toast.error('First name and email are required')
       return
     }
+
+    if (!editingTenant && !tenantEmailValidation.isValid) {
+      toast.error(tenantEmailValidation.message || 'Email could not be verified')
+      return
+    }
+
     const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim()
     try {
       setSaving(true)
@@ -367,6 +386,21 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                     placeholder="tenant@gmail.com"
                     className={inputClass}
                   />
+                  {!editingTenant && form.email.trim() && (
+                    <p
+                      className={`text-xs mt-1 ${
+                        tenantEmailValidation.isValid
+                          ? 'text-emerald-500'
+                          : tenantEmailValidation.isInvalid
+                          ? 'text-red-500'
+                          : isDark
+                          ? 'text-gray-400'
+                          : 'text-gray-500'
+                      }`}
+                    >
+                      {tenantEmailValidation.message}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Phone</Label>
@@ -389,7 +423,13 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                 </Button>
                 <Button
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={
+                    saving ||
+                    (!editingTenant &&
+                      (!form.email.trim() ||
+                        tenantEmailValidation.isChecking ||
+                        tenantEmailValidation.isInvalid))
+                  }
                   className="bg-primary hover:bg-primary/90 text-white font-semibold"
                 >
                   {editingTenant ? 'Update' : saving ? 'Creating...' : 'Create Account'}
@@ -462,6 +502,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                       try {
                         await new Promise((resolve) => setTimeout(resolve, 1500))
                         setEmailSent(true)
+                        setEmailCooldown(30)
                         toast.success(`Invite reminder sent to ${credentials.email}`)
                       } catch {
                         toast.error('Failed to send email')
@@ -469,11 +510,17 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                         setEmailSending(false)
                       }
                     }}
-                    disabled={emailSending || emailSent}
+                    disabled={emailSending || emailCooldown > 0}
                     className="gap-2 bg-primary hover:bg-primary/90 text-white font-semibold disabled:opacity-50"
                   >
                     <Send className="w-4 h-4" />
-                    {emailSending ? 'Sending...' : emailSent ? 'Sent!' : 'Send Email'}
+                    {emailSending
+                      ? 'Sending...'
+                      : emailCooldown > 0
+                      ? `Resend in ${emailCooldown}s`
+                      : emailSent
+                      ? 'Resend Email'
+                      : 'Send Email'}
                   </Button>
                 </div>
                 {emailSent && (
@@ -491,6 +538,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                     setSmsPhone('')
                     setSmsSent(false)
                     setEmailSent(false)
+                    setEmailCooldown(0)
                   }}
                   className="bg-primary hover:bg-primary/90 text-white font-semibold"
                 >
