@@ -34,6 +34,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
   // Payment form state
   const [tenantName, setTenantName] = useState('')
   const [selectedDuePaymentId, setSelectedDuePaymentId] = useState('')
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<'gcash' | 'maya' | 'cash' | 'bank_transfer'>('gcash')
   const [isBillingMenuOpen, setIsBillingMenuOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [duePage, setDuePage] = useState(1)
@@ -271,6 +272,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
         period_from: selectedDue.period_from,
         period_to: selectedDue.period_to,
         description: `Tenant payment proof submitted for ${selectedDue.period_from} to ${selectedDue.period_to}`,
+        payment_mode: selectedPaymentMode,
       })
 
       await refreshPaymentsAndDues()
@@ -488,6 +490,27 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
             </div>
 
             {/* Receipt Upload */}
+              {/* Payment Mode Selector */}
+              <div>
+                <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Payment Mode
+                </label>
+                <select
+                  value={selectedPaymentMode}
+                  onChange={(e) => setSelectedPaymentMode(e.target.value as any)}
+                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white'
+                      : 'bg-white border-gray-200 text-gray-900'
+                  } focus:outline-none focus:border-primary`}
+                >
+                  <option value="gcash">GCash</option>
+                  <option value="maya">Maya</option>
+                  <option value="cash">Cash</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                </select>
+              </div>
+
               <div className={`p-4 rounded-xl border-2 border-dashed ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
                 <div className="flex items-center gap-3 mb-3">
                   <Receipt className={`w-5 h-5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`} />
@@ -688,7 +711,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
                     ₱{Number(p.amount).toLocaleString()}
                   </td>
                   <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    {p.payment_mode === 'cash' ? 'Cash' : p.payment_mode === 'qr' ? 'QR' : '—'}
+                    {p.payment_mode === 'cash' ? 'Cash' : p.payment_mode === 'gcash' ? 'GCash' : p.payment_mode === 'maya' ? 'Maya' : p.payment_mode === 'bank_transfer' ? 'Bank Transfer' : '—'}
                   </td>
                   <td className="py-3.5 px-4">
                     {(() => {

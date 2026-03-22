@@ -2,7 +2,7 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
-import { logActivity } from "../utils/activityLog";
+import { logActivity, resolveActorName } from "../utils/activityLog";
 
 const DOCUMENTS_BUCKET = "documents-private";
 
@@ -178,6 +178,23 @@ export async function createDocument(
     }
 
     sendSuccess(res, data, "Document created successfully", 201);
+
+    if (data && req.body.apartmentowner_id) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: req.body.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: (req.user?.role as "owner" | "manager") || "manager",
+        action: "document_created",
+        entity_type: "document",
+        entity_id: data.id,
+        description: `Created document record: ${data.file_name || "untitled"}`,
+        metadata: { file_name: data.file_name, file_type: data.file_type },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -288,7 +305,10 @@ export async function uploadDocument(
     logActivity({
       apartmentowner_id,
       actor_id: req.user?.id || null,
-      actor_name: req.user?.email || "System",
+      actor_name: await (async () => {
+        if (req.user?.id) return resolveActorName(req.user.id, req.user.role, req.user.email);
+        return "System";
+      })(),
       actor_role: (req.user?.role as "owner" | "manager") || "owner",
       action: "document_uploaded",
       entity_type: "document",
@@ -348,10 +368,13 @@ export async function deleteDocument(
     sendSuccess(res, null, "Document deleted successfully");
 
     if (doc?.apartmentowner_id) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
       logActivity({
         apartmentowner_id: doc.apartmentowner_id,
         actor_id: req.user?.id || null,
-        actor_name: req.user?.email || "System",
+        actor_name: actorName,
         actor_role: (req.user?.role as "owner" | "manager") || "owner",
         action: "document_deleted",
         entity_type: "document",

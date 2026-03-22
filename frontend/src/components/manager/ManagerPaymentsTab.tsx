@@ -54,7 +54,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
   // Record cash payment modal
   const [showRecordModal, setShowRecordModal] = useState(false)
   const [tenants, setTenants] = useState<TenantAccount[]>([])
-  const [recordForm, setRecordForm] = useState({ tenantId: '', paymentId: '', description: '' })
+  const [recordForm, setRecordForm] = useState({ tenantId: '', paymentId: '', description: '', paymentMode: 'cash' as 'gcash' | 'maya' | 'cash' | 'bank_transfer' })
   const [recordLoading, setRecordLoading] = useState(false)
 
   // Month/Year filter
@@ -111,10 +111,10 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
 
     setRecordLoading(true)
     try {
-      await settleCashBilling(recordForm.paymentId, recordForm.description || undefined)
-      toast.success('Cash payment recorded successfully!')
+      await settleCashBilling(recordForm.paymentId, recordForm.description || undefined, recordForm.paymentMode)
+      toast.success('Payment recorded successfully!')
       setShowRecordModal(false)
-      setRecordForm({ tenantId: '', paymentId: '', description: '' })
+      setRecordForm({ tenantId: '', paymentId: '', description: '', paymentMode: 'cash' })
       await load()
     } catch (err) {
       console.error('Failed to record payment:', err)
@@ -522,7 +522,12 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                 <p className={isDark ? 'text-gray-300' : 'text-gray-700'}><span className="font-semibold">Period:</span> {previewVerification.period_from && previewVerification.period_to
                   ? `${new Date(previewVerification.period_from + 'T00:00:00').toLocaleDateString()} — ${new Date(previewVerification.period_to + 'T00:00:00').toLocaleDateString()}`
                   : '—'}</p>
-                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}><span className="font-semibold">Mode:</span> {previewVerification.payment_mode || 'cash'}</p>
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}><span className="font-semibold">Mode:</span> {
+                  previewVerification.payment_mode === 'gcash' ? 'GCash' :
+                  previewVerification.payment_mode === 'maya' ? 'Maya' :
+                  previewVerification.payment_mode === 'bank_transfer' ? 'Bank Transfer' :
+                  previewVerification.payment_mode === 'cash' ? 'Cash' : 'Cash'
+                }</p>
               </div>
               {previewVerification.description && (
                 <p className={`mt-3 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -656,15 +661,22 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
               {/* Payment Type */}
               <div>
                 <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Payment Type
+                  Payment Mode
                 </label>
-                <div className={`w-full px-3 py-2.5 rounded-lg border text-sm ${
-                  isDark
-                    ? 'bg-[#0A1628] border-[#1E293B] text-white'
-                    : 'bg-gray-50 border-gray-200 text-gray-900'
-                }`}>
-                  Cash
-                </div>
+                <select
+                  value={recordForm.paymentMode}
+                  onChange={(e) => setRecordForm(f => ({ ...f, paymentMode: e.target.value as any }))}
+                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white'
+                      : 'bg-white border-gray-200 text-gray-900'
+                  } focus:outline-none focus:border-primary`}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="gcash">GCash</option>
+                  <option value="maya">Maya</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                </select>
               </div>
 
               {/* Amount */}

@@ -4,7 +4,7 @@ import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { sendSmsToMany } from "../utils/sms";
 import { createNotification, createNotifications } from "../utils/notifications";
-import { logActivity } from "../utils/activityLog";
+import { logActivity, resolveActorName } from "../utils/activityLog";
 
 const PAYMENT_QR_BUCKET = "payment-qr-codes";
 
@@ -259,6 +259,23 @@ export async function createPayment(
     }
 
     sendSuccess(res, data, "Payment created successfully", 201);
+
+    if (data && req.body.apartmentowner_id && (req.user?.role === "owner" || req.user?.role === "manager")) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: req.body.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: req.user?.role as "owner" | "manager",
+        action: "payment_created",
+        entity_type: "payment",
+        entity_id: data.id,
+        description: `Created payment record — Amount: ${data.amount || 0}`,
+        metadata: { amount: data.amount, status: data.status, tenant_id: data.tenant_id },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -282,6 +299,7 @@ export async function submitPaymentProof(
       period_from,
       period_to,
       description,
+      payment_mode,
     } = req.body;
 
     if (!tenant_id || !apartmentowner_id || !period_from || !period_to || !receipt_url) {
@@ -301,7 +319,7 @@ export async function submitPaymentProof(
         .from("payments")
         .update({
           receipt_url,
-          payment_mode: "qr",
+          payment_mode: payment_mode || "gcash",
           verification_status: "pending_verification",
           description: description || `Payment proof submitted for ${period_from} to ${period_to}`,
           amount: amount ?? undefined,
@@ -362,7 +380,7 @@ export async function submitPaymentProof(
         amount: amount || 0,
         payment_date: new Date().toISOString(),
         status: "pending",
-        payment_mode: "qr",
+        payment_mode: payment_mode || "gcash",
         receipt_url,
         verification_status: "pending_verification",
         period_from,
@@ -436,6 +454,24 @@ export async function createPaymentsBulk(
     }
 
     sendSuccess(res, data, `${data.length} payment records created`, 201);
+
+    const ownerIdForLog = payments?.[0]?.apartmentowner_id;
+    if (data && ownerIdForLog) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: ownerIdForLog,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "payments_bulk_created",
+        entity_type: "payment",
+        entity_id: data[0]?.id || null,
+        description: `Created ${data.length} payment records in bulk`,
+        metadata: { count: data.length },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -466,6 +502,23 @@ export async function updatePayment(
     }
 
     sendSuccess(res, data, "Payment updated successfully");
+
+    if (data && data.apartmentowner_id && (req.user?.role === "owner" || req.user?.role === "manager")) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: data.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: req.user?.role as "owner" | "manager",
+        action: "payment_updated",
+        entity_type: "payment",
+        entity_id: id,
+        description: `Updated payment ${id}`,
+        metadata: { updates: Object.keys(updates) },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -561,10 +614,13 @@ export async function verifyPayment(
 
     sendSuccess(res, data, `Payment ${verification_status} successfully`);
 
+    const actorName = req.user?.id
+      ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+      : "System";
     logActivity({
       apartmentowner_id: data.apartmentowner_id,
       actor_id: req.user?.id || null,
-      actor_name: req.user?.email || "System",
+      actor_name: actorName,
       actor_role: (req.user?.role as "owner" | "manager") || "manager",
       action: `payment_${verification_status}`,
       entity_type: "payment",
@@ -709,6 +765,23 @@ export async function generateMonthlyBillings(
       { created: newPayments.length },
       `${newPayments.length} billing records created`
     );
+
+    if (newPayments.length > 0) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "monthly_billings_generated",
+        entity_type: "payment",
+        entity_id: null,
+        description: `Generated ${newPayments.length} monthly billing records`,
+        metadata: { count: newPayments.length, month: monthStart },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -816,6 +889,20 @@ export async function uploadPaymentQr(
       { apartmentowner_id, path: objectPath, qr_url: signedData.signedUrl },
       "Payment QR uploaded successfully"
     );
+
+    const actorName = req.user?.id
+      ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+      : "System";
+    logActivity({
+      apartmentowner_id,
+      actor_id: req.user?.id || null,
+      actor_name: actorName,
+      actor_role: (req.user?.role as "owner" | "manager") || "owner",
+      action: "payment_qr_uploaded",
+      entity_type: "payment_qr",
+      entity_id: apartmentowner_id,
+      description: "Uploaded payment QR code",
+    });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -985,6 +1072,20 @@ export async function deletePaymentQr(
     }
 
     sendSuccess(res, { apartmentowner_id: apartmentownerId }, "Payment QR removed successfully");
+
+    const actorName = req.user?.id
+      ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+      : "System";
+    logActivity({
+      apartmentowner_id: String(apartmentownerId),
+      actor_id: req.user?.id || null,
+      actor_name: actorName,
+      actor_role: (req.user?.role as "owner" | "manager") || "owner",
+      action: "payment_qr_deleted",
+      entity_type: "payment_qr",
+      entity_id: String(apartmentownerId),
+      description: "Removed payment QR code",
+    });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

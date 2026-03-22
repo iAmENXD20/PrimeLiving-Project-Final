@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Building2, Users, Megaphone, FileText, ClipboardList } from 'lucide-react'
+import { Building2, Users, Megaphone, ClipboardList } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import ManagerApartmentsTab from './ManagerApartmentsTab'
 import ManagerTenantsTab from './ManagerTenantsTab'
 import ManagerAnnouncementsTab from './ManagerAnnouncementsTab'
-import ManagerDocumentsTab from './ManagerDocumentsTab'
 import ManagerApartmentLogsTab from './ManagerApartmentLogsTab'
 
 interface ManagerManageApartmentTabProps {
@@ -15,13 +14,12 @@ interface ManagerManageApartmentTabProps {
 
 export default function ManagerManageApartmentTab({ clientId, managerName, managerId }: ManagerManageApartmentTabProps) {
   const { isDark } = useTheme()
-  const [activeSubTab, setActiveSubTab] = useState<'units' | 'tenants' | 'announcements' | 'documents' | 'logs'>('units')
+  const [activeSubTab, setActiveSubTab] = useState<'units' | 'tenants' | 'announcements' | 'logs'>('units')
 
   const subTabs = [
     { id: 'units' as const, label: 'Units', icon: Building2 },
     { id: 'tenants' as const, label: 'Tenants', icon: Users },
     { id: 'announcements' as const, label: 'Announcements', icon: Megaphone },
-    { id: 'documents' as const, label: 'Documents', icon: FileText },
     { id: 'logs' as const, label: 'Activity Logs', icon: ClipboardList },
   ]
 
@@ -65,7 +63,6 @@ export default function ManagerManageApartmentTab({ clientId, managerName, manag
       {activeSubTab === 'units' && <ManagerApartmentsTab clientId={clientId} />}
       {activeSubTab === 'tenants' && <ManagerTenantsTab clientId={clientId} />}
       {activeSubTab === 'announcements' && <ManagerAnnouncementsTab clientId={clientId} managerId={managerId} managerName={managerName} />}
-      {activeSubTab === 'documents' && <ManagerDocumentsTab clientId={clientId} managerId={managerId} />}
       {activeSubTab === 'logs' && <ManagerApartmentLogsTab clientId={clientId} managerId={managerId} managerName={managerName} />}
     </div>
   )

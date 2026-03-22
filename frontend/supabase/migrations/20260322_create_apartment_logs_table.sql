@@ -1,9 +1,13 @@
 -- ============================================================
--- Create apartment_logs table for tracking activity within apartments
+-- Create apartment_logs table with Arc ID (AR-001, AR-002, etc.)
 -- ============================================================
+
+-- Sequence for auto-incrementing arc numbers
+CREATE SEQUENCE IF NOT EXISTS apartment_logs_arc_seq START 1;
 
 CREATE TABLE IF NOT EXISTS apartment_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  arc_id TEXT NOT NULL DEFAULT 'AR-' || LPAD(nextval('apartment_logs_arc_seq')::text, 3, '0'),
   apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE CASCADE,
   apartment_id UUID,
   actor_id UUID,
@@ -18,6 +22,7 @@ CREATE TABLE IF NOT EXISTS apartment_logs (
 );
 
 -- Indexes for common query patterns
+CREATE INDEX IF NOT EXISTS idx_apartment_logs_arc_id ON apartment_logs(arc_id);
 CREATE INDEX IF NOT EXISTS idx_apartment_logs_apartmentowner_id ON apartment_logs(apartmentowner_id);
 CREATE INDEX IF NOT EXISTS idx_apartment_logs_apartment_id ON apartment_logs(apartment_id);
 CREATE INDEX IF NOT EXISTS idx_apartment_logs_created_at ON apartment_logs(created_at DESC);

@@ -69,7 +69,7 @@ export default function OwnerDashboard() {
       case 'payments':
         return <OwnerPaymentsTab clientId={owner.id} />
       case 'documents':
-        return <OwnerDocumentsTab clientId={owner.id} />
+        return <OwnerDocumentsTab clientId={owner.id} ownerName={owner.name} />
       case 'account':
         return <OwnerAccountTab clientId={owner.id} />
       default:

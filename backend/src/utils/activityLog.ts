@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../config/supabase";
+import { UserRole } from "../types";
 
 interface LogEntry {
   apartmentowner_id: string;
@@ -54,4 +55,32 @@ export function diffFields(
     }
   }
   return changes;
+}
+
+/**
+ * Resolve the display name for a user based on their role and auth_user_id.
+ * Queries the appropriate profile table (apartment_owners, apartment_managers, tenants).
+ * Falls back to the provided email if no name is found.
+ */
+export async function resolveActorName(
+  authUserId: string,
+  role: UserRole,
+  fallbackEmail: string
+): Promise<string> {
+  const tableMap: Record<string, string> = {
+    owner: "apartment_owners",
+    manager: "apartment_managers",
+    tenant: "tenants",
+  };
+
+  const table = tableMap[role];
+  if (!table) return fallbackEmail;
+
+  const { data } = await supabaseAdmin
+    .from(table)
+    .select("name")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+
+  return data?.name || fallbackEmail;
 }

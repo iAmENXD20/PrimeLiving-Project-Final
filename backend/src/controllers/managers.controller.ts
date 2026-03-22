@@ -4,7 +4,7 @@ import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { isValidEmailFormat } from "../utils/emailValidation";
-import { logActivity } from "../utils/activityLog";
+import { logActivity, resolveActorName } from "../utils/activityLog";
 
 function getInviteRedirectUrl(): string {
   const normalizedBase = env.FRONTEND_URL.replace(/\/+$/, "");
@@ -195,7 +195,10 @@ export async function createManager(
     logActivity({
       apartmentowner_id,
       actor_id: req.user?.id || null,
-      actor_name: req.user?.email || "System",
+      actor_name: await (async () => {
+        if (req.user?.id) return resolveActorName(req.user.id, req.user.role, req.user.email);
+        return "System";
+      })(),
       actor_role: (req.user?.role as "owner" | "manager") || "owner",
       action: "manager_added",
       entity_type: "manager",
@@ -249,10 +252,13 @@ export async function updateManager(
         if (oldVal !== newVal) changes[key] = { from: oldVal, to: newVal };
       }
       if (Object.keys(changes).length > 0) {
+        const actorName = req.user?.id
+          ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+          : "System";
         logActivity({
           apartmentowner_id: data.apartmentowner_id,
           actor_id: req.user?.id || null,
-          actor_name: req.user?.email || "System",
+          actor_name: actorName,
           actor_role: (req.user?.role as "owner" | "manager") || "owner",
           action: "manager_updated",
           entity_type: "manager",
@@ -298,10 +304,13 @@ export async function deleteManager(
     sendSuccess(res, null, "Manager deleted successfully");
 
     if (manager) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
       logActivity({
         apartmentowner_id: manager.apartmentowner_id,
         actor_id: req.user?.id || null,
-        actor_name: req.user?.email || "System",
+        actor_name: actorName,
         actor_role: (req.user?.role as "owner" | "manager") || "owner",
         action: "manager_removed",
         entity_type: "manager",

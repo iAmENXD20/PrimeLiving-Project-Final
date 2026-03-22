@@ -3,7 +3,7 @@ import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { createNotifications } from "../utils/notifications";
-import { logActivity } from "../utils/activityLog";
+import { logActivity, resolveActorName } from "../utils/activityLog";
 
 /**
  * GET /api/announcements
@@ -232,10 +232,13 @@ export async function deleteAnnouncement(
     sendSuccess(res, null, "Announcement deleted successfully");
 
     if (announcement) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
       logActivity({
         apartmentowner_id: announcement.apartmentowner_id,
         actor_id: req.user?.id || null,
-        actor_name: req.user?.email || "System",
+        actor_name: actorName,
         actor_role: (req.user?.role as "owner" | "manager") || "owner",
         action: "announcement_deleted",
         entity_type: "announcement",

@@ -4,7 +4,7 @@ import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { sendSmsToMany } from "../utils/sms";
 import { createNotification, createNotifications } from "../utils/notifications";
-import { logActivity } from "../utils/activityLog";
+import { logActivity, resolveActorName } from "../utils/activityLog";
 
 const MAINTENANCE_PHOTO_BUCKET = "maintenance-photos";
 
@@ -252,10 +252,13 @@ export async function updateMaintenanceStatus(
     sendSuccess(res, data, "Maintenance status updated successfully");
 
     if (data?.apartmentowner_id) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
       logActivity({
         apartmentowner_id: data.apartmentowner_id,
         actor_id: req.user?.id || null,
-        actor_name: req.user?.email || "System",
+        actor_name: actorName,
         actor_role: (req.user?.role as "owner" | "manager") || "manager",
         action: "maintenance_status_updated",
         entity_type: "maintenance",

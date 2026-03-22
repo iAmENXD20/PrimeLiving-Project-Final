@@ -39,7 +39,7 @@ export interface TenantPayment {
   payment_date: string
   status: 'paid' | 'pending' | 'overdue'
   description: string | null
-  payment_mode: 'cash' | 'qr' | null
+  payment_mode: 'gcash' | 'maya' | 'cash' | 'bank_transfer' | null
   receipt_url: string | null
   verification_status: 'pending_verification' | 'verified' | 'rejected' | null
   period_from: string | null
@@ -211,6 +211,7 @@ export async function submitCashPaymentVerification(params: {
   period_from: string
   period_to: string
   description?: string
+  payment_mode?: 'gcash' | 'maya' | 'cash' | 'bank_transfer'
 }) {
   return api.post<any>('/payments/submit-proof', {
     tenant_id: params.tenant_id,
@@ -220,7 +221,8 @@ export async function submitCashPaymentVerification(params: {
     receipt_url: params.receipt_url,
     period_from: params.period_from,
     period_to: params.period_to,
-    description: params.description || 'Cash Payment - Pending Verification',
+    description: params.description || 'Payment - Pending Verification',
+    payment_mode: params.payment_mode || 'gcash',
   })
 }
 

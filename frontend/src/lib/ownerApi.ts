@@ -306,6 +306,36 @@ export async function getOwnerDocuments(clientId: string): Promise<OwnerDocument
   }))
 }
 
+export async function uploadOwnerDocument(
+  file: File,
+  clientId: string,
+  unitId: string | null,
+  tenantId: string | null,
+  description: string,
+) {
+  const fileData = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+  return api.post<any>('/documents/upload', {
+    apartmentowner_id: clientId,
+    unit_id: unitId || null,
+    tenant_id: tenantId || null,
+    uploaded_by: clientId,
+    file_name: file.name,
+    file_type: file.type,
+    description: description || null,
+    file_data: fileData,
+  })
+}
+
+export async function deleteOwnerDocument(id: string) {
+  await api.delete(`/documents/${id}`)
+}
+
 // ── Payments ───────────────────────────────────────────────
 export interface OwnerPayment {
   id: string
@@ -399,6 +429,7 @@ export async function deletePaymentQr(clientId: string): Promise<void> {
 // ── Apartment Logs ─────────────────────────────────────────
 export interface ApartmentLog {
   id: string
+  arc_id: string
   apartmentowner_id: string
   apartment_id: string | null
   actor_id: string | null

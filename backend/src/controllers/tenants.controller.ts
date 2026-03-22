@@ -4,7 +4,7 @@ import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { isValidEmailFormat } from "../utils/emailValidation";
-import { logActivity } from "../utils/activityLog";
+import { logActivity, resolveActorName } from "../utils/activityLog";
 
 function getInviteRedirectUrl(): string {
   const normalizedBase = env.FRONTEND_URL.replace(/\/+$/, "");
@@ -239,7 +239,10 @@ export async function createTenant(
     logActivity({
       apartmentowner_id,
       actor_id: req.user?.id || null,
-      actor_name: req.user?.email || "System",
+      actor_name: await (async () => {
+        if (req.user?.id) return resolveActorName(req.user.id, req.user.role, req.user.email);
+        return "System";
+      })(),
       actor_role: (req.user?.role as "owner" | "manager") || "owner",
       action: "tenant_added",
       entity_type: "tenant",
@@ -293,10 +296,13 @@ export async function updateTenant(
         if (oldVal !== newVal) changes[key] = { from: oldVal, to: newVal };
       }
       if (Object.keys(changes).length > 0) {
+        const actorName = req.user?.id
+          ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+          : "System";
         logActivity({
           apartmentowner_id: data.apartmentowner_id,
           actor_id: req.user?.id || null,
-          actor_name: req.user?.email || "System",
+          actor_name: actorName,
           actor_role: (req.user?.role as "owner" | "manager") || "owner",
           action: "tenant_updated",
           entity_type: "tenant",
@@ -353,10 +359,13 @@ export async function deleteTenant(
     sendSuccess(res, null, "Tenant deactivated successfully");
 
     if (tenant) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
       logActivity({
         apartmentowner_id: tenant.apartmentowner_id,
         actor_id: req.user?.id || null,
-        actor_name: req.user?.email || "System",
+        actor_name: actorName,
         actor_role: (req.user?.role as "owner" | "manager") || "owner",
         action: "tenant_removed",
         entity_type: "tenant",
@@ -494,6 +503,23 @@ export async function assignTenantToUnit(
     }
 
     sendSuccess(res, null, "Tenant assigned to unit successfully");
+
+    if (apt?.apartmentowner_id) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: apt.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "tenant_assigned_to_unit",
+        entity_type: "tenant",
+        entity_id: tenant_id || null,
+        description: `Assigned tenant ${name || tenant_id} to unit`,
+        metadata: { unit_id, tenant_id, name, start_at: resolvedStartDate },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -563,6 +589,32 @@ export async function removeTenantFromUnit(
         ? "Tenant account preserved and unit emptied successfully"
         : "Tenant removed from unit successfully"
     );
+
+    // Fetch unit to get apartmentowner_id for logging
+    const { data: unitForLog } = await supabaseAdmin
+      .from("units")
+      .select("apartmentowner_id")
+      .eq("id", unit_id)
+      .maybeSingle();
+
+    if (unitForLog?.apartmentowner_id) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: unitForLog.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: preserve_account ? "tenant_unassigned_from_unit" : "tenant_removed_from_unit",
+        entity_type: "tenant",
+        entity_id: tenantIds[0] || null,
+        description: preserve_account
+          ? `Unassigned tenant from unit (account preserved)`
+          : `Removed tenant from unit`,
+        metadata: { unit_id, tenant_ids: tenantIds, preserve_account },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

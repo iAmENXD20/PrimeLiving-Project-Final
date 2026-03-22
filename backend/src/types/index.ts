@@ -108,7 +108,7 @@ export interface Payment {
   amount: number;
   payment_date: string;
   status: string;
-  payment_mode: "cash" | "qr";
+  payment_mode: "gcash" | "maya" | "cash" | "bank_transfer";
   receipt_url: string | null;
   verification_status: "pending_verification" | "verified" | "rejected" | null;
   period_from: string;
@@ -141,6 +141,7 @@ export interface Announcement {
 
 export interface ApartmentLog {
   id: string;
+  arc_id: string;
   apartmentowner_id: string;
   apartment_id: string | null;
   actor_id: string | null;

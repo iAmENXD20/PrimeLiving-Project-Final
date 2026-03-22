@@ -249,7 +249,7 @@ export interface Payment {
   payment_date: string
   status: 'paid' | 'pending' | 'overdue'
   description: string | null
-  payment_mode: 'cash' | 'qr' | null
+  payment_mode: 'gcash' | 'maya' | 'cash' | 'bank_transfer' | null
   receipt_url: string | null
   verification_status: 'pending_verification' | 'verified' | 'rejected' | null
   period_from: string | null
@@ -340,6 +340,7 @@ export async function recordCashPayment(payment: {
   description?: string
   period_from?: string
   period_to?: string
+  payment_mode?: 'gcash' | 'maya' | 'cash' | 'bank_transfer'
 }) {
   await api.post('/payments', {
     apartmentowner_id: payment.apartmentowner_id,
@@ -348,21 +349,21 @@ export async function recordCashPayment(payment: {
     amount: payment.amount,
     payment_date: new Date().toISOString(),
     status: 'paid',
-    description: payment.description || 'Cash payment recorded by manager',
-    payment_mode: 'cash',
+    description: payment.description || 'Payment recorded by manager',
+    payment_mode: payment.payment_mode || 'cash',
     verification_status: 'verified',
     period_from: payment.period_from || null,
     period_to: payment.period_to || null,
   })
 }
 
-export async function settleCashBilling(paymentId: string, description?: string) {
+export async function settleCashBilling(paymentId: string, description?: string, paymentMode?: 'gcash' | 'maya' | 'cash' | 'bank_transfer') {
   await api.put(`/payments/${paymentId}`, {
     status: 'paid',
-    payment_mode: 'cash',
+    payment_mode: paymentMode || 'cash',
     verification_status: 'verified',
     payment_date: new Date().toISOString(),
-    description: description || 'Cash payment recorded by manager',
+    description: description || 'Payment recorded by manager',
   })
 }
 
@@ -541,6 +542,7 @@ export async function deleteTenantAccount(id: string) {
 // ── Apartment Logs ─────────────────────────────────────────
 export interface ManagerApartmentLog {
   id: string
+  arc_id: string
   apartmentowner_id: string
   apartment_id: string | null
   actor_id: string | null

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { ClipboardList, Filter, Trash2, X, RefreshCcw, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
@@ -65,6 +66,9 @@ export default function OwnerApartmentLogsTab({ clientId }: OwnerApartmentLogsTa
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [clearing, setClearing] = useState(false)
 
+  // Detail modal
+  const [selectedLog, setSelectedLog] = useState<ApartmentLog | null>(null)
+
   useEffect(() => {
     loadLogs()
   }, [clientId])
@@ -112,6 +116,7 @@ export default function OwnerApartmentLogsTab({ clientId }: OwnerApartmentLogsTa
         !log.description.toLowerCase().includes(q) &&
         !log.actor_name.toLowerCase().includes(q) &&
         !(log.actor_role && log.actor_role.toLowerCase().includes(q)) &&
+        !(log.arc_id && log.arc_id.toLowerCase().includes(q)) &&
         !log.id.toLowerCase().includes(q)
       ) return false
     }
@@ -263,11 +268,12 @@ export default function OwnerApartmentLogsTab({ clientId }: OwnerApartmentLogsTa
                   return (
                     <tr
                       key={log.id}
-                      className={`border-t ${isDark ? 'border-[#1E293B] hover:bg-[#111D32]/50' : 'border-gray-100 hover:bg-gray-50/50'}`}
+                      onClick={() => setSelectedLog(log)}
+                      className={`border-t cursor-pointer transition-colors ${isDark ? 'border-[#1E293B] hover:bg-[#111D32]/50' : 'border-gray-100 hover:bg-gray-50/50'}`}
                     >
                       {/* Archive ID */}
-                      <td className={`px-4 py-3 font-mono text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {log.id.slice(0, 8).toUpperCase()}
+                      <td className={`px-4 py-3 font-mono text-xs ${isDark ? 'text-primary-400' : 'text-primary-700'} font-semibold`}>
+                        {log.arc_id}
                       </td>
 
                       {/* Role */}
@@ -336,6 +342,131 @@ export default function OwnerApartmentLogsTab({ clientId }: OwnerApartmentLogsTa
         onCancel={() => setShowClearConfirm(false)}
         onConfirm={handleClearAll}
       />
+
+      {/* Log Detail Modal — rendered via portal to cover full screen */}
+      {selectedLog && createPortal((() => {
+        const { date, time } = formatTimestamp(selectedLog.created_at)
+        const changes = formatFieldChanges(selectedLog)
+        const roleColor = ROLE_COLORS[selectedLog.actor_role] || ROLE_COLORS.system
+        return (
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center animate-in fade-in duration-200"
+            onClick={() => setSelectedLog(null)}
+          >
+            {/* Dark backdrop — full screen, no blur */}
+            <div className="absolute inset-0 bg-black/60 animate-in fade-in duration-200" />
+
+            {/* Modal content */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`relative z-10 w-full max-w-lg mx-4 rounded-xl border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200'}`}
+            >
+              {/* Header */}
+              <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-3">
+                  <span className={`font-mono text-sm font-bold ${isDark ? 'text-primary-400' : 'text-primary-700'}`}>
+                    {selectedLog.arc_id}
+                  </span>
+                  <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border capitalize ${roleColor}`}>
+                    {selectedLog.actor_role}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedLog(null)}
+                  className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5 space-y-4">
+                {/* User & Action */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Performed By</label>
+                    <p className={`mt-1 text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedLog.actor_name}</p>
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Action</label>
+                    <p className={`mt-1 text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                      {selectedLog.action.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Description</label>
+                  <p className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{selectedLog.description}</p>
+                </div>
+
+                {/* Timestamp */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Date</label>
+                    <p className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{date}</p>
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Time</label>
+                    <p className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{time}</p>
+                  </div>
+                </div>
+
+                {/* Entity Info */}
+                {(selectedLog.entity_type || selectedLog.entity_id) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedLog.entity_type && (
+                      <div>
+                        <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Entity Type</label>
+                        <p className={`mt-1 text-sm capitalize ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{selectedLog.entity_type}</p>
+                      </div>
+                    )}
+                    {selectedLog.entity_id && (
+                      <div>
+                        <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Entity ID</label>
+                        <p className={`mt-1 text-sm font-mono text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{selectedLog.entity_id}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Field Changes */}
+                {changes.length > 0 && (
+                  <div>
+                    <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Field Changes</label>
+                    <div className={`mt-2 rounded-lg border divide-y ${isDark ? 'border-[#1E293B] divide-[#1E293B] bg-[#0A1628]' : 'border-gray-200 divide-gray-100 bg-gray-50'}`}>
+                      {changes.map((c, i) => (
+                        <div key={i} className="px-4 py-2.5 flex items-start gap-3 text-sm">
+                          <span className={`font-medium min-w-[100px] ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{c.field}</span>
+                          <div className="flex items-center gap-2 flex-1">
+                            {c.from ? (
+                              <>
+                                <span className="line-through text-red-400 text-xs">{c.from}</span>
+                                <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>→</span>
+                                <span className="text-emerald-400 text-xs font-medium">{c.to}</span>
+                              </>
+                            ) : (
+                              <span className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{c.to}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className={`px-6 py-4 border-t ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                <Button variant="outline" size="sm" onClick={() => setSelectedLog(null)} className="w-full">
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        )
+      })(), document.body)}
     </section>
   )
 }

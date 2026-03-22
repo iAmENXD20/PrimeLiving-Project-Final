@@ -2,7 +2,7 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
-import { logActivity } from "../utils/activityLog";
+import { logActivity, resolveActorName } from "../utils/activityLog";
 
 async function getOrCreateApartmentForClient(
   apartmentownerId: string,
@@ -155,10 +155,13 @@ export async function createApartment(
     sendSuccess(res, data, "Apartment created successfully", 201);
 
     if (data && payload.apartmentowner_id) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
       logActivity({
         apartmentowner_id: payload.apartmentowner_id,
         actor_id: req.user?.id || null,
-        actor_name: req.user?.email || "System",
+        actor_name: actorName,
         actor_role: (req.user?.role as "owner" | "manager") || "owner",
         action: "unit_created",
         entity_type: "unit",
@@ -217,6 +220,24 @@ export async function createApartmentsBulk(
     }
 
     sendSuccess(res, data, `${data.length} apartments created successfully`, 201);
+
+    const ownerIdForLog = preparedRows[0]?.apartmentowner_id;
+    if (data && ownerIdForLog) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: ownerIdForLog,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "units_bulk_created",
+        entity_type: "unit",
+        entity_id: data[0]?.id || null,
+        description: `Created ${data.length} units in bulk`,
+        metadata: { count: data.length, names: data.map((u: any) => u.name) },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -280,10 +301,15 @@ export async function updateApartment(
         if (oldVal !== newVal) changes[key] = { from: oldVal, to: newVal };
       }
       if (Object.keys(changes).length > 0) {
+        const actorName = req.user?.id
+          ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+          : "System";
+
         logActivity({
           apartmentowner_id: data.apartmentowner_id,
+          apartment_id: data.apartment_id || null,
           actor_id: req.user?.id || null,
-          actor_name: req.user?.email || "System",
+          actor_name: actorName,
           actor_role: (req.user?.role as "owner" | "manager") || "owner",
           action: "unit_updated",
           entity_type: "unit",
@@ -339,10 +365,13 @@ export async function deleteApartment(
     sendSuccess(res, null, "Apartment deleted successfully");
 
     if (unit) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
       logActivity({
         apartmentowner_id: unit.apartmentowner_id,
         actor_id: req.user?.id || null,
-        actor_name: req.user?.email || "System",
+        actor_name: actorName,
         actor_role: (req.user?.role as "owner" | "manager") || "owner",
         action: "unit_deleted",
         entity_type: "unit",
@@ -463,6 +492,21 @@ export async function setPaymentDueDay(
       }
 
       sendSuccess(res, null, "Payment due day updated for all apartments");
+
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "payment_due_day_updated",
+        entity_type: "unit",
+        entity_id: null,
+        description: `Set payment due day to ${day} for all units`,
+        metadata: { day },
+      });
     } else {
       const { id } = req.params;
       const { data, error } = await supabaseAdmin
@@ -478,6 +522,23 @@ export async function setPaymentDueDay(
       }
 
       sendSuccess(res, data, "Payment due day updated");
+
+      if (data?.apartmentowner_id) {
+        const actorName = req.user?.id
+          ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+          : "System";
+        logActivity({
+          apartmentowner_id: data.apartmentowner_id,
+          actor_id: req.user?.id || null,
+          actor_name: actorName,
+          actor_role: (req.user?.role as "owner" | "manager") || "owner",
+          action: "payment_due_day_updated",
+          entity_type: "unit",
+          entity_id: id,
+          description: `Set payment due day to ${day} for unit ${data.name || id}`,
+          metadata: { day, unit_name: data.name },
+        });
+      }
     }
   } catch (err: any) {
     sendError(res, err.message, 500);

@@ -2,6 +2,7 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
+import { logActivity, resolveActorName } from "../utils/activityLog";
 
 /**
  * GET /api/revenues
@@ -107,6 +108,23 @@ export async function createRevenue(
     }
 
     sendSuccess(res, data, "Revenue created successfully", 201);
+
+    if (data && req.body.apartmentowner_id) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: req.body.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "revenue_created",
+        entity_type: "revenue",
+        entity_id: data.id,
+        description: `Created revenue record — Amount: ${data.amount || 0}`,
+        metadata: { amount: data.amount, month: data.month, description: data.description },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
