@@ -41,7 +41,7 @@ export interface TenantPayment {
   description: string | null
   payment_mode: 'gcash' | 'maya' | 'cash' | 'bank_transfer' | null
   receipt_url: string | null
-  verification_status: 'pending_verification' | 'verified' | 'rejected' | null
+  verification_status: 'pending_verification' | 'verified' | 'approved' | 'rejected' | null
   period_from: string | null
   period_to: string | null
   created_at: string

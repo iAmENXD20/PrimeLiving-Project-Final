@@ -345,6 +345,11 @@ export interface OwnerPayment {
   amount: number
   payment_date: string
   status: 'paid' | 'pending' | 'overdue'
+  verification_status: 'pending_verification' | 'verified' | 'approved' | 'rejected' | null
+  receipt_url: string | null
+  payment_mode: 'gcash' | 'maya' | 'cash' | 'bank_transfer' | null
+  period_from: string | null
+  period_to: string | null
   description: string | null
   created_at: string
   tenant_name?: string
@@ -375,6 +380,24 @@ export async function createOwnerPayment(payment: {
 
 export async function updateOwnerPaymentStatus(id: string, status: 'paid' | 'pending' | 'overdue') {
   await api.put(`/payments/${id}`, { status })
+}
+
+// ── Payment Approval (Owner approves manager-verified payments) ──
+export async function getVerifiedPayments(clientId: string): Promise<OwnerPayment[]> {
+  const data = await api.get<any[]>(`/payments/verified-pending-approval?apartmentowner_id=${clientId}`)
+  return (data || []).map((p: any) => ({
+    ...p,
+    tenant_name: p.tenant_name || '\u2014',
+    apartment_name: p.apartment_name || '\u2014',
+  }))
+}
+
+export async function approveVerifiedPayment(id: string) {
+  await api.put(`/payments/${id}/approve`, { action: 'approved' })
+}
+
+export async function rejectVerifiedPayment(id: string) {
+  await api.put(`/payments/${id}/approve`, { action: 'rejected' })
 }
 
 // ── Payment QR Code ────────────────────────────────────────

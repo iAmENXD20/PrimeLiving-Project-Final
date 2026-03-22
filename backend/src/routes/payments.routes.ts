@@ -11,6 +11,8 @@ import {
   createPaymentsBulk,
   updatePayment,
   verifyPayment,
+  approvePayment,
+  getVerifiedPayments,
   generateMonthlyBillings,
   getPendingVerifications,
   uploadPaymentQr,
@@ -31,6 +33,7 @@ router.get("/qr/:apartmentownerId", authorize("admin", "owner", "manager", "tena
 router.post("/qr", authorize("owner", "manager"), uploadPaymentQr);
 router.delete("/qr/:apartmentownerId", authorize("owner", "manager"), deletePaymentQr);
 router.get("/pending-verifications", authorize("owner", "manager"), cacheResponse({ namespace: "payments", ttlSeconds: 10 }), getPendingVerifications);
+router.get("/verified-pending-approval", authorize("owner"), cacheResponse({ namespace: "payments", ttlSeconds: 10 }), getVerifiedPayments);
 router.get("/", authorize("admin", "owner", "manager", "tenant"), cacheResponse({ namespace: "payments", ttlSeconds: 15 }), getPayments);
 router.get("/:id", authorize("admin", "owner", "manager", "tenant"), cacheResponse({ namespace: "payments", ttlSeconds: 15 }), getPaymentById);
 router.post("/generate-monthly", authorize("owner", "manager"), invalidateCache(["payments", "analytics"]), generateMonthlyBillings);
@@ -38,6 +41,7 @@ router.post("/bulk", authorize("owner", "manager"), invalidateCache(["payments",
 router.post("/submit-proof", authorize("tenant"), invalidateCache(["payments", "notifications", "analytics"]), submitPaymentProof);
 router.post("/", authorize("admin", "owner", "manager", "tenant"), invalidateCache(["payments", "analytics"]), createPayment);
 router.put("/:id/verify", authorize("owner", "manager"), invalidateCache(["payments", "analytics", "notifications"]), verifyPayment);
+router.put("/:id/approve", authorize("owner"), invalidateCache(["payments", "analytics", "notifications"]), approvePayment);
 router.put("/:id", authorize("admin", "owner", "manager", "tenant"), invalidateCache(["payments", "analytics"]), updatePayment);
 
 export default router;

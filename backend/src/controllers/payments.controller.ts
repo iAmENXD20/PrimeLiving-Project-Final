@@ -174,7 +174,7 @@ export async function getTenantDueSchedule(
         continue;
       }
 
-      const isPaid = existing.status === "paid" || existing.verification_status === "verified";
+      const isPaid = existing.status === "paid" || (existing.verification_status != null && existing.verification_status !== "rejected");
       if (!isPaid && existing.status === "pending" && shouldBeOverdue) {
         pendingToOverdueIds.push(existing.id);
       }
@@ -321,6 +321,7 @@ export async function submitPaymentProof(
           receipt_url,
           payment_mode: payment_mode || "gcash",
           verification_status: "pending_verification",
+          status: "pending",
           description: description || `Payment proof submitted for ${period_from} to ${period_to}`,
           amount: amount ?? undefined,
           unit_id: unit_id || null,
@@ -487,7 +488,10 @@ export async function updatePayment(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { status, verification_status, ...safeUpdates } = req.body;
+
+    // Block status/verification_status changes through generic update — must use /verify or /approve routes
+    const updates = safeUpdates;
 
     const { data, error } = await supabaseAdmin
       .from("payments")
@@ -549,10 +553,9 @@ export async function verifyPayment(
 
     const updateData: any = { verification_status };
 
-    // If verified, also mark payment as paid
+    // Manager verifies payment — keep status as pending, owner will approve later
     if (verification_status === "verified") {
-      updateData.status = "paid";
-      updateData.payment_date = new Date().toISOString();
+      // Don't set status to paid — owner approval is required
     }
 
     const { data, error } = await supabaseAdmin
@@ -567,49 +570,49 @@ export async function verifyPayment(
       return;
     }
 
-    if (verification_status === "verified") {
-      const revenueDescription = `Verified payment: ${id}`;
-
-      const { data: existingRevenue } = await supabaseAdmin
-        .from("revenues")
-        .select("id")
-        .eq("apartmentowner_id", payment.apartmentowner_id)
-        .eq("description", revenueDescription)
-        .maybeSingle();
-
-      if (!existingRevenue) {
-        await supabaseAdmin.from("revenues").insert({
-          unit_id: payment.unit_id,
-          apartmentowner_id: payment.apartmentowner_id,
-          amount: payment.amount,
-          month: payment.payment_date || new Date().toISOString(),
-          description: revenueDescription,
-        });
-      }
-    }
-
     const { data: tenant } = await supabaseAdmin
       .from("tenants")
       .select("phone")
       .eq("id", data.tenant_id)
       .maybeSingle();
 
-    await sendSmsToMany(
-      [tenant?.phone],
-      `[PrimeLiving] Your payment has been ${verification_status}.`,
-      { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
-    );
+    if (verification_status === "verified") {
+      // Notify tenant
+      await sendSmsToMany(
+        [tenant?.phone],
+        `[PrimeLiving] Your payment has been verified by the manager. Awaiting owner approval.`,
+        { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
+      );
 
-    if (data.apartmentowner_id && data.tenant_id) {
-      await createNotification({
-        apartmentowner_id: data.apartmentowner_id,
-        unit_id: data.unit_id,
-        recipient_role: "tenant",
-        recipient_id: data.tenant_id,
-        type: "payment_verification_updated",
-        title: "Payment Verification Update",
-        message: `Your payment has been ${verification_status}.`,
-      });
+      if (data.apartmentowner_id && data.tenant_id) {
+        await createNotification({
+          apartmentowner_id: data.apartmentowner_id,
+          unit_id: data.unit_id,
+          recipient_role: "tenant",
+          recipient_id: data.tenant_id,
+          type: "payment_verification_updated",
+          title: "Payment Verified",
+          message: `Your payment has been verified by the manager. Awaiting owner approval.`,
+        });
+      }
+    } else {
+      await sendSmsToMany(
+        [tenant?.phone],
+        `[PrimeLiving] Your payment has been ${verification_status}.`,
+        { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
+      );
+
+      if (data.apartmentowner_id && data.tenant_id) {
+        await createNotification({
+          apartmentowner_id: data.apartmentowner_id,
+          unit_id: data.unit_id,
+          recipient_role: "tenant",
+          recipient_id: data.tenant_id,
+          type: "payment_verification_updated",
+          title: "Payment Verification Update",
+          message: `Your payment has been ${verification_status}.`,
+        });
+      }
     }
 
     sendSuccess(res, data, `Payment ${verification_status} successfully`);
@@ -628,6 +631,217 @@ export async function verifyPayment(
       description: `Payment ${verification_status} — Amount: ${data.amount}`,
       metadata: { verification_status, amount: data.amount },
     });
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * PUT /api/payments/:id/approve
+ * Owner approves a manager-verified payment — marks it as paid and creates revenue.
+ */
+export async function approvePayment(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // "approved" or "rejected"
+
+    const { data: payment, error: paymentError } = await supabaseAdmin
+      .from("payments")
+      .select("id, apartmentowner_id, unit_id, tenant_id, amount, payment_date, verification_status")
+      .eq("id", id)
+      .single();
+
+    if (paymentError || !payment) {
+      sendError(res, "Payment not found", 404);
+      return;
+    }
+
+    if (payment.verification_status !== "verified") {
+      sendError(res, "Only manager-verified payments can be approved", 400);
+      return;
+    }
+
+    if (action === "approved") {
+      const { data, error } = await supabaseAdmin
+        .from("payments")
+        .update({
+          status: "paid",
+          verification_status: "approved",
+          payment_date: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) {
+        sendError(res, error.message, 500);
+        return;
+      }
+
+      // Create revenue entry
+      const revenueDescription = `Approved payment: ${id}`;
+      const { data: existingRevenue } = await supabaseAdmin
+        .from("revenues")
+        .select("id")
+        .eq("apartmentowner_id", payment.apartmentowner_id)
+        .eq("description", revenueDescription)
+        .maybeSingle();
+
+      if (!existingRevenue) {
+        await supabaseAdmin.from("revenues").insert({
+          unit_id: payment.unit_id,
+          apartmentowner_id: payment.apartmentowner_id,
+          amount: payment.amount,
+          month: payment.payment_date || new Date().toISOString(),
+          description: revenueDescription,
+        });
+      }
+
+      // Notify tenant
+      const { data: tenant } = await supabaseAdmin
+        .from("tenants")
+        .select("phone")
+        .eq("id", data.tenant_id)
+        .maybeSingle();
+
+      await sendSmsToMany(
+        [tenant?.phone],
+        `[PrimeLiving] Your payment has been approved by the owner. Thank you!`,
+        { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
+      );
+
+      if (data.apartmentowner_id && data.tenant_id) {
+        await createNotification({
+          apartmentowner_id: data.apartmentowner_id,
+          unit_id: data.unit_id,
+          recipient_role: "tenant",
+          recipient_id: data.tenant_id,
+          type: "payment_verification_updated",
+          title: "Payment Approved",
+          message: `Your payment of ₱${data.amount} has been approved.`,
+        });
+      }
+
+      sendSuccess(res, data, "Payment approved successfully");
+
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: data.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: "owner",
+        action: "payment_approved",
+        entity_type: "payment",
+        entity_id: id,
+        description: `Payment approved — Amount: ₱${data.amount}`,
+        metadata: { amount: data.amount },
+      });
+    } else if (action === "rejected") {
+      const { data, error } = await supabaseAdmin
+        .from("payments")
+        .update({
+          verification_status: "rejected",
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) {
+        sendError(res, error.message, 500);
+        return;
+      }
+
+      const { data: tenant } = await supabaseAdmin
+        .from("tenants")
+        .select("phone")
+        .eq("id", data.tenant_id)
+        .maybeSingle();
+
+      await sendSmsToMany(
+        [tenant?.phone],
+        `[PrimeLiving] Your payment has been rejected by the owner.`,
+        { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
+      );
+
+      if (data.apartmentowner_id && data.tenant_id) {
+        await createNotification({
+          apartmentowner_id: data.apartmentowner_id,
+          unit_id: data.unit_id,
+          recipient_role: "tenant",
+          recipient_id: data.tenant_id,
+          type: "payment_verification_updated",
+          title: "Payment Rejected",
+          message: `Your payment has been rejected by the owner.`,
+        });
+      }
+
+      sendSuccess(res, data, "Payment rejected");
+
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: data.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: "owner",
+        action: "payment_rejected",
+        entity_type: "payment",
+        entity_id: id,
+        description: `Payment rejected — Amount: ₱${data.amount}`,
+        metadata: { amount: data.amount },
+      });
+    } else {
+      sendError(res, "Invalid action. Use 'approved' or 'rejected'", 400);
+    }
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * GET /api/payments/verified-pending-approval
+ * Get payments that have been verified by manager but not yet approved by owner.
+ */
+export async function getVerifiedPayments(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const apartmentownerId = req.query.apartmentowner_id as string;
+
+    if (!apartmentownerId) {
+      sendError(res, "apartmentowner_id query parameter is required", 400);
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("payments")
+      .select("*, tenants:tenant_id(name), apartments:unit_id(name)")
+      .eq("apartmentowner_id", apartmentownerId)
+      .eq("verification_status", "verified")
+      .neq("status", "paid")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      sendError(res, error.message, 500);
+      return;
+    }
+
+    const results = (data || []).map((p: any) => ({
+      ...p,
+      tenant_name: p.tenants?.name || null,
+      apartment_name: p.apartments?.name || null,
+      tenants: undefined,
+      apartments: undefined,
+    }));
+
+    sendSuccess(res, results);
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

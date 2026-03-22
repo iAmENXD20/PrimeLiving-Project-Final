@@ -1,10 +1,14 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
-import { Search, PhilippinePeso, Upload, Trash2, QrCode, Image as ImageIcon, ChevronDown } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Search, PhilippinePeso, Upload, Trash2, QrCode, Image as ImageIcon, ChevronDown, CheckCircle2, XCircle, X, Receipt, Clock } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useTheme } from '../../context/ThemeContext'
 import { toast } from 'sonner'
 import {
   getOwnerPayments,
+  getVerifiedPayments,
+  approveVerifiedPayment,
+  rejectVerifiedPayment,
   uploadPaymentQr,
   getPaymentQrUrl,
   deletePaymentQr,
@@ -54,6 +58,12 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false)
   const yearDropdownRef = useRef<HTMLDivElement>(null)
 
+  // Pending approval (manager-verified payments)
+  const [pendingApprovals, setPendingApprovals] = useState<OwnerPayment[]>([])
+  const [loadingApprovals, setLoadingApprovals] = useState(true)
+  const [approvalActionLoading, setApprovalActionLoading] = useState<string | null>(null)
+  const [previewPayment, setPreviewPayment] = useState<OwnerPayment | null>(null)
+
   async function load() {
     setLoading(true)
     try {
@@ -94,7 +104,19 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
     }
   }
 
-  useEffect(() => { load() }, [clientId])
+  async function loadApprovals() {
+    try {
+      setLoadingApprovals(true)
+      const data = await getVerifiedPayments(clientId)
+      setPendingApprovals(data)
+    } catch (err) {
+      console.error('Failed to load pending approvals:', err)
+    } finally {
+      setLoadingApprovals(false)
+    }
+  }
+
+  useEffect(() => { load(); loadApprovals() }, [clientId])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -175,6 +197,46 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
 
   const cardClass = `rounded-xl border ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'}`
 
+  const handleApprovePayment = async (paymentId: string) => {
+    setApprovalActionLoading(paymentId)
+    try {
+      await approveVerifiedPayment(paymentId)
+      toast.success('Payment approved!')
+      await Promise.all([load(), loadApprovals()])
+      setPreviewPayment(null)
+    } catch (err) {
+      console.error('Failed to approve payment:', err)
+      toast.error('Failed to approve payment')
+    } finally {
+      setApprovalActionLoading(null)
+    }
+  }
+
+  const handleRejectPayment = async (paymentId: string) => {
+    setApprovalActionLoading(paymentId)
+    try {
+      await rejectVerifiedPayment(paymentId)
+      toast.success('Payment rejected')
+      await Promise.all([load(), loadApprovals()])
+      setPreviewPayment(null)
+    } catch (err) {
+      console.error('Failed to reject payment:', err)
+      toast.error('Failed to reject payment')
+    } finally {
+      setApprovalActionLoading(null)
+    }
+  }
+
+  const paymentModeLabel = (mode: string | null) => {
+    switch (mode) {
+      case 'gcash': return 'GCash'
+      case 'maya': return 'Maya'
+      case 'cash': return 'Cash'
+      case 'bank_transfer': return 'Bank Transfer'
+      default: return mode || '—'
+    }
+  }
+
   // Current month payments
   const now = new Date()
   const currentMonth = now.getMonth()
@@ -232,6 +294,77 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
           Monitor tenant rent payment records and history
         </p>
       </div>
+
+      {/* Pending Approvals Section */}
+      {!loadingApprovals && pendingApprovals.length > 0 && (
+        <div className={`${cardClass} p-5`}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Pending Approval
+              </h3>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {pendingApprovals.length} payment{pendingApprovals.length !== 1 ? 's' : ''} verified by manager — awaiting your approval
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {pendingApprovals.map((v) => (
+              <div
+                key={v.id}
+                className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-xl border transition-all ${
+                  isDark ? 'bg-[#0E1A2E] border-[#1E293B] hover:border-amber-500/30' : 'bg-gray-50 border-gray-200 hover:border-amber-400/40'
+                }`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {v.tenant_name}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-[#1E293B] text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+                      {v.apartment_name}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-400/15 text-amber-500 font-medium">
+                      Verified
+                    </span>
+                  </div>
+                  <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    ₱{Number(v.amount).toLocaleString()} · {paymentModeLabel(v.payment_mode)} · {v.period_from && v.period_to ? `${v.period_from} to ${v.period_to}` : new Date(v.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setPreviewPayment(v)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      isDark ? 'bg-[#1E293B] text-gray-300 hover:text-white' : 'bg-gray-200 text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Receipt className="w-3.5 h-3.5" /> Preview
+                  </button>
+                  <button
+                    onClick={() => handleRejectPayment(v.id)}
+                    disabled={approvalActionLoading === v.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> Reject
+                  </button>
+                  <button
+                    onClick={() => handleApprovePayment(v.id)}
+                    disabled={approvalActionLoading === v.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Search + Filter */}
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
@@ -639,6 +772,80 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Payment Approval Preview Modal */}
+      {previewPayment && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 animate-in fade-in duration-200"
+          onClick={() => setPreviewPayment(null)}
+        >
+          <div
+            className={`rounded-2xl p-6 max-w-md w-full mx-4 animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32] border border-[#1E293B]' : 'bg-white border border-gray-200'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Payment Details
+              </h4>
+              <button
+                onClick={() => setPreviewPayment(null)}
+                className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Details */}
+            <div className="space-y-3 mb-5">
+              {[
+                ['Tenant', previewPayment.tenant_name || '—'],
+                ['Unit', previewPayment.apartment_name || '—'],
+                ['Amount', `₱${Number(previewPayment.amount).toLocaleString()}`],
+                ['Mode', paymentModeLabel(previewPayment.payment_mode)],
+                ['Period', previewPayment.period_from && previewPayment.period_to ? `${previewPayment.period_from} to ${previewPayment.period_to}` : '—'],
+                ['Description', previewPayment.description || '—'],
+                ['Submitted', new Date(previewPayment.created_at).toLocaleString()],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between text-sm">
+                  <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{label}</span>
+                  <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Receipt Image */}
+            {previewPayment.receipt_url ? (
+              <div className={`rounded-lg overflow-hidden border mb-5 ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+                <img src={previewPayment.receipt_url} alt="Payment Receipt" className="w-full rounded-lg" />
+              </div>
+            ) : (
+              <div className={`rounded-lg border p-6 text-center text-sm mb-5 ${isDark ? 'border-[#1E293B] text-gray-500' : 'border-gray-200 text-gray-500'}`}>
+                No receipt image uploaded.
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => handleRejectPayment(previewPayment.id)}
+                disabled={approvalActionLoading === previewPayment.id}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+              >
+                <XCircle className="w-4 h-4" /> Reject
+              </button>
+              <button
+                onClick={() => handleApprovePayment(previewPayment.id)}
+                disabled={approvalActionLoading === previewPayment.id}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Approve
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )

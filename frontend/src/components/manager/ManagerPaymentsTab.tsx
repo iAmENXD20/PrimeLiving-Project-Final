@@ -112,7 +112,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
     setRecordLoading(true)
     try {
       await settleCashBilling(recordForm.paymentId, recordForm.description || undefined, recordForm.paymentMode)
-      toast.success('Payment recorded successfully!')
+      toast.success('Payment recorded — awaiting owner approval')
       setShowRecordModal(false)
       setRecordForm({ tenantId: '', paymentId: '', description: '', paymentMode: 'cash' })
       await load()
@@ -185,12 +185,12 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
     setActionLoading(paymentId)
     try {
       await approveCashPayment(paymentId)
-      toast.success('Cash payment approved!')
+      toast.success('Payment verified! Awaiting owner approval.')
       await Promise.all([load(), loadVerifications()])
       setPreviewVerification(null)
     } catch (err) {
-      console.error('Failed to approve:', err)
-      toast.error('Failed to approve payment')
+      console.error('Failed to verify:', err)
+      toast.error('Failed to verify payment')
     } finally {
       setActionLoading(null)
     }
@@ -560,7 +560,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                   disabled={actionLoading === previewVerification.id}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
                 >
-                  <CheckCircle2 className="w-4 h-4" /> Approve
+                  <CheckCircle2 className="w-4 h-4" /> Verify
                 </button>
               </div>
             ) : (

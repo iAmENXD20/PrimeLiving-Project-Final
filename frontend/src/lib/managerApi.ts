@@ -251,7 +251,7 @@ export interface Payment {
   description: string | null
   payment_mode: 'gcash' | 'maya' | 'cash' | 'bank_transfer' | null
   receipt_url: string | null
-  verification_status: 'pending_verification' | 'verified' | 'rejected' | null
+  verification_status: 'pending_verification' | 'verified' | 'approved' | 'rejected' | null
   period_from: string | null
   period_to: string | null
   created_at: string
@@ -348,7 +348,7 @@ export async function recordCashPayment(payment: {
     unit_id: payment.unit_id,
     amount: payment.amount,
     payment_date: new Date().toISOString(),
-    status: 'paid',
+    status: 'pending',
     description: payment.description || 'Payment recorded by manager',
     payment_mode: payment.payment_mode || 'cash',
     verification_status: 'verified',
@@ -359,7 +359,7 @@ export async function recordCashPayment(payment: {
 
 export async function settleCashBilling(paymentId: string, description?: string, paymentMode?: 'gcash' | 'maya' | 'cash' | 'bank_transfer') {
   await api.put(`/payments/${paymentId}`, {
-    status: 'paid',
+    status: 'pending',
     payment_mode: paymentMode || 'cash',
     verification_status: 'verified',
     payment_date: new Date().toISOString(),

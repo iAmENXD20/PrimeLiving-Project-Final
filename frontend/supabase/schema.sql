@@ -220,7 +220,7 @@ CREATE TABLE IF NOT EXISTS payments (
   description TEXT,
   payment_mode TEXT DEFAULT 'cash' CHECK (payment_mode IN ('cash', 'qr')),
   receipt_url TEXT,
-  verification_status TEXT DEFAULT NULL CHECK (verification_status IN ('pending_verification', 'verified', 'rejected')),
+  verification_status TEXT DEFAULT NULL CHECK (verification_status IN ('pending_verification', 'verified', 'approved', 'rejected')),
   period_from DATE,
   period_to DATE,
   created_at TIMESTAMPTZ DEFAULT NOW()

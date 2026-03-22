@@ -110,7 +110,7 @@ export interface Payment {
   status: string;
   payment_mode: "gcash" | "maya" | "cash" | "bank_transfer";
   receipt_url: string | null;
-  verification_status: "pending_verification" | "verified" | "rejected" | null;
+  verification_status: "pending_verification" | "verified" | "approved" | "rejected" | null;
   period_from: string;
   period_to: string;
   created_at: string;

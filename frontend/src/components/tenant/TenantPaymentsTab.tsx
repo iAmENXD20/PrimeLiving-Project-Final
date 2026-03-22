@@ -716,7 +716,8 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
                   <td className="py-3.5 px-4">
                     {(() => {
                       const isWaitingVerification = p.verification_status === 'pending_verification'
-                      const displayStatus = isWaitingVerification ? 'waiting verification' : p.status
+                      const isAwaitingApproval = p.verification_status === 'verified'
+                      const displayStatus = isWaitingVerification ? 'waiting verification' : isAwaitingApproval ? 'awaiting approval' : p.status
                       return (
                     <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor(p.status)}`}>
                       {displayStatus}
@@ -727,12 +728,17 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
                   <td className="py-3.5 px-4">
                     {p.verification_status === 'pending_verification' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full bg-yellow-500/15 text-yellow-400">
-                        <Clock className="w-3 h-3" /> Pending
+                        <Clock className="w-3 h-3" /> Pending Review
                       </span>
                     )}
                     {p.verification_status === 'verified' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full bg-amber-500/15 text-amber-400">
+                        <Clock className="w-3 h-3" /> Awaiting Approval
+                      </span>
+                    )}
+                    {p.verification_status === 'approved' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full bg-emerald-500/15 text-emerald-400">
-                        <CheckCircle2 className="w-3 h-3" /> Verified
+                        <CheckCircle2 className="w-3 h-3" /> Approved
                       </span>
                     )}
                     {p.verification_status === 'rejected' && (
