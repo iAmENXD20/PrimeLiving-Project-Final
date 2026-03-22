@@ -28,7 +28,8 @@ export async function getInquiries(
       return;
     }
 
-    sendSuccess(res, data);
+    // apartment_classification is now a direct column, no mapping needed
+    sendSuccess(res, data || []);
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -71,7 +72,11 @@ export async function createInquiry(
   res: Response
 ): Promise<void> {
   try {
-    const { name, email, phone, apartment_name, message } = req.body;
+    const {
+      name, email, phone, sex, age, apartment_classification,
+      street_building, barangay, province, city_municipality, zip_code,
+      number_of_units, number_of_floors, other_property_details,
+    } = req.body;
 
     const { data, error } = await supabaseAdmin
       .from("inquiries")
@@ -79,8 +84,17 @@ export async function createInquiry(
         name,
         email,
         phone,
-        apartment_name,
-        message,
+        sex: sex || null,
+        age: age || null,
+        apartment_classification: apartment_classification || null,
+        street_building: street_building || null,
+        barangay: barangay || null,
+        province: province || null,
+        city_municipality: city_municipality || null,
+        zip_code: zip_code || null,
+        number_of_units: number_of_units || null,
+        number_of_floors: number_of_floors || null,
+        other_property_details: other_property_details || null,
         status: "pending",
       })
       .select()

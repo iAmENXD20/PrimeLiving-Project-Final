@@ -68,7 +68,7 @@ async function main() {
 
   // 3. Create client record linked to auth user
   const { data: existingClient } = await supabase
-    .from('clients')
+    .from('apartment_owners')
     .select('id')
     .eq('email', TEST_EMAIL)
     .single()
@@ -77,7 +77,7 @@ async function main() {
     console.log('⚠️  Client record already exists:', existingClient.id)
   } else {
     const { data: client, error: clientError } = await supabase
-      .from('clients')
+      .from('apartment_owners')
       .insert({
         auth_user_id: userId,
         name: TEST_NAME,

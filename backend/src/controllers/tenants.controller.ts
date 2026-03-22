@@ -4,6 +4,7 @@ import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { isValidEmailFormat } from "../utils/emailValidation";
+import { logActivity } from "../utils/activityLog";
 
 function getInviteRedirectUrl(): string {
   const normalizedBase = env.FRONTEND_URL.replace(/\/+$/, "");
@@ -14,14 +15,14 @@ function getInviteRedirectUrl(): string {
 
 /**
  * GET /api/tenants
- * Get all tenants (optionally filtered by unit_id or client_id)
+ * Get all tenants (optionally filtered by unit_id or apartmentowner_id)
  */
 export async function getTenants(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
-    const clientId = req.query.client_id as string | undefined;
+    const apartmentownerId = req.query.apartmentowner_id as string | undefined;
     const requesterRole = req.user?.role;
     const includeInactive =
       req.query.include_inactive === "true" || requesterRole === "admin";
@@ -38,11 +39,11 @@ export async function getTenants(
       query = query.eq("unit_id", req.query.unit_id as string);
     }
 
-    if (clientId) {
+    if (apartmentownerId) {
       const { data: apartments, error: apartmentsError } = await supabaseAdmin
         .from("units")
         .select("id")
-        .eq("client_id", clientId);
+        .eq("apartmentowner_id", apartmentownerId);
 
       if (apartmentsError) {
         sendError(res, apartmentsError.message, 500);
@@ -53,10 +54,10 @@ export async function getTenants(
 
       if (apartmentIds.length > 0) {
         query = query.or(
-          `client_id.eq.${clientId},unit_id.in.(${apartmentIds.join(",")})`
+          `apartmentowner_id.eq.${apartmentownerId},unit_id.in.(${apartmentIds.join(",")})`
         );
       } else {
-        query = query.eq("client_id", clientId);
+        query = query.eq("apartmentowner_id", apartmentownerId);
       }
     }
 
@@ -139,7 +140,7 @@ export async function createTenant(
   res: Response
 ): Promise<void> {
   try {
-    const { name, email, phone, unit_id, client_id, create_auth_account } =
+    const { name, email, phone, unit_id, apartmentowner_id, create_auth_account, sex, age } =
       req.body;
     const normalizedEmail =
       typeof email === "string" ? email.trim().toLowerCase() : null;
@@ -153,8 +154,8 @@ export async function createTenant(
       }
 
       const [existingClientLookup, existingManagerLookup, existingTenantLookup] = await Promise.all([
-        supabaseAdmin.from("clients").select("id").eq("email", normalizedEmail).maybeSingle(),
-        supabaseAdmin.from("managers").select("id").eq("email", normalizedEmail).maybeSingle(),
+        supabaseAdmin.from("apartment_owners").select("id").eq("email", normalizedEmail).maybeSingle(),
+        supabaseAdmin.from("apartment_managers").select("id").eq("email", normalizedEmail).maybeSingle(),
         supabaseAdmin.from("tenants").select("id").eq("email", normalizedEmail).maybeSingle(),
       ]);
 
@@ -209,8 +210,10 @@ export async function createTenant(
         name,
         email: normalizedEmail,
         phone,
+        sex: sex || null,
+        age: age || null,
         unit_id,
-        client_id,
+        apartmentowner_id,
         status: create_auth_account ? "pending" : "active",
         move_in_date: new Date().toISOString().split("T")[0],
       })
@@ -232,6 +235,18 @@ export async function createTenant(
       "Tenant created successfully",
       201
     );
+
+    logActivity({
+      apartmentowner_id,
+      actor_id: req.user?.id || null,
+      actor_name: req.user?.email || "System",
+      actor_role: (req.user?.role as "owner" | "manager") || "owner",
+      action: "tenant_added",
+      entity_type: "tenant",
+      entity_id: data.id,
+      description: `Added tenant ${name}${normalizedEmail ? ` (${normalizedEmail})` : ""}`,
+      metadata: { name, email: normalizedEmail || "", phone: phone || "" },
+    });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -249,6 +264,13 @@ export async function updateTenant(
     const { id } = req.params;
     const updates = req.body;
 
+    // Fetch old record for diff logging
+    const { data: oldRecord } = await supabaseAdmin
+      .from("tenants")
+      .select("*")
+      .eq("id", id)
+      .single();
+
     const { data, error } = await supabaseAdmin
       .from("tenants")
       .update(updates)
@@ -262,6 +284,28 @@ export async function updateTenant(
     }
 
     sendSuccess(res, data, "Tenant updated successfully");
+
+    if (oldRecord && data) {
+      const changes: Record<string, { from: string; to: string }> = {};
+      for (const key of Object.keys(updates)) {
+        const oldVal = String(oldRecord[key] ?? "");
+        const newVal = String(data[key] ?? "");
+        if (oldVal !== newVal) changes[key] = { from: oldVal, to: newVal };
+      }
+      if (Object.keys(changes).length > 0) {
+        logActivity({
+          apartmentowner_id: data.apartmentowner_id,
+          actor_id: req.user?.id || null,
+          actor_name: req.user?.email || "System",
+          actor_role: (req.user?.role as "owner" | "manager") || "owner",
+          action: "tenant_updated",
+          entity_type: "tenant",
+          entity_id: id,
+          description: `Updated tenant ${data.name}`,
+          metadata: { changes },
+        });
+      }
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -277,6 +321,13 @@ export async function deleteTenant(
 ): Promise<void> {
   try {
     const { id } = req.params;
+
+    // Fetch record before soft-delete for logging
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("name, apartmentowner_id")
+      .eq("id", id)
+      .single();
 
     const { data, error } = await supabaseAdmin
       .from("tenants")
@@ -300,6 +351,19 @@ export async function deleteTenant(
     }
 
     sendSuccess(res, null, "Tenant deactivated successfully");
+
+    if (tenant) {
+      logActivity({
+        apartmentowner_id: tenant.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: req.user?.email || "System",
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "tenant_removed",
+        entity_type: "tenant",
+        entity_id: id,
+        description: `Removed tenant ${tenant.name}`,
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -326,10 +390,10 @@ export async function assignTenantToUnit(
       return;
     }
 
-    // Get apartment to know client_id
+    // Get apartment to know apartmentowner_id
     const { data: apt, error: aptErr } = await supabaseAdmin
       .from("units")
-      .select("client_id")
+      .select("apartmentowner_id")
       .eq("id", unit_id)
       .single();
 
@@ -379,7 +443,7 @@ export async function assignTenantToUnit(
         .from("tenants")
         .update({
           unit_id: unit_id,
-          client_id: apt.client_id,
+          apartmentowner_id: apt.apartmentowner_id,
           status: "active",
           move_in_date: resolvedStartDate,
           updated_at: new Date().toISOString(),
@@ -407,7 +471,7 @@ export async function assignTenantToUnit(
           name,
           phone: phone || null,
           unit_id: unit_id,
-          client_id: apt.client_id,
+          apartmentowner_id: apt.apartmentowner_id,
           status: "active",
           move_in_date: resolvedStartDate,
         });
@@ -506,7 +570,7 @@ export async function removeTenantFromUnit(
 
 /**
  * GET /api/tenants/count
- * Get tenant count (optionally filtered by client_id or unit_id)
+ * Get tenant count (optionally filtered by apartmentowner_id or unit_id)
  */
 export async function getTenantCount(
   req: AuthenticatedRequest,
@@ -517,8 +581,8 @@ export async function getTenantCount(
       .from("tenants")
       .select("*", { count: "exact", head: true });
 
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+    if (req.query.apartmentowner_id) {
+      query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
     if (req.query.unit_id) {
       query = query.eq("unit_id", req.query.unit_id as string);

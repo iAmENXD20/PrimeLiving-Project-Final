@@ -1,4 +1,4 @@
-import { Search, Eye, CheckCircle, Clock, ShieldCheck, Ban, Copy, Check, XCircle, User, Mail, Phone, CalendarDays, MessageSquare, Send, Building2 } from 'lucide-react'
+import { Search, Eye, CheckCircle, Clock, ShieldCheck, Ban, Copy, Check, XCircle, Mail, Phone, MessageSquare, Send, Building2, MapPin, Layers, Building, User, Calendar } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
@@ -7,26 +7,36 @@ import { useEmailValidation } from '@/hooks/useEmailValidation'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
+/** Format a Philippine phone number to start with +63 */
+function formatPhoneTo63(phone: string): string {
+  if (!phone) return ''
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('63')) return `+63 ${digits.slice(2)}`
+  if (digits.startsWith('0')) return `+63 ${digits.slice(1)}`
+  if (digits.startsWith('9') && digits.length === 10) return `+63 ${digits}`
+  return phone
+}
+
 const statusConfig: Record<Inquiry['status'], { icon: typeof Clock; bg: string; text: string }> = {
   pending: {
     icon: Clock,
-    bg: 'bg-yellow-500/15',
-    text: 'text-yellow-500',
+    bg: 'bg-amber-100 dark:bg-yellow-500/15',
+    text: 'text-amber-700 dark:text-yellow-500',
   },
   responded: {
     icon: CheckCircle,
-    bg: 'bg-blue-500/15',
-    text: 'text-blue-400',
+    bg: 'bg-blue-100 dark:bg-blue-500/15',
+    text: 'text-blue-700 dark:text-blue-400',
   },
   approved: {
     icon: ShieldCheck,
-    bg: 'bg-emerald-500/15',
-    text: 'text-emerald-400',
+    bg: 'bg-emerald-100 dark:bg-emerald-500/15',
+    text: 'text-emerald-700 dark:text-emerald-400',
   },
   cancelled: {
     icon: Ban,
-    bg: 'bg-red-500/15',
-    text: 'text-red-400',
+    bg: 'bg-red-100 dark:bg-red-500/15',
+    text: 'text-red-700 dark:text-red-400',
   },
 }
 
@@ -34,6 +44,8 @@ export default function InquiriesTab() {
   const { isDark } = useTheme()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'pending' | 'history'>('all')
+  const [showApproved, setShowApproved] = useState(true)
+  const [showCancelled, setShowCancelled] = useState(true)
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null)
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [loading, setLoading] = useState(true)
@@ -110,7 +122,7 @@ export default function InquiriesTab() {
       firstName,
       lastName,
       email: inquiry.email,
-      contactNumber: inquiry.phone || '',
+      contactNumber: (inquiry.phone || '').replace(/\D/g, '').replace(/^63/, '').replace(/^0/, '').slice(0, 10),
     })
     setCreateFormErrors({})
     setPendingInquiry(inquiry)
@@ -146,7 +158,7 @@ export default function InquiriesTab() {
       const result = await approveInquiry(pendingInquiry, {
         name: fullName,
         email: createFormData.email.trim(),
-        phone: createFormData.contactNumber.trim(),
+        phone: createFormData.contactNumber.trim() ? `+63${createFormData.contactNumber.trim()}` : '',
       })
       setInquiries((prev) => prev.map((i) => (i.id === pendingInquiry.id ? result.inquiry : i)))
       setShowCreateForm(false)
@@ -187,10 +199,10 @@ export default function InquiriesTab() {
     const matchesSearch =
       inq.name.toLowerCase().includes(search.toLowerCase()) ||
       inq.email.toLowerCase().includes(search.toLowerCase()) ||
-      (inq.apartment_name ?? '').toLowerCase().includes(search.toLowerCase())
+      (inq.apartment_classification ?? '').toLowerCase().includes(search.toLowerCase())
     const matchesFilter =
       filter === 'history'
-        ? inq.status !== 'pending'
+        ? inq.status !== 'pending' && ((showApproved && inq.status === 'approved') || (showCancelled && inq.status === 'cancelled') || (!showApproved && !showCancelled))
         : inq.status === 'pending'
     return matchesSearch && matchesFilter
   })
@@ -200,7 +212,7 @@ export default function InquiriesTab() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, filter, inquiries.length])
+  }, [search, filter, showApproved, showCancelled, inquiries.length])
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages)
@@ -214,7 +226,7 @@ export default function InquiriesTab() {
 
   return (
     <>
-    <div className="space-y-6 animate-fade-up flex flex-col h-full overflow-hidden">
+    <div className="space-y-6 animate-fade-up flex flex-col flex-1 min-h-0 overflow-hidden">
       {/* Header */}
       <div>
         <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -249,7 +261,7 @@ export default function InquiriesTab() {
           {(['all', 'pending', 'history'] as const).map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => { setFilter(f); if (f !== 'history') setHistoryFilter('all') }}
               className={`px-4 py-2.5 text-base rounded-lg font-medium capitalize transition-colors flex items-center gap-2 ${
                 filter === f
                   ? 'bg-primary/15 text-primary'
@@ -280,16 +292,48 @@ export default function InquiriesTab() {
               )}
             </button>
           ))}
+
+          {/* Checkboxes for History */}
+          {filter === 'history' && (
+            <div className={`flex items-center gap-4 ml-2 pl-2 border-l ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+              <label className={`flex items-center gap-2 cursor-pointer text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                <input
+                  type="checkbox"
+                  checked={showApproved}
+                  onChange={(e) => setShowApproved(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-emerald-500 focus:ring-emerald-500"
+                />
+                Approved
+              </label>
+              <label className={`flex items-center gap-2 cursor-pointer text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                <input
+                  type="checkbox"
+                  checked={showCancelled}
+                  onChange={(e) => setShowCancelled(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-red-500 focus:ring-red-500"
+                />
+                Cancelled
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Table */}
       <div className={`${cardClass} overflow-hidden flex-1 flex flex-col min-h-0`}>
         <div className="overflow-auto flex-1">
-          <table className="w-full text-base">
+          <table className="w-full text-base table-fixed">
+            <colgroup>
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+            </colgroup>
             <thead className={`sticky top-0 z-10 ${isDark ? 'bg-navy-card' : 'bg-white'}`}>
               <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                {['Name', 'Email', 'Apartment', 'Message', 'Status', 'Date', ''].map((h) => (
+                {['Name', 'Email', 'Contact Number', 'Status', 'Date', 'View'].map((h) => (
                   <th
                     key={h}
                     className={`text-left py-3.5 px-4 font-medium ${
@@ -301,10 +345,10 @@ export default function InquiriesTab() {
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody key={filter} className="animate-fade-up">
               {loading && (
                 <tr>
-                  <td colSpan={7} className="py-3 px-4">
+                  <td colSpan={6} className="py-3 px-4">
                     <TableSkeleton rows={5} />
                   </td>
                 </tr>
@@ -320,17 +364,14 @@ export default function InquiriesTab() {
                         : 'border-gray-100 hover:bg-gray-50'
                     }`}
                   >
-                    <td className={`py-3.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <td className={`py-3.5 px-4 font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {inq.name}
                     </td>
-                    <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <td className={`py-3.5 px-4 truncate ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                       {inq.email}
                     </td>
                     <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {inq.apartment_name || '—'}
-                    </td>
-                    <td className={`py-3.5 px-4 max-w-[260px] truncate ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {inq.message}
+                      {inq.phone ? formatPhoneTo63(inq.phone) : '—'}
                     </td>
                     <td className="py-3.5 px-4">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full ${config.bg} ${config.text}`}>
@@ -357,7 +398,7 @@ export default function InquiriesTab() {
               {!loading && filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
                   >
                     No inquiries found
@@ -392,80 +433,137 @@ export default function InquiriesTab() {
             }`}
           >
             {/* Header */}
-            <div className={`px-6 py-5 border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-primary/15' : 'bg-primary/10'}`}>
-                    <User className="w-5 h-5 text-primary" />
+            <div className={`px-6 pt-8 pb-5 ${isDark ? 'bg-gradient-to-b from-primary/10 to-transparent' : 'bg-gradient-to-b from-primary/5 to-transparent'}`}>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-bold ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'}`}>
+                    {selectedInquiry.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
                   <div>
-                    <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {selectedInquiry.name}
                     </h3>
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-0.5 rounded-full capitalize ${statusConfig[selectedInquiry.status].bg} ${statusConfig[selectedInquiry.status].text}`}>
-                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                      {selectedInquiry.status}
+                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {new Date(selectedInquiry.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedInquiry(null)}
-                  className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}
-                >
-                  <XCircle className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const StatusIcon = statusConfig[selectedInquiry.status].icon
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusConfig[selectedInquiry.status].bg} ${statusConfig[selectedInquiry.status].text}`}>
+                        <StatusIcon className="w-3 h-3" />
+                        {selectedInquiry.status}
+                      </span>
+                    )
+                  })()}
+                  <button
+                    onClick={() => setSelectedInquiry(null)}
+                    className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}
+                  >
+                    <XCircle className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
 
             {/* Body */}
-            <div className="px-6 py-5 space-y-4">
-              {/* Info grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className={`flex items-start gap-3 p-3 rounded-xl ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
-                  <Mail className={`w-4 h-4 mt-0.5 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                  <div className="min-w-0">
-                    <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Email</p>
-                    <p className={`text-sm truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedInquiry.email}</p>
-                  </div>
-                </div>
-                <div className={`flex items-start gap-3 p-3 rounded-xl ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
-                  <Phone className={`w-4 h-4 mt-0.5 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                  <div className="min-w-0">
-                    <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Phone</p>
-                    <p className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedInquiry.phone || '—'}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className={`flex items-start gap-3 p-3 rounded-xl ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
-                  <Building2 className={`w-4 h-4 mt-0.5 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                  <div className="min-w-0">
-                    <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Apartment</p>
-                    <p className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedInquiry.apartment_name || '—'}</p>
-                  </div>
-                </div>
-                <div className={`flex items-start gap-3 p-3 rounded-xl ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
-                  <CalendarDays className={`w-4 h-4 mt-0.5 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                  <div>
-                    <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Date Submitted</p>
-                    <p className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                      {new Date(selectedInquiry.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Message */}
+            <div className="px-6 pb-5 space-y-5 max-h-[60vh] overflow-y-auto">
+              {/* Contact Information */}
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <MessageSquare className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                  <p className={`text-xs font-medium uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Message</p>
-                </div>
-                <div className={`p-4 rounded-xl text-sm leading-relaxed ${isDark ? 'bg-[#0A1628] text-gray-300 border border-[#1E293B]' : 'bg-gray-50 text-gray-700 border border-gray-100'}`}>
-                  {selectedInquiry.message.replace(/^Apartment:\s*/i, '')}
+                <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Contact Information</p>
+                <div className={`rounded-xl divide-y ${isDark ? 'bg-[#0A1628] border border-[#1E293B] divide-[#1E293B]' : 'bg-gray-50 border border-gray-100 divide-gray-100'}`}>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <Mail className={`w-4 h-4 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Email</p>
+                      <p className={`text-sm truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedInquiry.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <Phone className={`w-4 h-4 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Contact Number</p>
+                      <p className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedInquiry.phone ? formatPhoneTo63(selectedInquiry.phone) : '—'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <User className={`w-4 h-4 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Sex</p>
+                      <p className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedInquiry.sex || '—'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <Calendar className={`w-4 h-4 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Age</p>
+                      <p className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedInquiry.age || '—'}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {/* Property Information */}
+              {(() => {
+                const classification = selectedInquiry.apartment_classification || null
+                const location = [
+                  selectedInquiry.street_building,
+                  selectedInquiry.barangay,
+                  selectedInquiry.city_municipality,
+                  selectedInquiry.province,
+                  selectedInquiry.zip_code,
+                ].filter(Boolean).join(', ') || null
+
+                const propertySpecs = [
+                  { label: 'Units', value: selectedInquiry.number_of_units, icon: Layers },
+                  { label: classification === 'Townhouse' ? 'Residential Units' : 'Floors', value: selectedInquiry.number_of_floors, icon: Building },
+                  { label: 'Other Details', value: selectedInquiry.other_property_details, icon: MessageSquare },
+                ].filter(item => item.value)
+
+                return (
+                  <div>
+                    <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Property Information</p>
+                    <div className={`rounded-xl divide-y ${isDark ? 'bg-[#0A1628] border border-[#1E293B] divide-[#1E293B]' : 'bg-gray-50 border border-gray-100 divide-gray-100'}`}>
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <Building2 className={`w-4 h-4 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Classification</p>
+                          <p className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{classification || '—'}</p>
+                        </div>
+                      </div>
+                      {location && (
+                        <div className="flex items-start gap-3 px-4 py-3">
+                          <MapPin className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Location</p>
+                            <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{location}</p>
+                          </div>
+                        </div>
+                      )}
+                      {propertySpecs.map(({ label, value, icon: Icon }) => (
+                        <div key={label} className="flex items-center gap-3 px-4 py-3">
+                          <Icon className={`w-4 h-4 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{label}</p>
+                            <p className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{value}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {!location && propertySpecs.length === 0 && !classification && (
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <MessageSquare className={`w-4 h-4 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No Details</p>
+                            <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>—</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Footer */}
@@ -479,13 +577,13 @@ export default function InquiriesTab() {
                       : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
                   }`}
                 >
-                  Cancel
+                  Reject
                 </button>
                 <button
                   onClick={() => openCreateForm(selectedInquiry)}
                   className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-primary hover:bg-primary-600 text-white transition-all"
                 >
-                  Create Account
+                  Approved
                 </button>
               </div>
             )}
@@ -574,7 +672,7 @@ export default function InquiriesTab() {
                       ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
                       : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
                   }`}
-                  placeholder="owner@email.com"
+                  placeholder="juandelacruz@gmail.com"
                 />
                 {createFormErrors.email && <p className="text-xs text-red-500 mt-1">{createFormErrors.email}</p>}
                 {!createFormErrors.email && createFormData.email.trim() && (
@@ -598,22 +696,27 @@ export default function InquiriesTab() {
                 <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Contact Number <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={createFormData.contactNumber}
-                  onChange={(e) => {
-                    setCreateFormData(prev => ({ ...prev, contactNumber: e.target.value }))
-                    setCreateFormErrors(prev => { const n = { ...prev }; delete n.contactNumber; return n })
-                  }}
-                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                    createFormErrors.contactNumber
-                      ? 'border-red-500'
-                      : isDark
-                      ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
-                      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                  }`}
-                  placeholder="09XX XXX XXXX"
-                />
+                <div className="relative">
+                  <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+63</span>
+                  <input
+                    type="text"
+                    value={createFormData.contactNumber}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '').slice(0, 10)
+                      setCreateFormData(prev => ({ ...prev, contactNumber: raw }))
+                      setCreateFormErrors(prev => { const n = { ...prev }; delete n.contactNumber; return n })
+                    }}
+                    className={`w-full pl-12 pr-3 py-2.5 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                      createFormErrors.contactNumber
+                        ? 'border-red-500'
+                        : isDark
+                        ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                    }`}
+                    placeholder="9XXXXXXXXX"
+                    maxLength={10}
+                  />
+                </div>
                 {createFormErrors.contactNumber && <p className="text-xs text-red-500 mt-1">{createFormErrors.contactNumber}</p>}
               </div>
             </div>
@@ -640,7 +743,7 @@ export default function InquiriesTab() {
                 }
                 className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-primary hover:bg-primary-600 text-white transition-all disabled:opacity-50"
               >
-                {approving ? 'Creating...' : 'Create Account'}
+                {approving ? 'Creating...' : 'Create'}
               </button>
             </div>
           </div>
@@ -699,60 +802,6 @@ export default function InquiriesTab() {
                 </p>
               </div>
             )}
-
-            {/* Email Send Section */}
-            <div className="mt-5 space-y-3">
-              <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                Send account details via Email
-              </p>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                  <input
-                    type="email"
-                    value={credentials.email}
-                    readOnly
-                    className={`w-full pl-10 pr-4 py-2.5 rounded-lg border text-sm transition-colors ${
-                      isDark
-                        ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500 focus:border-primary'
-                        : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-primary'
-                    } focus:outline-none`}
-                  />
-                </div>
-                <button
-                  onClick={async () => {
-                    setEmailSending(true)
-                    try {
-                      await new Promise((resolve) => setTimeout(resolve, 1500))
-                      setEmailSent(true)
-                      setEmailCooldown(30)
-                      toast.success(`Credentials sent to ${credentials.email}`)
-                    } catch {
-                      toast.error('Failed to send email')
-                    } finally {
-                      setEmailSending(false)
-                    }
-                  }}
-                  disabled={emailSending || emailCooldown > 0}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-primary hover:bg-primary/90 text-white disabled:opacity-50 transition-colors"
-                >
-                  <Send className="w-4 h-4" />
-                  {emailSending
-                    ? 'Sending...'
-                    : emailCooldown > 0
-                    ? `Resend in ${emailCooldown}s`
-                    : emailSent
-                    ? 'Resend Email'
-                    : 'Send Email'}
-                </button>
-              </div>
-              {emailSent && (
-                <p className={`text-xs flex items-center gap-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                  <Check className="w-3.5 h-3.5" />
-                  Credentials sent successfully to {credentials.email}
-                </p>
-              )}
-            </div>
 
             <div className="flex justify-end mt-6">
               <button

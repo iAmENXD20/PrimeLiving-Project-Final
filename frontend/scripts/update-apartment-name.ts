@@ -25,7 +25,7 @@ async function main() {
 
   // Find the test owner
   const { data: client, error: clientError } = await supabase
-    .from('clients')
+    .from('apartment_owners')
     .select('id, name')
     .eq('email', 'owner@primeliving.test')
     .single()
@@ -41,7 +41,7 @@ async function main() {
   const { data: apartments, error: aptError } = await supabase
     .from('apartments')
     .select('id, name')
-    .eq('client_id', client.id)
+    .eq('apartmentowner_id', client.id)
 
   if (aptError || !apartments?.length) {
     console.error('❌ No apartments found for this owner.')

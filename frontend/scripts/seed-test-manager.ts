@@ -75,7 +75,7 @@ async function main() {
 
   // 3. Check if manager record already exists
   const { data: existing } = await supabase
-    .from('managers')
+    .from('apartment_managers')
     .select('id')
     .eq('email', TEST_EMAIL)
     .single()
@@ -83,7 +83,7 @@ async function main() {
   if (existing) {
     // Update with auth_user_id
     const { error } = await supabase
-      .from('managers')
+      .from('apartment_managers')
       .update({ auth_user_id: userId })
       .eq('id', existing.id)
 
@@ -95,20 +95,20 @@ async function main() {
   } else {
     // Get first client to link the manager to
     const { data: clients } = await supabase
-      .from('clients')
+      .from('apartment_owners')
       .select('id')
       .limit(1)
 
     const clientId = clients?.[0]?.id || null
 
     const { error: insertErr } = await supabase
-      .from('managers')
+      .from('apartment_managers')
       .insert({
         auth_user_id: userId,
         name: TEST_NAME,
         email: TEST_EMAIL,
         phone: TEST_PHONE,
-        client_id: clientId,
+        apartmentowner_id: clientId,
         status: 'active',
       })
 
@@ -118,12 +118,12 @@ async function main() {
       if (insertErr.message.includes('auth_user_id')) {
         console.log('Retrying without auth_user_id (column may not exist yet)…')
         const { error: retryErr } = await supabase
-          .from('managers')
+          .from('apartment_managers')
           .insert({
             name: TEST_NAME,
             email: TEST_EMAIL,
             phone: TEST_PHONE,
-            client_id: clientId,
+            apartmentowner_id: clientId,
             status: 'active',
           })
 

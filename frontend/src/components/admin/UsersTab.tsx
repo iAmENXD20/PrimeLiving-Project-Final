@@ -10,7 +10,7 @@ type RoleFilter = (typeof ROLES)[number]
 
 const roleBadge: Record<UserRecord['role'], { bg: string; text: string; label: string }> = {
   owner: { bg: 'bg-primary/15', text: 'text-primary', label: 'Owner' },
-  manager: { bg: 'bg-cyan-400/15', text: 'text-cyan-500', label: 'Manager' },
+  manager: { bg: 'bg-cyan-400/15', text: 'text-cyan-500', label: 'Apartment Manager' },
   tenant: { bg: 'bg-green-400/15', text: 'text-green-500', label: 'Tenant' },
 }
 
@@ -69,7 +69,7 @@ export default function UsersTab() {
           Users
         </h2>
         <p className={`text-base mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          All apartment owners, managers, and tenants — excluding admins
+          All apartment owners, apartment managers, and tenants — excluding admins
         </p>
       </div>
 
@@ -107,7 +107,7 @@ export default function UsersTab() {
                   : 'bg-gray-100 text-gray-500 hover:text-gray-700 border border-gray-200'
               }`}
             >
-              {r === 'all' ? 'All' : r}
+              {r === 'all' ? 'All' : r === 'manager' ? 'Apartment Manager' : r}
             </button>
           ))}
         </div>

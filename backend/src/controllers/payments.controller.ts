@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { sendSmsToMany } from "../utils/sms";
 import { createNotification, createNotifications } from "../utils/notifications";
+import { logActivity } from "../utils/activityLog";
 
 const PAYMENT_QR_BUCKET = "payment-qr-codes";
 
@@ -29,7 +30,7 @@ function parseDataUrl(dataUrl: string): { mime: string; buffer: Buffer } | null 
 
 /**
  * GET /api/payments
- * Get payments (filtered by client_id or tenant_id)
+ * Get payments (filtered by apartmentowner_id or tenant_id)
  */
 export async function getPayments(
   req: AuthenticatedRequest,
@@ -43,8 +44,8 @@ export async function getPayments(
       .select("*, tenants(name, email), apartments:unit_id(name)")
       .order("created_at", { ascending: false });
 
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+    if (req.query.apartmentowner_id) {
+      query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
     if (tenantId) {
       query = query.eq("tenant_id", tenantId);
@@ -83,7 +84,7 @@ export async function getTenantDueSchedule(
 
     const { data: tenant, error: tenantError } = await supabaseAdmin
       .from("tenants")
-      .select("id, client_id, unit_id, move_in_date, status")
+      .select("id, apartmentowner_id, unit_id, move_in_date, status")
       .eq("id", tenantId)
       .single();
 
@@ -157,7 +158,7 @@ export async function getTenantDueSchedule(
 
       if (!existing) {
         rowsToInsert.push({
-          client_id: tenant.client_id,
+          apartmentowner_id: tenant.apartmentowner_id,
           tenant_id: tenant.id,
           unit_id: tenant.unit_id,
           amount: monthlyRent,
@@ -274,7 +275,7 @@ export async function submitPaymentProof(
   try {
     const {
       tenant_id,
-      client_id,
+      apartmentowner_id,
       unit_id,
       amount,
       receipt_url,
@@ -283,8 +284,8 @@ export async function submitPaymentProof(
       description,
     } = req.body;
 
-    if (!tenant_id || !client_id || !period_from || !period_to || !receipt_url) {
-      sendError(res, "tenant_id, client_id, period_from, period_to, and receipt_url are required", 400);
+    if (!tenant_id || !apartmentowner_id || !period_from || !period_to || !receipt_url) {
+      sendError(res, "tenant_id, apartmentowner_id, period_from, period_to, and receipt_url are required", 400);
       return;
     }
 
@@ -305,7 +306,7 @@ export async function submitPaymentProof(
           description: description || `Payment proof submitted for ${period_from} to ${period_to}`,
           amount: amount ?? undefined,
           unit_id: unit_id || null,
-          client_id,
+          apartmentowner_id,
         })
         .eq("id", existing.id)
         .select()
@@ -318,9 +319,9 @@ export async function submitPaymentProof(
 
       const [{ data: managers }, { data: tenant }] = await Promise.all([
         supabaseAdmin
-          .from("managers")
+          .from("apartment_managers")
           .select("phone")
-          .eq("client_id", client_id)
+          .eq("apartmentowner_id", apartmentowner_id)
           .eq("status", "active"),
         supabaseAdmin
           .from("tenants")
@@ -332,12 +333,12 @@ export async function submitPaymentProof(
       await sendSmsToMany(
         (managers || []).map((manager: any) => manager.phone),
         `[PrimeLiving] ${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
-        { unit_id: unit_id || null, client_id }
+        { unit_id: unit_id || null, apartmentowner_id }
       );
 
       await createNotifications(
         (managers || []).map((manager: any) => ({
-          client_id,
+          apartmentowner_id,
           unit_id: unit_id || null,
           recipient_role: "manager" as const,
           recipient_id: manager.id,
@@ -348,6 +349,7 @@ export async function submitPaymentProof(
       );
 
       sendSuccess(res, data, "Payment proof submitted successfully");
+
       return;
     }
 
@@ -355,7 +357,7 @@ export async function submitPaymentProof(
       .from("payments")
       .insert({
         tenant_id,
-        client_id,
+        apartmentowner_id,
         unit_id: unit_id || null,
         amount: amount || 0,
         payment_date: new Date().toISOString(),
@@ -377,9 +379,9 @@ export async function submitPaymentProof(
 
     const [{ data: managers }, { data: tenant }] = await Promise.all([
       supabaseAdmin
-        .from("managers")
+        .from("apartment_managers")
         .select("phone")
-        .eq("client_id", client_id)
+        .eq("apartmentowner_id", apartmentowner_id)
         .eq("status", "active"),
       supabaseAdmin
         .from("tenants")
@@ -391,12 +393,12 @@ export async function submitPaymentProof(
     await sendSmsToMany(
       (managers || []).map((manager: any) => manager.phone),
       `[PrimeLiving] ${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
-      { unit_id: unit_id || null, client_id }
+      { unit_id: unit_id || null, apartmentowner_id }
     );
 
     await createNotifications(
       (managers || []).map((manager: any) => ({
-        client_id,
+        apartmentowner_id,
         unit_id: unit_id || null,
         recipient_role: "manager" as const,
         recipient_id: manager.id,
@@ -483,7 +485,7 @@ export async function verifyPayment(
 
     const { data: payment, error: paymentError } = await supabaseAdmin
       .from("payments")
-      .select("id, client_id, unit_id, amount, payment_date")
+      .select("id, apartmentowner_id, unit_id, amount, payment_date")
       .eq("id", id)
       .single();
 
@@ -518,14 +520,14 @@ export async function verifyPayment(
       const { data: existingRevenue } = await supabaseAdmin
         .from("revenues")
         .select("id")
-        .eq("client_id", payment.client_id)
+        .eq("apartmentowner_id", payment.apartmentowner_id)
         .eq("description", revenueDescription)
         .maybeSingle();
 
       if (!existingRevenue) {
         await supabaseAdmin.from("revenues").insert({
           unit_id: payment.unit_id,
-          client_id: payment.client_id,
+          apartmentowner_id: payment.apartmentowner_id,
           amount: payment.amount,
           month: payment.payment_date || new Date().toISOString(),
           description: revenueDescription,
@@ -542,12 +544,12 @@ export async function verifyPayment(
     await sendSmsToMany(
       [tenant?.phone],
       `[PrimeLiving] Your payment has been ${verification_status}.`,
-      { unit_id: data.unit_id, client_id: data.client_id }
+      { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
     );
 
-    if (data.client_id && data.tenant_id) {
+    if (data.apartmentowner_id && data.tenant_id) {
       await createNotification({
-        client_id: data.client_id,
+        apartmentowner_id: data.apartmentowner_id,
         unit_id: data.unit_id,
         recipient_role: "tenant",
         recipient_id: data.tenant_id,
@@ -558,6 +560,18 @@ export async function verifyPayment(
     }
 
     sendSuccess(res, data, `Payment ${verification_status} successfully`);
+
+    logActivity({
+      apartmentowner_id: data.apartmentowner_id,
+      actor_id: req.user?.id || null,
+      actor_name: req.user?.email || "System",
+      actor_role: (req.user?.role as "owner" | "manager") || "manager",
+      action: `payment_${verification_status}`,
+      entity_type: "payment",
+      entity_id: id,
+      description: `Payment ${verification_status} — Amount: ${data.amount}`,
+      metadata: { verification_status, amount: data.amount },
+    });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -574,10 +588,10 @@ export async function generateMonthlyBillings(
   res: Response
 ): Promise<void> {
   try {
-    const { client_id } = req.body;
+    const { apartmentowner_id } = req.body;
 
-    if (!client_id) {
-      sendError(res, "client_id is required", 400);
+    if (!apartmentowner_id) {
+      sendError(res, "apartmentowner_id is required", 400);
       return;
     }
 
@@ -585,7 +599,7 @@ export async function generateMonthlyBillings(
     const { data: apartments } = await supabaseAdmin
       .from("units")
       .select("id, payment_due_day, monthly_rent")
-      .eq("client_id", client_id)
+      .eq("apartmentowner_id", apartmentowner_id)
       .eq("status", "active");
 
     if (!apartments || apartments.length === 0) {
@@ -618,7 +632,7 @@ export async function generateMonthlyBillings(
     const { data: existingPayments } = await supabaseAdmin
       .from("payments")
       .select("tenant_id, status")
-      .eq("client_id", client_id)
+      .eq("apartmentowner_id", apartmentowner_id)
       .gte("period_from", monthStart)
       .lte("period_from", monthEnd);
 
@@ -648,7 +662,7 @@ export async function generateMonthlyBillings(
       });
 
       newPayments.push({
-        client_id,
+        apartmentowner_id,
         tenant_id: tenant.id,
         unit_id: tenant.unit_id,
         amount: apt.monthly_rent || 0,
@@ -682,7 +696,7 @@ export async function generateMonthlyBillings(
         await supabaseAdmin
           .from("payments")
           .update({ status: "overdue" })
-          .eq("client_id", client_id)
+          .eq("apartmentowner_id", apartmentowner_id)
           .eq("unit_id", apt.id)
           .eq("status", "pending")
           .gte("period_from", monthStart)
@@ -709,17 +723,17 @@ export async function getPendingVerifications(
   res: Response
 ): Promise<void> {
   try {
-    const clientId = req.query.client_id as string;
+    const apartmentownerId = req.query.apartmentowner_id as string;
 
-    if (!clientId) {
-      sendError(res, "client_id query parameter is required", 400);
+    if (!apartmentownerId) {
+      sendError(res, "apartmentowner_id query parameter is required", 400);
       return;
     }
 
     const { data, error } = await supabaseAdmin
       .from("payments")
       .select("*, tenants:tenant_id(name), apartments:unit_id(name)")
-      .eq("client_id", clientId)
+      .eq("apartmentowner_id", apartmentownerId)
       .eq("verification_status", "pending_verification")
       .order("created_at", { ascending: false });
 
@@ -751,13 +765,13 @@ export async function uploadPaymentQr(
   res: Response
 ): Promise<void> {
   try {
-    const { client_id, data_url } = req.body as {
-      client_id?: string;
+    const { apartmentowner_id, data_url } = req.body as {
+      apartmentowner_id?: string;
       data_url?: string;
     };
 
-    if (!client_id || !data_url) {
-      sendError(res, "client_id and data_url are required", 400);
+    if (!apartmentowner_id || !data_url) {
+      sendError(res, "apartmentowner_id and data_url are required", 400);
       return;
     }
 
@@ -775,7 +789,7 @@ export async function uploadPaymentQr(
 
     await ensurePaymentQrBucket();
 
-    const objectPath = `${client_id}/payment-qr`;
+    const objectPath = `${apartmentowner_id}/payment-qr`;
     const { error: uploadError } = await supabaseAdmin.storage
       .from(PAYMENT_QR_BUCKET)
       .upload(objectPath, parsed.buffer, {
@@ -799,7 +813,7 @@ export async function uploadPaymentQr(
 
     sendSuccess(
       res,
-      { client_id, path: objectPath, qr_url: signedData.signedUrl },
+      { apartmentowner_id, path: objectPath, qr_url: signedData.signedUrl },
       "Payment QR uploaded successfully"
     );
   } catch (err: any) {
@@ -808,7 +822,7 @@ export async function uploadPaymentQr(
 }
 
 /**
- * GET /api/payments/qr/:clientId
+ * GET /api/payments/qr/:apartmentownerId
  * Get signed URL for owner's payment QR image
  */
 export async function getPaymentQr(
@@ -816,14 +830,14 @@ export async function getPaymentQr(
   res: Response
 ): Promise<void> {
   try {
-    const { clientId } = req.params;
-    if (!clientId) {
-      sendError(res, "clientId is required", 400);
+    const { apartmentownerId } = req.params;
+    if (!apartmentownerId) {
+      sendError(res, "apartmentownerId is required", 400);
       return;
     }
 
     await ensurePaymentQrBucket();
-    const objectPath = `${clientId}/payment-qr`;
+    const objectPath = `${apartmentownerId}/payment-qr`;
 
     const { data: signedData, error: signedError } = await supabaseAdmin.storage
       .from(PAYMENT_QR_BUCKET)
@@ -834,7 +848,7 @@ export async function getPaymentQr(
       return;
     }
 
-    sendSuccess(res, { client_id: clientId, qr_url: signedData.signedUrl });
+    sendSuccess(res, { apartmentowner_id: apartmentownerId, qr_url: signedData.signedUrl });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -842,7 +856,7 @@ export async function getPaymentQr(
 
 /**
  * GET /api/payments/qr/by-apartment/:apartmentId
- * Resolve apartment -> client_id then return signed QR URL
+ * Resolve apartment -> apartmentowner_id then return signed QR URL
  */
 export async function getPaymentQrByApartment(
   req: AuthenticatedRequest,
@@ -857,17 +871,17 @@ export async function getPaymentQrByApartment(
 
     const { data: apartment, error: apartmentError } = await supabaseAdmin
       .from("units")
-      .select("client_id")
+      .select("apartmentowner_id")
       .eq("id", apartmentId)
       .single();
 
-    if (apartmentError || !apartment?.client_id) {
+    if (apartmentError || !apartment?.apartmentowner_id) {
       sendError(res, "Owner not found for this apartment", 404);
       return;
     }
 
     await ensurePaymentQrBucket();
-    const objectPath = `${apartment.client_id}/payment-qr`;
+    const objectPath = `${apartment.apartmentowner_id}/payment-qr`;
 
     const { data: signedData, error: signedError } = await supabaseAdmin.storage
       .from(PAYMENT_QR_BUCKET)
@@ -878,7 +892,7 @@ export async function getPaymentQrByApartment(
       return;
     }
 
-    sendSuccess(res, { client_id: apartment.client_id, qr_url: signedData.signedUrl });
+    sendSuccess(res, { apartmentowner_id: apartment.apartmentowner_id, qr_url: signedData.signedUrl });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -886,7 +900,7 @@ export async function getPaymentQrByApartment(
 
 /**
  * GET /api/payments/qr/by-tenant/:tenantId
- * Resolve tenant -> apartment -> client_id then return signed QR URL
+ * Resolve tenant -> apartment -> apartmentowner_id then return signed QR URL
  */
 export async function getPaymentQrByTenant(
   req: AuthenticatedRequest,
@@ -901,7 +915,7 @@ export async function getPaymentQrByTenant(
 
     const { data: tenant, error: tenantError } = await supabaseAdmin
       .from("tenants")
-      .select("id, unit_id, client_id")
+      .select("id, unit_id, apartmentowner_id")
       .eq("id", tenantId)
       .single();
 
@@ -910,24 +924,24 @@ export async function getPaymentQrByTenant(
       return;
     }
 
-    let resolvedClientId: string | null = tenant.client_id || null;
+    let resolvedapartmentownerId: string | null = tenant.apartmentowner_id || null;
 
-    if (!resolvedClientId && tenant.unit_id) {
+    if (!resolvedapartmentownerId && tenant.unit_id) {
       const { data: apartment } = await supabaseAdmin
         .from("units")
-        .select("client_id")
+        .select("apartmentowner_id")
         .eq("id", tenant.unit_id)
         .single();
-      resolvedClientId = apartment?.client_id || null;
+      resolvedapartmentownerId = apartment?.apartmentowner_id || null;
     }
 
-    if (!resolvedClientId) {
+    if (!resolvedapartmentownerId) {
       sendError(res, "Owner not found for this tenant", 404);
       return;
     }
 
     await ensurePaymentQrBucket();
-    const objectPath = `${resolvedClientId}/payment-qr`;
+    const objectPath = `${resolvedapartmentownerId}/payment-qr`;
 
     const { data: signedData, error: signedError } = await supabaseAdmin.storage
       .from(PAYMENT_QR_BUCKET)
@@ -938,14 +952,14 @@ export async function getPaymentQrByTenant(
       return;
     }
 
-    sendSuccess(res, { tenant_id: tenantId, client_id: resolvedClientId, qr_url: signedData.signedUrl });
+    sendSuccess(res, { tenant_id: tenantId, apartmentowner_id: resolvedapartmentownerId, qr_url: signedData.signedUrl });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
 }
 
 /**
- * DELETE /api/payments/qr/:clientId
+ * DELETE /api/payments/qr/:apartmentownerId
  * Remove owner's payment QR image from Supabase Storage
  */
 export async function deletePaymentQr(
@@ -953,14 +967,14 @@ export async function deletePaymentQr(
   res: Response
 ): Promise<void> {
   try {
-    const { clientId } = req.params;
-    if (!clientId) {
-      sendError(res, "clientId is required", 400);
+    const { apartmentownerId } = req.params;
+    if (!apartmentownerId) {
+      sendError(res, "apartmentownerId is required", 400);
       return;
     }
 
     await ensurePaymentQrBucket();
-    const objectPath = `${clientId}/payment-qr`;
+    const objectPath = `${apartmentownerId}/payment-qr`;
     const { error } = await supabaseAdmin.storage
       .from(PAYMENT_QR_BUCKET)
       .remove([objectPath]);
@@ -970,7 +984,7 @@ export async function deletePaymentQr(
       return;
     }
 
-    sendSuccess(res, { client_id: clientId }, "Payment QR removed successfully");
+    sendSuccess(res, { apartmentowner_id: apartmentownerId }, "Payment QR removed successfully");
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

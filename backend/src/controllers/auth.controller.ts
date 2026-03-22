@@ -168,12 +168,12 @@ export async function validateEmailForAccountCreation(
     const [existingClientLookup, existingManagerLookup, existingTenantLookup] =
       await Promise.all([
         supabaseAdmin
-          .from("clients")
+          .from("apartment_owners")
           .select("id")
           .eq("email", normalizedEmail)
           .maybeSingle(),
         supabaseAdmin
-          .from("managers")
+          .from("apartment_managers")
           .select("id")
           .eq("email", normalizedEmail)
           .maybeSingle(),

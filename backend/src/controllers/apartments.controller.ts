@@ -2,20 +2,21 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
+import { logActivity } from "../utils/activityLog";
 
 async function getOrCreateApartmentForClient(
-  clientId: string,
+  apartmentownerId: string,
   nameHint?: string | null,
   addressHint?: string | null
 ): Promise<string | null> {
-  if (!clientId) {
+  if (!apartmentownerId) {
     return null;
   }
 
   const { data: existing } = await supabaseAdmin
     .from("apartments")
     .select("id")
-    .eq("client_id", clientId)
+    .eq("apartmentowner_id", apartmentownerId)
     .maybeSingle();
 
   if (existing?.id) {
@@ -25,7 +26,7 @@ async function getOrCreateApartmentForClient(
   const { data: created, error } = await supabaseAdmin
     .from("apartments")
     .insert({
-      client_id: clientId,
+      apartmentowner_id: apartmentownerId,
       name: nameHint || "Apartment",
       address: addressHint || null,
       status: "active",
@@ -53,7 +54,7 @@ function withFlatAddress(unit: any) {
 
 /**
  * GET /api/apartments
- * Get all apartments (optionally filtered by client_id or manager_id)
+ * Get all apartments (optionally filtered by apartmentowner_id or manager_id)
  */
 export async function getApartments(
   req: AuthenticatedRequest,
@@ -65,8 +66,8 @@ export async function getApartments(
       .select("*, apartment:apartment_id(address,name)")
       .order("created_at", { ascending: false });
 
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+    if (req.query.apartmentowner_id) {
+      query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
     if (req.query.manager_id) {
       query = query.eq("manager_id", req.query.manager_id as string);
@@ -125,9 +126,9 @@ export async function createApartment(
     const { address, ...rawPayload } = req.body || {};
     const payload = { ...rawPayload } as any;
 
-    if (!payload.apartment_id && payload.client_id) {
+    if (!payload.apartment_id && payload.apartmentowner_id) {
       payload.apartment_id = await getOrCreateApartmentForClient(
-        payload.client_id,
+        payload.apartmentowner_id,
         payload.name,
         address
       );
@@ -144,14 +145,28 @@ export async function createApartment(
       return;
     }
 
-    if (address && payload.client_id) {
+    if (address && payload.apartmentowner_id) {
       await supabaseAdmin
         .from("apartments")
         .update({ address, updated_at: new Date().toISOString() })
-        .eq("client_id", payload.client_id);
+        .eq("apartmentowner_id", payload.apartmentowner_id);
     }
 
     sendSuccess(res, data, "Apartment created successfully", 201);
+
+    if (data && payload.apartmentowner_id) {
+      logActivity({
+        apartmentowner_id: payload.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: req.user?.email || "System",
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "unit_created",
+        entity_type: "unit",
+        entity_id: data.id,
+        description: `Created unit ${data.name || "New Unit"}`,
+        metadata: { name: data.name, monthly_rent: data.monthly_rent },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -173,19 +188,19 @@ export async function createApartmentsBulk(
       const { address, ...rawPayload } = row || {};
       const payload = { ...rawPayload } as any;
 
-      if (!payload.apartment_id && payload.client_id) {
+      if (!payload.apartment_id && payload.apartmentowner_id) {
         payload.apartment_id = await getOrCreateApartmentForClient(
-          payload.client_id,
+          payload.apartmentowner_id,
           payload.name,
           address
         );
       }
 
-      if (address && payload.client_id) {
+      if (address && payload.apartmentowner_id) {
         await supabaseAdmin
           .from("apartments")
           .update({ address, updated_at: new Date().toISOString() })
-          .eq("client_id", payload.client_id);
+          .eq("apartmentowner_id", payload.apartmentowner_id);
       }
 
       preparedRows.push(payload);
@@ -220,9 +235,16 @@ export async function updateApartment(
     const { address, ...rawUpdates } = req.body || {};
     const updates = { ...rawUpdates } as any;
 
-    if (!updates.apartment_id && updates.client_id) {
+    // Fetch old record for diff
+    const { data: oldRecord } = await supabaseAdmin
+      .from("units")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (!updates.apartment_id && updates.apartmentowner_id) {
       updates.apartment_id = await getOrCreateApartmentForClient(
-        updates.client_id,
+        updates.apartmentowner_id,
         updates.name,
         address
       );
@@ -240,15 +262,37 @@ export async function updateApartment(
       return;
     }
 
-    const clientIdForAddress = updates.client_id || data?.client_id;
-    if (address && clientIdForAddress) {
+    const apartmentownerIdForAddress = updates.apartmentowner_id || data?.apartmentowner_id;
+    if (address && apartmentownerIdForAddress) {
       await supabaseAdmin
         .from("apartments")
         .update({ address, updated_at: new Date().toISOString() })
-        .eq("client_id", clientIdForAddress);
+        .eq("apartmentowner_id", apartmentownerIdForAddress);
     }
 
     sendSuccess(res, data, "Apartment updated successfully");
+
+    if (oldRecord && data) {
+      const changes: Record<string, { from: string; to: string }> = {};
+      for (const key of Object.keys(rawUpdates)) {
+        const oldVal = String(oldRecord[key] ?? "");
+        const newVal = String(data[key] ?? "");
+        if (oldVal !== newVal) changes[key] = { from: oldVal, to: newVal };
+      }
+      if (Object.keys(changes).length > 0) {
+        logActivity({
+          apartmentowner_id: data.apartmentowner_id,
+          actor_id: req.user?.id || null,
+          actor_name: req.user?.email || "System",
+          actor_role: (req.user?.role as "owner" | "manager") || "owner",
+          action: "unit_updated",
+          entity_type: "unit",
+          entity_id: id,
+          description: `Updated unit ${data.name || id}`,
+          metadata: { changes },
+        });
+      }
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -264,6 +308,13 @@ export async function deleteApartment(
 ): Promise<void> {
   try {
     const { id } = req.params;
+
+    // Fetch unit before deletion for logging
+    const { data: unit } = await supabaseAdmin
+      .from("units")
+      .select("name, apartmentowner_id")
+      .eq("id", id)
+      .single();
 
     // Soft-deactivate associated tenants first (preserve history)
     await supabaseAdmin
@@ -286,6 +337,19 @@ export async function deleteApartment(
     }
 
     sendSuccess(res, null, "Apartment deleted successfully");
+
+    if (unit) {
+      logActivity({
+        apartmentowner_id: unit.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: req.user?.email || "System",
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "unit_deleted",
+        entity_type: "unit",
+        entity_id: id,
+        description: `Deleted unit ${unit.name}`,
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -305,8 +369,8 @@ export async function getApartmentsWithTenants(
       .select("*, apartment:apartment_id(address,name)")
       .order("name", { ascending: true });
 
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+    if (req.query.apartmentowner_id) {
+      query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
     if (req.query.manager_id) {
       query = query.eq("manager_id", req.query.manager_id as string);
@@ -358,10 +422,11 @@ export async function getApartmentsWithTenants(
       address: apt.apartment?.address ?? null,
       monthly_rent: Number(apt.monthly_rent) || 0,
       total_units: apt.total_units,
-      client_id: apt.client_id,
+      apartmentowner_id: apt.apartmentowner_id,
       manager_id: apt.manager_id,
       status: apt.status,
       payment_due_day: apt.payment_due_day,
+      max_occupancy: apt.max_occupancy ?? null,
       created_at: apt.created_at,
       tenant_name: tenantMap[apt.id]?.name || null,
       tenant_phone: tenantMap[apt.id]?.phone || null,
@@ -383,14 +448,14 @@ export async function setPaymentDueDay(
   res: Response
 ): Promise<void> {
   try {
-    const { day, client_id } = req.body;
+    const { day, apartmentowner_id } = req.body;
 
-    if (client_id) {
+    if (apartmentowner_id) {
       // Update all apartments for the given client
       const { error } = await supabaseAdmin
         .from("units")
         .update({ payment_due_day: day })
-        .eq("client_id", client_id);
+        .eq("apartmentowner_id", apartmentowner_id);
 
       if (error) {
         sendError(res, error.message, 500);
@@ -421,7 +486,7 @@ export async function setPaymentDueDay(
 
 /**
  * GET /api/apartments/count
- * Get apartment count (optionally filtered by client_id)
+ * Get apartment count (optionally filtered by apartmentowner_id)
  */
 export async function getApartmentCount(
   req: AuthenticatedRequest,
@@ -432,8 +497,8 @@ export async function getApartmentCount(
       .from("units")
       .select("*", { count: "exact", head: true });
 
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+    if (req.query.apartmentowner_id) {
+      query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
 
     const { count, error } = await query;

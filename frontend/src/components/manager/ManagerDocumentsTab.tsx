@@ -64,7 +64,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
           email: null,
           phone: unit.tenant_phone || null,
           unit_id: unit.id,
-          client_id: unit.client_id,
+          apartmentowner_id: unit.apartmentowner_id,
           status: 'active',
           move_in_date: null,
           created_at: unit.created_at,

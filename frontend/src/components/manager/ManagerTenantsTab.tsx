@@ -1,5 +1,5 @@
-import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, ChevronDown } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
@@ -30,8 +30,11 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingTenant, setEditingTenant] = useState<TenantAccount | null>(null)
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', sex: '', age: '' })
   const [saving, setSaving] = useState(false)
+  const [phonePrefixError, setPhonePrefixError] = useState(false)
+  const [isSexOpen, setIsSexOpen] = useState(false)
+  const sexRef = useRef<HTMLDivElement>(null)
   const [showCredentials, setShowCredentials] = useState(false)
   const [credentials, setCredentials] = useState({ email: '' })
   const [copiedField, setCopiedField] = useState<string | null>(null)
@@ -50,6 +53,14 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
   useEffect(() => {
     loadData()
   }, [clientId])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (sexRef.current && !sexRef.current.contains(e.target as Node)) setIsSexOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (emailCooldown <= 0) return
@@ -75,7 +86,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
 
   function openAddModal() {
     setEditingTenant(null)
-    setForm({ firstName: '', lastName: '', email: '', phone: '' })
+    setForm({ firstName: '', lastName: '', email: '', phone: '', sex: '', age: '' })
     setShowModal(true)
   }
 
@@ -88,7 +99,9 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
       firstName,
       lastName,
       email: tenant.email || '',
-      phone: tenant.phone || '',
+      phone: (tenant.phone || '').replace(/^\+63/, ''),
+      sex: (tenant as any).sex || '',
+      age: (tenant as any).age || '',
     })
     setShowModal(true)
     setOpenMenu(null)
@@ -112,7 +125,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
         const updated = await updateTenantAccount(editingTenant.id, {
           name: fullName,
           email: form.email,
-          phone: form.phone || undefined,
+          phone: form.phone ? `+63${form.phone}` : undefined,
         })
         setTenants((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
         toast.success('Tenant updated successfully')
@@ -121,8 +134,10 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
         const result = await createTenantAccount({
           name: fullName,
           email: form.email,
-          phone: form.phone || undefined,
-          client_id: clientId,
+          phone: form.phone ? `+63${form.phone}` : undefined,
+          sex: form.sex || undefined,
+          age: form.age || undefined,
+          apartmentowner_id: clientId,
         })
         setTenants((prev) => [result.tenant, ...prev])
         setShowModal(false)
@@ -347,7 +362,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
               </button>
 
               <h3 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {editingTenant ? 'Edit Tenant' : 'Create Tenant Account'}
+                {editingTenant ? 'Edit Tenant' : 'Create Tenant'}
               </h3>
 
               {!editingTenant && (
@@ -377,13 +392,54 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div ref={sexRef} className="relative">
+                    <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Sex</Label>
+                    <button
+                      type="button"
+                      onClick={() => setIsSexOpen((prev) => !prev)}
+                      className={`w-full h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${inputClass} ${!form.sex ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}`}
+                    >
+                      {form.sex || 'Select'}
+                    </button>
+                    <ChevronDown
+                      className={`pointer-events-none absolute right-3 bottom-3 h-4 w-4 transition-transform ${isSexOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                    />
+                    {isSexOpen && (
+                      <div className={`absolute z-50 mt-1 w-full rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+                        {['Male', 'Female'].map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => { setForm({ ...form, sex: option }); setIsSexOpen(false) }}
+                            className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${option === form.sex ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Age</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={form.age}
+                      onChange={(e) => setForm({ ...form, age: e.target.value })}
+                      placeholder="Age"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
                 <div>
                   <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Email</Label>
                   <Input
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="tenant@gmail.com"
+                    placeholder="juandelacruz@gmail.com"
                     className={inputClass}
                   />
                   {!editingTenant && form.email.trim() && (
@@ -404,12 +460,23 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                 </div>
                 <div>
                   <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Phone</Label>
-                  <Input
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="+63 9XX XXX XXXX"
-                    className={inputClass}
-                  />
+                  <div className="relative">
+                    <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium select-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+63</span>
+                    <Input
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, '').slice(0, 10)
+                        setForm({ ...form, phone: raw })
+                        setPhonePrefixError(raw.length > 0 && raw[0] !== '9')
+                      }}
+                      placeholder="9XX XXX XXXX"
+                      className={`pl-12 ${inputClass}`}
+                    />
+                  </div>
+                  {phonePrefixError && (
+                    <p className="text-xs text-red-500 mt-1">Contact number must start with 9 after +63</p>
+                  )}
                 </div>
               </div>
 
@@ -432,7 +499,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                   }
                   className="bg-primary hover:bg-primary/90 text-white font-semibold"
                 >
-                  {editingTenant ? 'Update' : saving ? 'Creating...' : 'Create Account'}
+                  {editingTenant ? 'Update' : saving ? 'Creating...' : 'Create'}
                 </Button>
               </div>
             </div>

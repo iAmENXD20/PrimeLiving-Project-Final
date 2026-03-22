@@ -20,8 +20,8 @@ router.get("/count", authorize("admin", "owner"), getManagerCount);
 router.get("/by-auth/:authUserId", authorize("admin", "owner", "manager"), getManagerByAuthId);
 router.get("/", authorize("admin", "owner"), getManagers);
 router.get("/:id", authorize("admin", "owner", "manager"), getManagerById);
-router.post("/", authorize("admin", "owner"), invalidateCache(["managers", "analytics"]), createManager);
-router.put("/:id", authorize("admin", "owner", "manager"), invalidateCache(["managers", "analytics"]), updateManager);
-router.delete("/:id", authorize("admin", "owner"), invalidateCache(["managers", "analytics"]), deleteManager);
+router.post("/", authorize("admin", "owner"), invalidateCache(["apartment_managers", "analytics"]), createManager);
+router.put("/:id", authorize("admin", "owner", "manager"), invalidateCache(["apartment_managers", "analytics"]), updateManager);
+router.delete("/:id", authorize("admin", "owner"), invalidateCache(["apartment_managers", "analytics"]), deleteManager);
 
 export default router;

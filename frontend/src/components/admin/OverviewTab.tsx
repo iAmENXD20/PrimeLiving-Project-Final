@@ -34,7 +34,7 @@ export default function OverviewTab({ onTabChange }: OverviewTabProps) {
   const [recentInquiries, setRecentInquiries] = useState<Inquiry[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const pageSize = 10
+  const pageSize = 5
 
   useEffect(() => {
     async function load() {
@@ -205,7 +205,15 @@ export default function OverviewTab({ onTabChange }: OverviewTabProps) {
                     {inq.message}
                   </td>
                   <td className="py-3 px-4">
-                    <span className="inline-block px-2.5 py-0.5 text-xs font-medium rounded-full bg-yellow-500/15 text-yellow-500">
+                    <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize ${
+                      inq.status === 'approved'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
+                        : inq.status === 'cancelled'
+                        ? 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400'
+                        : inq.status === 'responded'
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400'
+                        : 'bg-amber-100 text-amber-700 dark:bg-yellow-500/15 dark:text-yellow-500'
+                    }`}>
                       {inq.status}
                     </span>
                   </td>

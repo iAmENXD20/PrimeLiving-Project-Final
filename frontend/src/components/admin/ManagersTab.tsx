@@ -59,10 +59,10 @@ export default function ManagersTab() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Managers
+            Apartment Managers
           </h2>
           <p className={`text-base mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            View apartment managers assigned by clients
+            View apartment managers assigned by apartment owners
           </p>
         </div>
       </div>
@@ -93,7 +93,7 @@ export default function ManagersTab() {
           <table className="w-full text-base">
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                {['Name', 'Email', 'Phone', 'Assigned Client', 'Status', 'Joined'].map(
+                {['Name', 'Email', 'Phone', 'Assigned Apartment Owner', 'Status', 'Joined'].map(
                   (h) => (
                     <th
                       key={h}

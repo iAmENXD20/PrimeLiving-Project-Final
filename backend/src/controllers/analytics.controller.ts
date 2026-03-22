@@ -15,10 +15,10 @@ export async function getOverviewStats(
     const [clientsRes, managersRes, tenantsRes, apartmentsRes, inquiriesRes] =
       await Promise.all([
         supabaseAdmin
-          .from("clients")
+          .from("apartment_owners")
           .select("*", { count: "exact", head: true }),
         supabaseAdmin
-          .from("managers")
+          .from("apartment_managers")
           .select("*", { count: "exact", head: true })
           .eq("status", "active"),
         supabaseAdmin
@@ -54,7 +54,7 @@ export async function getOverviewStats(
 }
 
 /**
- * GET /api/analytics/owner/:clientId
+ * GET /api/analytics/owner/:apartmentownerId
  * Get owner-specific stats
  */
 export async function getOwnerStats(
@@ -62,7 +62,7 @@ export async function getOwnerStats(
   res: Response
 ): Promise<void> {
   try {
-    const { clientId } = req.params;
+    const { apartmentownerId } = req.params;
     const monthParam = Number(req.query.month);
     const yearParam = Number(req.query.year);
     const hasMonthFilter =
@@ -76,14 +76,14 @@ export async function getOwnerStats(
     const { data: apartments } = await supabaseAdmin
       .from("units")
       .select("id")
-      .eq("client_id", clientId);
+      .eq("apartmentowner_id", apartmentownerId);
 
     const aptIds = (apartments || []).map((a: any) => a.id);
 
     const revenueQuery = supabaseAdmin
       .from("payments")
       .select("amount, payment_date")
-      .eq("client_id", clientId)
+      .eq("apartmentowner_id", apartmentownerId)
       .eq("status", "paid");
 
     if (hasMonthFilter) {
@@ -98,12 +98,12 @@ export async function getOwnerStats(
       supabaseAdmin
         .from("units")
         .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId)
+        .eq("apartmentowner_id", apartmentownerId)
         .eq("status", "active"),
       supabaseAdmin
         .from("maintenance")
         .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId)
+        .eq("apartmentowner_id", apartmentownerId)
         .eq("status", "pending"),
       revenueQuery,
     ]);
@@ -137,7 +137,7 @@ export async function getOwnerStats(
 }
 
 /**
- * GET /api/analytics/owner/:clientId/detail-stats
+ * GET /api/analytics/owner/:apartmentownerId/detail-stats
  * Get detailed breakdown of tenants/managers for admin client detail view
  */
 export async function getClientDetailStats(
@@ -145,13 +145,13 @@ export async function getClientDetailStats(
   res: Response
 ): Promise<void> {
   try {
-    const { clientId } = req.params;
+    const { apartmentownerId } = req.params;
 
     // Get apartments for this client
     const { data: apartments } = await supabaseAdmin
       .from("units")
       .select("id")
-      .eq("client_id", clientId);
+      .eq("apartmentowner_id", apartmentownerId);
 
     const aptIds = (apartments || []).map((a: any) => a.id);
 
@@ -167,9 +167,9 @@ export async function getClientDetailStats(
 
     // Get managers
     const { data: managers } = await supabaseAdmin
-      .from("managers")
+      .from("apartment_managers")
       .select("id, status")
-      .eq("client_id", clientId);
+      .eq("apartmentowner_id", apartmentownerId);
 
     const managerList = managers || [];
 
@@ -200,10 +200,10 @@ export async function getManagerStats(
 ): Promise<void> {
   try {
     const { managerId } = req.params;
-    const clientId = req.query.client_id as string;
+    const apartmentownerId = req.query.apartmentowner_id as string;
 
-    if (!clientId) {
-      sendError(res, "client_id query parameter is required", 400);
+    if (!apartmentownerId) {
+      sendError(res, "apartmentowner_id query parameter is required", 400);
       return;
     }
 
@@ -221,7 +221,7 @@ export async function getManagerStats(
       const { data: clientApartments } = await supabaseAdmin
         .from("units")
         .select("id")
-        .eq("client_id", clientId)
+        .eq("apartmentowner_id", apartmentownerId)
         .eq("status", "active");
 
       apartmentIds = (clientApartments || []).map((a: any) => a.id);
@@ -237,11 +237,11 @@ export async function getManagerStats(
         .from("maintenance")
         .select("*", { count: "exact", head: true })
         .eq("status", "pending")
-        .eq("client_id", clientId),
+        .eq("apartmentowner_id", apartmentownerId),
       supabaseAdmin
         .from("maintenance")
         .select("*", { count: "exact", head: true })
-        .eq("client_id", clientId),
+        .eq("apartmentowner_id", apartmentownerId),
     ]);
 
     // Get paid/unpaid tenants for current month
@@ -263,7 +263,7 @@ export async function getManagerStats(
     const { data: paidPayments } = await supabaseAdmin
       .from("payments")
       .select("tenant_id")
-      .eq("client_id", clientId)
+      .eq("apartmentowner_id", apartmentownerId)
       .eq("status", "paid")
       .gte("payment_date", startOfMonth)
       .lte("payment_date", endOfMonth);
@@ -350,10 +350,10 @@ export async function getUserDistribution(
   try {
     const [clientsRes, managersRes, tenantsRes] = await Promise.all([
       supabaseAdmin
-        .from("clients")
+        .from("apartment_owners")
         .select("*", { count: "exact", head: true }),
       supabaseAdmin
-        .from("managers")
+        .from("apartment_managers")
         .select("*", { count: "exact", head: true }),
       supabaseAdmin
         .from("tenants")
@@ -361,9 +361,9 @@ export async function getUserDistribution(
     ]);
 
     sendSuccess(res, [
-      { name: "Clients", value: clientsRes.count ?? 0 },
+      { name: "Apartment Owners", value: clientsRes.count ?? 0 },
       { name: "Tenants", value: tenantsRes.count ?? 0 },
-      { name: "Managers", value: managersRes.count ?? 0 },
+      { name: "Apartment Managers", value: managersRes.count ?? 0 },
     ]);
   } catch (err: any) {
     sendError(res, err.message, 500);
@@ -415,20 +415,20 @@ export async function getTenantsPerApartment(
     }));
 
     // Get client names
-    const clientIds = [
+    const apartmentownerIds = [
       ...new Set(
         apartmentsWithCounts
-          .map((a: any) => a.client_id)
+          .map((a: any) => a.apartmentowner_id)
           .filter(Boolean)
       ),
     ] as string[];
 
     let clientMap: Record<string, string> = {};
-    if (clientIds.length > 0) {
+    if (apartmentownerIds.length > 0) {
       const { data: clients } = await supabaseAdmin
-        .from("clients")
+        .from("apartment_owners")
         .select("id, name")
-        .in("id", clientIds);
+        .in("id", apartmentownerIds);
       (clients || []).forEach((c: any) => {
         clientMap[c.id] = c.name;
       });
@@ -436,16 +436,16 @@ export async function getTenantsPerApartment(
 
     // Get manager counts per client
     let managerCountMap: Record<string, number> = {};
-    if (clientIds.length > 0) {
+    if (apartmentownerIds.length > 0) {
       const { data: managers } = await supabaseAdmin
-        .from("managers")
-        .select("client_id")
+        .from("apartment_managers")
+        .select("apartmentowner_id")
         .eq("status", "active")
-        .in("client_id", clientIds);
+        .in("apartmentowner_id", apartmentownerIds);
       (managers || []).forEach((m: any) => {
-        if (m.client_id) {
-          managerCountMap[m.client_id] =
-            (managerCountMap[m.client_id] || 0) + 1;
+        if (m.apartmentowner_id) {
+          managerCountMap[m.apartmentowner_id] =
+            (managerCountMap[m.apartmentowner_id] || 0) + 1;
         }
       });
     }
@@ -465,10 +465,10 @@ export async function getTenantsPerApartment(
     > = {};
 
     for (const apt of apartmentsWithCounts) {
-      const cid = apt.client_id || "__unassigned";
+      const cid = apt.apartmentowner_id || "__unassigned";
       const ownerName =
-        apt.client_id && clientMap[apt.client_id]
-          ? clientMap[apt.client_id]
+        apt.apartmentowner_id && clientMap[apt.apartmentowner_id]
+          ? clientMap[apt.apartmentowner_id]
           : "Unassigned";
 
       if (!clientAggMap[cid]) {
@@ -479,8 +479,8 @@ export async function getTenantsPerApartment(
           apartments: 0,
           activeUnits: 0,
           addresses: [],
-          managers: apt.client_id
-            ? managerCountMap[apt.client_id] || 0
+          managers: apt.apartmentowner_id
+            ? managerCountMap[apt.apartmentowner_id] || 0
             : 0,
         };
       }
@@ -527,11 +527,11 @@ export async function getAllUsers(
   try {
     const [clientsRes, managersRes, tenantsRes] = await Promise.all([
       supabaseAdmin
-        .from("clients")
+        .from("apartment_owners")
         .select("*")
         .order("created_at", { ascending: false }),
       supabaseAdmin
-        .from("managers")
+        .from("apartment_managers")
         .select("*, clients(apartment_address)")
         .order("created_at", { ascending: false }),
       supabaseAdmin
@@ -602,17 +602,17 @@ export async function getMaintenanceByMonth(
   res: Response
 ): Promise<void> {
   try {
-    const clientId = req.query.client_id as string;
+    const apartmentownerId = req.query.apartmentowner_id as string;
 
-    if (!clientId) {
-      sendError(res, "client_id query parameter is required", 400);
+    if (!apartmentownerId) {
+      sendError(res, "apartmentowner_id query parameter is required", 400);
       return;
     }
 
     const { data, error } = await supabaseAdmin
       .from("maintenance")
       .select("created_at, status")
-      .eq("client_id", clientId)
+      .eq("apartmentowner_id", apartmentownerId)
       .order("created_at", { ascending: true });
 
     if (error) {

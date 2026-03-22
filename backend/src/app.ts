@@ -20,6 +20,7 @@ import announcementsRoutes from "./routes/announcements.routes";
 import notificationsRoutes from "./routes/notifications.routes";
 import analyticsRoutes from "./routes/analytics.routes";
 import revenuesRoutes from "./routes/revenues.routes";
+import apartmentLogsRoutes from "./routes/apartment-logs.routes";
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use("/api/announcements", announcementsRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/revenues", revenuesRoutes);
+app.use("/api/apartment-logs", apartmentLogsRoutes);
 
 // ── Error Handling ──
 app.use(notFoundHandler);

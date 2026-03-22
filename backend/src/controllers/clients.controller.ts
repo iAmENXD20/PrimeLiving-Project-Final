@@ -22,7 +22,7 @@ export async function getClients(
 ): Promise<void> {
   try {
     const { data, error } = await supabaseAdmin
-      .from("clients")
+      .from("apartment_owners")
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -49,7 +49,7 @@ export async function getClientById(
     const { id } = req.params;
 
     const { data, error } = await supabaseAdmin
-      .from("clients")
+      .from("apartment_owners")
       .select("*")
       .eq("id", id)
       .single();
@@ -88,7 +88,7 @@ export async function getClientLocation(
       allowed = true;
     } else if (user.role === "owner") {
       const { data: owner } = await supabaseAdmin
-        .from("clients")
+        .from("apartment_owners")
         .select("id")
         .eq("id", id)
         .eq("auth_user_id", user.id)
@@ -96,20 +96,20 @@ export async function getClientLocation(
       allowed = Boolean(owner);
     } else if (user.role === "manager") {
       const { data: manager } = await supabaseAdmin
-        .from("managers")
-        .select("client_id")
+        .from("apartment_managers")
+        .select("apartmentowner_id")
         .eq("auth_user_id", user.id)
         .eq("status", "active")
         .maybeSingle();
-      allowed = manager?.client_id === id;
+      allowed = manager?.apartmentowner_id === id;
     } else if (user.role === "tenant") {
       const { data: tenant } = await supabaseAdmin
         .from("tenants")
-        .select("client_id")
+        .select("apartmentowner_id")
         .eq("auth_user_id", user.id)
         .eq("status", "active")
         .maybeSingle();
-      allowed = tenant?.client_id === id;
+      allowed = tenant?.apartmentowner_id === id;
     }
 
     if (!allowed) {
@@ -118,7 +118,7 @@ export async function getClientLocation(
     }
 
     const { data, error } = await supabaseAdmin
-      .from("clients")
+      .from("apartment_owners")
       .select("id, apartment_address, name")
       .eq("id", id)
       .single();
@@ -146,7 +146,7 @@ export async function getClientByAuthId(
     const { authUserId } = req.params;
 
     const { data, error } = await supabaseAdmin
-      .from("clients")
+      .from("apartment_owners")
       .select("*")
       .eq("auth_user_id", authUserId)
       .single();
@@ -171,7 +171,12 @@ export async function createClient(
   res: Response
 ): Promise<void> {
   try {
-    const { name, email, phone, apartment_address } = req.body;
+    const {
+      name, email, phone, apartment_address,
+      sex, age, apartment_classification,
+      street_building, barangay, province, city_municipality, zip_code,
+      number_of_units, number_of_floors, other_property_details,
+    } = req.body;
     const normalizedEmail = String(email || "").trim().toLowerCase();
 
     if (!normalizedEmail) {
@@ -185,8 +190,8 @@ export async function createClient(
     }
 
     const [existingClientLookup, existingManagerLookup, existingTenantLookup] = await Promise.all([
-      supabaseAdmin.from("clients").select("id").eq("email", normalizedEmail).maybeSingle(),
-      supabaseAdmin.from("managers").select("id").eq("email", normalizedEmail).maybeSingle(),
+      supabaseAdmin.from("apartment_owners").select("id").eq("email", normalizedEmail).maybeSingle(),
+      supabaseAdmin.from("apartment_managers").select("id").eq("email", normalizedEmail).maybeSingle(),
       supabaseAdmin.from("tenants").select("id").eq("email", normalizedEmail).maybeSingle(),
     ]);
 
@@ -238,13 +243,24 @@ export async function createClient(
 
     // Create client record linked to auth user
     const { data, error } = await supabaseAdmin
-      .from("clients")
+      .from("apartment_owners")
       .insert({
         auth_user_id: inviteData.user.id,
         name,
         email: normalizedEmail,
         phone,
         apartment_address,
+        sex,
+        age,
+        apartment_classification,
+        street_building,
+        barangay,
+        province,
+        city_municipality,
+        zip_code,
+        number_of_units,
+        number_of_floors,
+        other_property_details,
         status: "active",
       })
       .select()
@@ -281,7 +297,7 @@ export async function updateClient(
     const updates = req.body;
 
     const { data, error } = await supabaseAdmin
-      .from("clients")
+      .from("apartment_owners")
       .update(updates)
       .eq("id", id)
       .select()
@@ -310,7 +326,7 @@ export async function deleteClient(
     const { id } = req.params;
 
     const { error } = await supabaseAdmin
-      .from("clients")
+      .from("apartment_owners")
       .delete()
       .eq("id", id);
 
@@ -335,7 +351,7 @@ export async function getClientCount(
 ): Promise<void> {
   try {
     const { count, error } = await supabaseAdmin
-      .from("clients")
+      .from("apartment_owners")
       .select("*", { count: "exact", head: true });
 
     if (error) {

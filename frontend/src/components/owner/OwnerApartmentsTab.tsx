@@ -93,7 +93,7 @@ export default function OwnerApartmentsTab({ clientId }: OwnerApartmentsTabProps
             className="inline-flex items-center gap-2 px-5 py-3 bg-primary hover:bg-primary-600 text-white font-semibold text-base rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Add Units
+            Update
           </button>
         </div>
 
@@ -109,7 +109,7 @@ export default function OwnerApartmentsTab({ clientId }: OwnerApartmentsTabProps
               No units yet
             </p>
             <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-              Click "Add Units" to create your apartment units
+              Click "Update" to manage your apartment units
             </p>
           </div>
         )}
@@ -185,7 +185,7 @@ export default function OwnerApartmentsTab({ clientId }: OwnerApartmentsTabProps
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Add Units
+                Update Units
               </h3>
               <button
                 onClick={() => setShowAddModal(false)}

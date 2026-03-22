@@ -2,6 +2,7 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
+import { logActivity } from "../utils/activityLog";
 
 const DOCUMENTS_BUCKET = "documents-private";
 
@@ -50,7 +51,7 @@ function extractStoragePath(fileUrl: string | null | undefined): string | null {
 
 /**
  * GET /api/documents
- * Get documents (filtered by client_id)
+ * Get documents (filtered by apartmentowner_id)
  */
 export async function getDocuments(
   req: AuthenticatedRequest,
@@ -87,8 +88,8 @@ export async function getDocuments(
       query = query.eq("tenant_id", tenantProfile.id);
     }
 
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+    if (req.query.apartmentowner_id) {
+      query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
     if (req.query.unit_id) {
       query = query.eq("unit_id", req.query.unit_id as string);
@@ -192,7 +193,7 @@ export async function uploadDocument(
 ): Promise<void> {
   try {
     const {
-      client_id,
+      apartmentowner_id,
       unit_id,
       tenant_id,
       uploaded_by,
@@ -201,7 +202,7 @@ export async function uploadDocument(
       description,
       file_data,
     } = req.body as {
-      client_id?: string;
+      apartmentowner_id?: string;
       unit_id?: string | null;
       tenant_id?: string | null;
       uploaded_by?: string | null;
@@ -211,8 +212,8 @@ export async function uploadDocument(
       file_data?: string;
     };
 
-    if (!client_id || !file_name || !file_type || !file_data) {
-      sendError(res, "client_id, file_name, file_type and file_data are required", 400);
+    if (!apartmentowner_id || !file_name || !file_type || !file_data) {
+      sendError(res, "apartmentowner_id, file_name, file_type and file_data are required", 400);
       return;
     }
 
@@ -230,7 +231,7 @@ export async function uploadDocument(
     await ensureDocumentsBucket();
 
     const safeFileName = file_name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const objectPath = `${client_id}/${Date.now()}_${safeFileName}`;
+    const objectPath = `${apartmentowner_id}/${Date.now()}_${safeFileName}`;
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from(DOCUMENTS_BUCKET)
@@ -256,7 +257,7 @@ export async function uploadDocument(
     const { data, error } = await supabaseAdmin
       .from("documents")
       .insert({
-        client_id,
+        apartmentowner_id,
         unit_id: unit_id || null,
         tenant_id: tenant_id || null,
         uploaded_by: uploaded_by || null,
@@ -283,6 +284,18 @@ export async function uploadDocument(
       "Document uploaded successfully",
       201
     );
+
+    logActivity({
+      apartmentowner_id,
+      actor_id: req.user?.id || null,
+      actor_name: req.user?.email || "System",
+      actor_role: (req.user?.role as "owner" | "manager") || "owner",
+      action: "document_uploaded",
+      entity_type: "document",
+      entity_id: data.id,
+      description: `Uploaded document: ${file_name}`,
+      metadata: { file_name, file_type },
+    });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -304,7 +317,7 @@ export async function deleteDocument(
     // Get the document to find the storage path
     const { data: doc, error: fetchError } = await supabaseAdmin
       .from("documents")
-      .select("file_url")
+      .select("file_url, file_name, apartmentowner_id")
       .eq("id", id)
       .single();
 
@@ -333,6 +346,19 @@ export async function deleteDocument(
     }
 
     sendSuccess(res, null, "Document deleted successfully");
+
+    if (doc?.apartmentowner_id) {
+      logActivity({
+        apartmentowner_id: doc.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: req.user?.email || "System",
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "document_deleted",
+        entity_type: "document",
+        entity_id: id,
+        description: `Deleted document: ${doc.file_name || "unknown"}`,
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

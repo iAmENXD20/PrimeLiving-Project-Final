@@ -172,7 +172,7 @@ describe("controller unit tests", () => {
 
     const req = {
       body: {
-        client_id: "client-1",
+        apartmentowner_id: "client-1",
         title: "Notice",
         message: "Test",
       },
@@ -198,7 +198,7 @@ describe("controller unit tests", () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: "client_id, file_name, file_type and file_data are required",
+        error: "apartmentowner_id, file_name, file_type and file_data are required",
       })
     );
   });
@@ -273,7 +273,7 @@ describe("controller unit tests", () => {
       expect.objectContaining({
         success: false,
         error:
-          "tenant_id, client_id, period_from, period_to, and receipt_url are required",
+          "tenant_id, apartmentowner_id, period_from, period_to, and receipt_url are required",
       })
     );
   });
@@ -290,7 +290,7 @@ describe("controller unit tests", () => {
     );
   });
 
-  it("payments.generateMonthlyBillings validates client_id", async () => {
+  it("payments.generateMonthlyBillings validates apartmentowner_id", async () => {
     const req = { body: {} } as any;
     const res = makeRes();
 
@@ -298,11 +298,11 @@ describe("controller unit tests", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: "client_id is required" })
+      expect.objectContaining({ success: false, error: "apartmentowner_id is required" })
     );
   });
 
-  it("payments.getPendingVerifications validates client_id query", async () => {
+  it("payments.getPendingVerifications validates apartmentowner_id query", async () => {
     const req = { query: {} } as any;
     const res = makeRes();
 
@@ -310,7 +310,7 @@ describe("controller unit tests", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: "client_id query parameter is required" })
+      expect.objectContaining({ success: false, error: "apartmentowner_id query parameter is required" })
     );
   });
 
@@ -322,7 +322,7 @@ describe("controller unit tests", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: "client_id and data_url are required" })
+      expect.objectContaining({ success: false, error: "apartmentowner_id and data_url are required" })
     );
   });
 
@@ -334,7 +334,7 @@ describe("controller unit tests", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: "clientId is required" })
+      expect.objectContaining({ success: false, error: "apartmentownerId is required" })
     );
   });
 
@@ -362,7 +362,7 @@ describe("controller unit tests", () => {
     );
   });
 
-  it("payments.deletePaymentQr validates clientId", async () => {
+  it("payments.deletePaymentQr validates apartmentownerId", async () => {
     const req = { params: {} } as any;
     const res = makeRes();
 
@@ -370,7 +370,7 @@ describe("controller unit tests", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: "clientId is required" })
+      expect.objectContaining({ success: false, error: "apartmentownerId is required" })
     );
   });
 
@@ -428,7 +428,7 @@ describe("controller unit tests", () => {
     );
   });
 
-  it("revenues.getRevenueByMonth validates client_id query", async () => {
+  it("revenues.getRevenueByMonth validates apartmentowner_id query", async () => {
     const req = { query: {} } as any;
     const res = makeRes();
 
@@ -436,11 +436,11 @@ describe("controller unit tests", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: "client_id query parameter is required" })
+      expect.objectContaining({ success: false, error: "apartmentowner_id query parameter is required" })
     );
   });
 
-  it("analytics.getManagerStats validates client_id query", async () => {
+  it("analytics.getManagerStats validates apartmentowner_id query", async () => {
     const req = { params: { managerId: "mgr-1" }, query: {} } as any;
     const res = makeRes();
 
@@ -448,11 +448,11 @@ describe("controller unit tests", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: "client_id query parameter is required" })
+      expect.objectContaining({ success: false, error: "apartmentowner_id query parameter is required" })
     );
   });
 
-  it("analytics.getMaintenanceByMonth validates client_id query", async () => {
+  it("analytics.getMaintenanceByMonth validates apartmentowner_id query", async () => {
     const req = { query: {} } as any;
     const res = makeRes();
 
@@ -460,13 +460,13 @@ describe("controller unit tests", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: "client_id query parameter is required" })
+      expect.objectContaining({ success: false, error: "apartmentowner_id query parameter is required" })
     );
   });
 
   it("managers.getManagers returns data", async () => {
     mocks.fromMock.mockImplementation((table: string) => {
-      if (table !== "managers") throw new Error(`unexpected table: ${table}`);
+      if (table !== "apartment_managers") throw new Error(`unexpected table: ${table}`);
       return makeQueryResult({ data: [{ id: "m-1", name: "Manager" }] });
     });
 
@@ -483,7 +483,7 @@ describe("controller unit tests", () => {
 
   it("managers.getManagerById maps query error to 404", async () => {
     mocks.fromMock.mockImplementation((table: string) => {
-      if (table !== "managers") throw new Error(`unexpected table: ${table}`);
+      if (table !== "apartment_managers") throw new Error(`unexpected table: ${table}`);
       return makeQueryResult({ data: null, error: { message: "not found" } });
     });
 
@@ -500,7 +500,7 @@ describe("controller unit tests", () => {
 
   it("managers.getManagerCount returns count payload", async () => {
     mocks.fromMock.mockImplementation((table: string) => {
-      if (table !== "managers") throw new Error(`unexpected table: ${table}`);
+      if (table !== "apartment_managers") throw new Error(`unexpected table: ${table}`);
       return makeQueryResult({ count: 7 });
     });
 
@@ -659,13 +659,13 @@ describe("controller unit tests", () => {
     );
   });
 
-  it("apartments.setPaymentDueDay updates all units by client_id", async () => {
+  it("apartments.setPaymentDueDay updates all units by apartmentowner_id", async () => {
     mocks.fromMock.mockImplementation((table: string) => {
       if (table !== "units") throw new Error(`unexpected table: ${table}`);
       return makeQueryResult({ error: null });
     });
 
-    const req = { body: { day: 10, client_id: "c-1" }, params: {} } as any;
+    const req = { body: { day: 10, apartmentowner_id: "c-1" }, params: {} } as any;
     const res = makeRes();
 
     await setPaymentDueDay(req, res as any);
@@ -805,7 +805,7 @@ describe("controller unit tests", () => {
       body: {
         tenant_id: "t-1",
         unit_id: "u-1",
-        client_id: "c-1",
+        apartmentowner_id: "c-1",
         title: "Leak",
         description: "Kitchen leak",
         priority: "high",

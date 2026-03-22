@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { sendSmsToMany } from "../utils/sms";
 import { createNotification, createNotifications } from "../utils/notifications";
+import { logActivity } from "../utils/activityLog";
 
 const MAINTENANCE_PHOTO_BUCKET = "maintenance-photos";
 
@@ -43,7 +44,7 @@ function parseMaintenanceDataUrl(dataUrl: string): { mime: string; buffer: Buffe
 
 /**
  * GET /api/maintenance
- * Get maintenance requests (filtered by client_id or tenant_id)
+ * Get maintenance requests (filtered by apartmentowner_id or tenant_id)
  */
 export async function getMaintenanceRequests(
   req: AuthenticatedRequest,
@@ -55,8 +56,8 @@ export async function getMaintenanceRequests(
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+    if (req.query.apartmentowner_id) {
+      query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
     if (req.query.tenant_id) {
       query = query.eq("tenant_id", req.query.tenant_id as string);
@@ -115,7 +116,7 @@ export async function createMaintenanceRequest(
   res: Response
 ): Promise<void> {
   try {
-    const { tenant_id, unit_id, client_id, title, description, priority, photo_url } =
+    const { tenant_id, unit_id, apartmentowner_id, title, description, priority, photo_url } =
       req.body;
 
     const { data, error } = await supabaseAdmin
@@ -123,7 +124,7 @@ export async function createMaintenanceRequest(
       .insert({
         tenant_id,
         unit_id,
-        client_id,
+        apartmentowner_id,
         title,
         description,
         priority,
@@ -140,9 +141,9 @@ export async function createMaintenanceRequest(
 
     const [{ data: managersByClient }, { data: tenant }] = await Promise.all([
       supabaseAdmin
-        .from("managers")
+        .from("apartment_managers")
         .select("id, phone")
-        .eq("client_id", client_id)
+        .eq("apartmentowner_id", apartmentowner_id)
         .eq("status", "active"),
       supabaseAdmin
         .from("tenants")
@@ -162,7 +163,7 @@ export async function createMaintenanceRequest(
 
       if (apartment?.manager_id) {
         const { data: managerByApartment } = await supabaseAdmin
-          .from("managers")
+          .from("apartment_managers")
           .select("id, phone")
           .eq("id", apartment.manager_id)
           .eq("status", "active")
@@ -177,12 +178,12 @@ export async function createMaintenanceRequest(
     await sendSmsToMany(
       (managers || []).map((manager: any) => manager.phone),
       `[PrimeLiving] New maintenance request from ${tenant?.name || "tenant"}: ${title} (${priority})`,
-      { unit_id, client_id }
+      { unit_id, apartmentowner_id }
     );
 
     await createNotifications(
       (managers || []).map((manager: any) => ({
-        client_id,
+        apartmentowner_id,
         unit_id,
         recipient_role: "manager" as const,
         recipient_id: manager.id,
@@ -232,12 +233,12 @@ export async function updateMaintenanceStatus(
       await sendSmsToMany(
         [tenant?.phone],
         `[PrimeLiving] Your maintenance request "${data.title}" is now ${status.replace("_", " ")}.`,
-        { unit_id: data.unit_id, client_id: data.client_id }
+        { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 
-      if (data.client_id && data.tenant_id) {
+      if (data.apartmentowner_id && data.tenant_id) {
         await createNotification({
-          client_id: data.client_id,
+          apartmentowner_id: data.apartmentowner_id,
           unit_id: data.unit_id,
           recipient_role: "tenant",
           recipient_id: data.tenant_id,
@@ -249,6 +250,20 @@ export async function updateMaintenanceStatus(
     }
 
     sendSuccess(res, data, "Maintenance status updated successfully");
+
+    if (data?.apartmentowner_id) {
+      logActivity({
+        apartmentowner_id: data.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: req.user?.email || "System",
+        actor_role: (req.user?.role as "owner" | "manager") || "manager",
+        action: "maintenance_status_updated",
+        entity_type: "maintenance",
+        entity_id: id,
+        description: `Maintenance "${data.title}" status changed to ${status}`,
+        metadata: { title: data.title, status },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -256,7 +271,7 @@ export async function updateMaintenanceStatus(
 
 /**
  * GET /api/maintenance/count/pending
- * Get count of pending maintenance requests (filtered by client_id)
+ * Get count of pending maintenance requests (filtered by apartmentowner_id)
  */
 export async function getPendingMaintenanceCount(
   req: AuthenticatedRequest,
@@ -268,8 +283,8 @@ export async function getPendingMaintenanceCount(
       .select("*", { count: "exact", head: true })
       .eq("status", "pending");
 
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+    if (req.query.apartmentowner_id) {
+      query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
 
     const { count, error } = await query;

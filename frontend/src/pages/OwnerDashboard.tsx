@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import OwnerSidebar from '../components/owner/OwnerSidebar'
 import OwnerTopBar from '../components/owner/OwnerTopBar'
-import OwnerOverviewTab from '../components/owner/OwnerOverviewTab'
-import OwnerManageApartmentTab from '../components/owner/OwnerManageApartmentTab'
-import OwnerAccountTab from '../components/owner/OwnerAccountTab'
-import OwnerMaintenanceTab from '../components/owner/OwnerMaintenanceTab'
-import OwnerPaymentsTab from '../components/owner/OwnerPaymentsTab'
-import OwnerDocumentsTab from '../components/owner/OwnerDocumentsTab'
 import { getCurrentOwner } from '../lib/ownerApi'
 import { CardsSkeleton } from '../components/ui/skeleton'
+
+const OwnerOverviewTab = lazy(() => import('../components/owner/OwnerOverviewTab'))
+const OwnerManageApartmentTab = lazy(() => import('../components/owner/OwnerManageApartmentTab'))
+const OwnerAccountTab = lazy(() => import('../components/owner/OwnerAccountTab'))
+const OwnerMaintenanceTab = lazy(() => import('../components/owner/OwnerMaintenanceTab'))
+const OwnerPaymentsTab = lazy(() => import('../components/owner/OwnerPaymentsTab'))
+const OwnerDocumentsTab = lazy(() => import('../components/owner/OwnerDocumentsTab'))
 
 export default function OwnerDashboard() {
   const { isDark } = useTheme()
@@ -106,7 +107,11 @@ export default function OwnerDashboard() {
         />
 
         {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">{renderContent()}</main>
+        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">
+          <Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+            {renderContent()}
+          </Suspense>
+        </main>
       </div>
     </div>
   )

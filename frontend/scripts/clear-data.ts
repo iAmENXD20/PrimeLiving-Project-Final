@@ -22,9 +22,9 @@ async function clearAllData() {
     'revenues',
     'tenants',
     'apartments',
-    'managers',
+    'apartment_managers',
     'inquiries',
-    'clients',
+    'apartment_owners',
   ]
 
   for (const table of tables) {

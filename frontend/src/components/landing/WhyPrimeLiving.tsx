@@ -5,7 +5,7 @@ import { useInView } from '@/hooks/useInView'
 const benefits = [
   'Centralized apartment management across multiple buildings',
   'Real-time SMS notifications for rent and announcements',
-  'Secure role-based access for admins, managers, and tenants',
+  'Secure role-based access for admins, apartment managers, and tenants',
   'Interactive maps showing apartment locations',
   'Automated account creation with secure credentials',
   'Digital payment receipts and transaction history',

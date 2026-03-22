@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import Sidebar from '../components/admin/Sidebar'
 import TopBar from '../components/admin/TopBar'
-import OverviewTab from '../components/admin/OverviewTab'
-import ClientsTab from '../components/admin/ClientsTab'
-import InquiriesTab from '../components/admin/InquiriesTab'
-import AccountTab from '../components/admin/AccountTab'
 import { getPendingInquiryCount } from '../lib/api'
+
+const OverviewTab = lazy(() => import('../components/admin/OverviewTab'))
+const ClientsTab = lazy(() => import('../components/admin/ClientsTab'))
+const InquiriesTab = lazy(() => import('../components/admin/InquiriesTab'))
+const AccountTab = lazy(() => import('../components/admin/AccountTab'))
 
 export default function AdminDashboard() {
   const { isDark } = useTheme()
@@ -82,7 +83,11 @@ export default function AdminDashboard() {
         <TopBar onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
 
         {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">{renderContent()}</main>
+        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">
+          <Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+            {renderContent()}
+          </Suspense>
+        </main>
       </div>
     </div>
   )

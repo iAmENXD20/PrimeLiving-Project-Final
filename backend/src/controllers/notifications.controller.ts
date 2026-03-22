@@ -9,7 +9,7 @@ export async function getNotifications(req: AuthenticatedRequest, res: Response)
   try {
     const recipientRole = req.query.recipient_role as string | undefined;
     const recipientId = req.query.recipient_id as string | undefined;
-    const clientId = req.query.client_id as string | undefined;
+    const apartmentownerId = req.query.apartmentowner_id as string | undefined;
     const apartmentId = req.query.apartment_id as string | undefined;
 
     let query = supabaseAdmin
@@ -20,7 +20,7 @@ export async function getNotifications(req: AuthenticatedRequest, res: Response)
 
     if (recipientRole) query = query.eq("recipient_role", recipientRole);
     if (recipientId) query = query.eq("recipient_id", recipientId);
-    if (clientId) query = query.eq("client_id", clientId);
+    if (apartmentownerId) query = query.eq("apartmentowner_id", apartmentownerId);
     if (apartmentId) query = query.eq("apartment_id", apartmentId);
 
     const { data, error } = await query;
@@ -121,9 +121,9 @@ export async function deleteAllNotifications(req: AuthenticatedRequest, res: Res
       .eq("recipient_role", recipientRole)
       .eq("recipient_id", recipientId);
 
-    const clientId = req.body.client_id as string | undefined;
-    if (clientId) {
-      query = query.eq("client_id", clientId);
+    const apartmentownerId = req.body.apartmentowner_id as string | undefined;
+    if (apartmentownerId) {
+      query = query.eq("apartmentowner_id", apartmentownerId);
     }
 
     const { error } = await query;

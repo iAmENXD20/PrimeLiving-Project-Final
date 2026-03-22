@@ -22,12 +22,12 @@ function normalizeRole(rawRole: unknown): UserRole | null {
 async function resolveUserRole(userId: string, user: any): Promise<UserRole> {
   const [ownerRes, managerRes, tenantRes] = await Promise.all([
     supabaseAdmin
-      .from("clients")
+      .from("apartment_owners")
       .select("id")
       .eq("auth_user_id", userId)
       .maybeSingle(),
     supabaseAdmin
-      .from("managers")
+      .from("apartment_managers")
       .select("id")
       .eq("auth_user_id", userId)
       .maybeSingle(),
@@ -59,7 +59,7 @@ async function ensureRoleIsActive(role: UserRole, userId: string): Promise<boole
 
   if (role === "owner") {
     const { data } = await supabaseAdmin
-      .from("clients")
+      .from("apartment_owners")
       .select("id,status")
       .eq("auth_user_id", userId)
       .maybeSingle();
@@ -69,7 +69,7 @@ async function ensureRoleIsActive(role: UserRole, userId: string): Promise<boole
 
   if (role === "manager") {
     const { data } = await supabaseAdmin
-      .from("managers")
+      .from("apartment_managers")
       .select("id,status")
       .eq("auth_user_id", userId)
       .maybeSingle();
@@ -80,7 +80,7 @@ async function ensureRoleIsActive(role: UserRole, userId: string): Promise<boole
 
     if (data.status === "pending") {
       await supabaseAdmin
-        .from("managers")
+        .from("apartment_managers")
         .update({ status: "active", updated_at: new Date().toISOString() })
         .eq("id", data.id);
       return true;

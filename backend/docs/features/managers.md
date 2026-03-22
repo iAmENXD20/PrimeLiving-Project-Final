@@ -18,7 +18,7 @@ Manages manager accounts and assignment scope under owner/client context.
 
 1. Manager invite is created through Supabase auth.
 2. Manager row is inserted in `managers` with role-related metadata.
-3. Management operations support filtering by `client_id`.
+3. Management operations support filtering by `apartmentowner_id`.
 4. Deletion/update endpoints are used by owner/admin workflows.
 
 ## Important behavior

@@ -5,7 +5,7 @@ import { sendSuccess, sendError } from "../utils/helpers";
 
 /**
  * GET /api/revenues
- * Get revenues filtered by client_id, with optional apartment name join
+ * Get revenues filtered by apartmentowner_id, with optional apartment name join
  */
 export async function getRevenues(
   req: AuthenticatedRequest,
@@ -17,8 +17,8 @@ export async function getRevenues(
       .select("*, apartments:unit_id(name)")
       .order("month", { ascending: false });
 
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+    if (req.query.apartmentowner_id) {
+      query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
 
     const { data, error } = await query;
@@ -50,17 +50,17 @@ export async function getRevenueByMonth(
   res: Response
 ): Promise<void> {
   try {
-    const clientId = req.query.client_id as string;
+    const apartmentownerId = req.query.apartmentowner_id as string;
 
-    if (!clientId) {
-      sendError(res, "client_id query parameter is required", 400);
+    if (!apartmentownerId) {
+      sendError(res, "apartmentowner_id query parameter is required", 400);
       return;
     }
 
     const { data, error } = await supabaseAdmin
       .from("revenues")
       .select("amount, month")
-      .eq("client_id", clientId)
+      .eq("apartmentowner_id", apartmentownerId)
       .order("month", { ascending: true });
 
     if (error) {

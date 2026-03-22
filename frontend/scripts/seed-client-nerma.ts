@@ -18,7 +18,7 @@ async function main() {
 
   // Insert client record (no auth account, just a DB record)
   const { data: existing } = await supabase
-    .from('clients')
+    .from('apartment_owners')
     .select('id')
     .eq('name', 'Nerma')
     .single()
@@ -27,7 +27,7 @@ async function main() {
     console.log('⚠️  Client "Nerma" already exists:', existing.id)
   } else {
     const { data: client, error } = await supabase
-      .from('clients')
+      .from('apartment_owners')
       .insert({
         name: 'Nerma',
         email: 'nerma@primeliving.test',

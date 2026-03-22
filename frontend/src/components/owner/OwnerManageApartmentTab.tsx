@@ -1,5 +1,5 @@
-import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, Building2, Users, UserCheck } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, Building2, Users, UserCheck, ChevronDown, ClipboardList } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { useTheme } from '../../context/ThemeContext'
@@ -12,15 +12,16 @@ import TablePagination from '@/components/ui/table-pagination'
 import {
   getOwnerUnits,
   getOwnerTenants,
-  createBulkUnits,
   deleteOwnerApartment,
   getOwnerManagers,
   createOwnerManager,
   updateOwnerManager,
   deleteOwnerManager,
+  updateUnit,
   type UnitWithTenant,
   type OwnerTenant,
 } from '../../lib/ownerApi'
+import OwnerApartmentLogsTab from './OwnerApartmentLogsTab'
 
 interface OwnerManageApartmentTabProps {
   clientId: string
@@ -41,12 +42,15 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
   // ─── Units state ──────────────────────────────────────────────
   const [units, setUnits] = useState<UnitWithTenant[]>([])
   const [unitsLoading, setUnitsLoading] = useState(true)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [addForm, setAddForm] = useState({ count: '1' })
   const [confirmAction, setConfirmAction] = useState<
     { type: 'unit'; id: string; name: string } | { type: 'manager'; id: string; name: string } | null
   >(null)
   const [deleting, setDeleting] = useState(false)
+
+  // ─── Unit detail modal state ───────────────────────────────
+  const [selectedUnit, setSelectedUnit] = useState<UnitWithTenant | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', monthly_rent: '' as string, max_occupancy: '' as string })
+  const [savingUnit, setSavingUnit] = useState(false)
 
   // ─── Managers state ───────────────────────────────────────────
   const [managers, setManagers] = useState<Manager[]>([])
@@ -55,7 +59,10 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [showManagerModal, setShowManagerModal] = useState(false)
   const [editingManager, setEditingManager] = useState<Manager | null>(null)
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', sex: '', age: '' })
+  const [phonePrefixError, setPhonePrefixError] = useState(false)
+  const [isSexOpen, setIsSexOpen] = useState(false)
+  const sexRef = useRef<HTMLDivElement>(null)
   const [saving, setSaving] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
   const [credentials, setCredentials] = useState({ email: '', password: '' })
@@ -67,7 +74,7 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
   const [emailSent, setEmailSent] = useState(false)
 
   // ─── Sub-tab state ────────────────────────────────────────────
-  const [activeSubTab, setActiveSubTab] = useState<'units' | 'managers' | 'tenants'>('units')
+  const [activeSubTab, setActiveSubTab] = useState<'units' | 'managers' | 'tenants' | 'logs'>('units')
   const [ownerTenants, setOwnerTenants] = useState<OwnerTenant[]>([])
   const [tenantsTabLoading, setTenantsTabLoading] = useState(true)
   const [showInactiveTenants, setShowInactiveTenants] = useState(false)
@@ -82,10 +89,19 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
     loadTenants()
   }, [clientId])
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (sexRef.current && !sexRef.current.contains(e.target as Node)) setIsSexOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   async function loadUnits() {
     try {
       setUnitsLoading(true)
       const data = await getOwnerUnits(clientId)
+      data.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
       setUnits(data)
     } catch (err) {
       console.error('Failed to load units:', err)
@@ -119,22 +135,44 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
   }
 
   // ─── Units handlers ───────────────────────────────────────────
-  async function handleAddUnits() {
-    const count = Number(addForm.count)
-    if (count < 1 || count > 100) {
-      toast.error('Please enter 1-100 units')
+  function openUnitModal(unit: UnitWithTenant) {
+    setSelectedUnit(unit)
+    setEditForm({
+      name: unit.name,
+      monthly_rent: unit.monthly_rent != null ? String(unit.monthly_rent) : '',
+      max_occupancy: unit.max_occupancy != null ? String(unit.max_occupancy) : '',
+    })
+  }
+
+  async function saveUnitDetails() {
+    if (!selectedUnit) return
+    const trimmed = editForm.name.trim()
+    if (!trimmed) {
+      toast.error('Unit name cannot be empty')
       return
     }
-    const startNumber = units.length + 1
+    setSavingUnit(true)
     try {
-      await createBulkUnits(clientId, count, startNumber, 0)
-      await loadUnits()
-      setShowAddModal(false)
-      setAddForm({ count: '1' })
-      toast.success(`${count} unit${count > 1 ? 's' : ''} added successfully`)
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to add units'
-      toast.error(message)
+      const maxOcc = editForm.max_occupancy.trim() === '' ? null : parseInt(editForm.max_occupancy, 10)
+      const rent = editForm.monthly_rent.trim() === '' ? 0 : parseFloat(editForm.monthly_rent)
+      await updateUnit(selectedUnit.id, {
+        name: trimmed,
+        monthly_rent: rent,
+        max_occupancy: maxOcc,
+      })
+      setUnits((prev) =>
+        prev.map((u) =>
+          u.id === selectedUnit.id
+            ? { ...u, name: trimmed, monthly_rent: rent, max_occupancy: maxOcc }
+            : u
+        )
+      )
+      toast.success('Unit updated successfully')
+      setSelectedUnit(null)
+    } catch {
+      toast.error('Failed to update unit')
+    } finally {
+      setSavingUnit(false)
     }
   }
 
@@ -178,7 +216,7 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
   // ─── Managers handlers ────────────────────────────────────────
   function openAddManagerModal() {
     setEditingManager(null)
-    setForm({ firstName: '', lastName: '', email: '', phone: '' })
+    setForm({ firstName: '', lastName: '', email: '', phone: '', sex: '', age: '' })
     setShowManagerModal(true)
   }
 
@@ -187,7 +225,7 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
     const nameParts = (manager.name || '').split(' ')
     const firstName = nameParts[0] || ''
     const lastName = nameParts.slice(1).join(' ') || ''
-    setForm({ firstName, lastName, email: manager.email, phone: manager.phone || '' })
+    setForm({ firstName, lastName, email: manager.email, phone: (manager.phone || '').replace(/^\+63/, ''), sex: (manager as any).sex || '', age: (manager as any).age || '' })
     setShowManagerModal(true)
     setOpenMenu(null)
   }
@@ -204,7 +242,7 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
         const updated = await updateOwnerManager(editingManager.id, {
           name: fullName,
           email: form.email,
-          phone: form.phone || undefined,
+          phone: form.phone ? `+63${form.phone}` : undefined,
         })
         setManagers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
         toast.success('Manager updated successfully')
@@ -213,8 +251,10 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
         const result = await createOwnerManager({
           name: fullName,
           email: form.email,
-          phone: form.phone || undefined,
-          client_id: clientId,
+          phone: form.phone ? `+63${form.phone}` : undefined,
+          sex: form.sex || undefined,
+          age: form.age || undefined,
+          apartmentowner_id: clientId,
         })
         setManagers((prev) => [result.manager, ...prev])
         setShowManagerModal(false)
@@ -296,8 +336,9 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
 
   const subTabs = [
     { id: 'units' as const, label: 'Units', icon: Building2 },
-    { id: 'managers' as const, label: 'Managers', icon: Users },
+    { id: 'managers' as const, label: 'Apartment Managers', icon: Users },
     { id: 'tenants' as const, label: 'Tenants', icon: UserCheck },
+    { id: 'logs' as const, label: 'Activity Logs', icon: ClipboardList },
   ]
 
   // ─── Render ───────────────────────────────────────────────────
@@ -408,16 +449,6 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
                 <span className="text-emerald-400 font-medium">{availableCount} vacant</span>
               </p>
             </div>
-            <button
-              onClick={() => {
-                setAddForm({ count: '1' })
-                setShowAddModal(true)
-              }}
-              className="inline-flex items-center gap-2 px-5 py-3 bg-primary hover:bg-primary-600 text-white font-semibold text-base rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Units
-            </button>
           </div>
 
           {/* Loading */}
@@ -432,7 +463,7 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
                 No units yet
               </p>
               <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                Click "Add Units" to create your apartment units
+                Your units will appear here once your inquiry is approved
               </p>
             </div>
           )}
@@ -475,11 +506,11 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
                               style={{ backgroundColor: isOccupied ? '#DC2626' : '#059669' }}
                             />
                             <button
-                              onClick={() => handleDeleteUnit(unit.id, unit.name)}
-                              className={`p-1 rounded transition-colors ${isDark ? 'hover:bg-red-500/20 text-gray-500 hover:text-red-400' : 'hover:bg-red-50 text-gray-400 hover:text-red-500'}`}
-                              title="Delete unit"
+                              onClick={() => openUnitModal(unit)}
+                              className={`p-1 rounded transition-colors ${isDark ? 'hover:bg-primary/20 text-gray-500 hover:text-primary' : 'hover:bg-primary/10 text-gray-400 hover:text-primary'}`}
+                              title="Edit unit"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Edit2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -762,66 +793,18 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
           )}
         </section>
         )}
+
+        {/* ════════════════════════════════════════════════════════
+            LOGS SUB-TAB
+           ════════════════════════════════════════════════════════ */}
+        {activeSubTab === 'logs' && (
+          <OwnerApartmentLogsTab clientId={clientId} />
+        )}
       </div>
 
       {/* ══════════════════════════════════════════════════════════
           MODALS
          ══════════════════════════════════════════════════════════ */}
-
-      {/* Add Units Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-          <div
-            className={`relative w-full max-w-md mx-4 rounded-xl border p-6 ${
-              isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Add Units
-              </h3>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className={isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>How many units do you have?</Label>
-                <Input
-                  type="number"
-                  value={addForm.count}
-                  onChange={(e) => setAddForm({ ...addForm, count: e.target.value })}
-                  placeholder="1"
-                  min="1"
-                  max="100"
-                  className={`mt-2 ${inputClass}`}
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <Button
-                variant="outline"
-                onClick={() => setShowAddModal(false)}
-                className={isDark ? 'border-[#1E293B] text-gray-300 hover:bg-white/5' : ''}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAddUnits}
-                className="bg-primary hover:bg-primary/90 text-white font-semibold"
-              >
-                Add {addForm.count || 0} Unit{Number(addForm.count) !== 1 ? 's' : ''}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add/Edit Manager Modal */}
       {showManagerModal && (
@@ -831,7 +814,7 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
             <div className={`relative w-full max-w-md rounded-xl border p-6 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center justify-between mb-2">
                 <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {editingManager ? 'Edit Manager' : 'Create Account Manager'}
+                  {editingManager ? 'Edit Manager' : 'Create Manager'}
                 </h3>
                 <button onClick={() => setShowManagerModal(false)} className={isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}>
                   <X className="w-5 h-5" />
@@ -865,24 +848,76 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div ref={sexRef} className="relative">
+                    <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Sex</Label>
+                    <button
+                      type="button"
+                      onClick={() => setIsSexOpen((prev) => !prev)}
+                      className={`w-full h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${inputClass} ${!form.sex ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}`}
+                    >
+                      {form.sex || 'Select'}
+                    </button>
+                    <ChevronDown
+                      className={`pointer-events-none absolute right-3 bottom-3 h-4 w-4 transition-transform ${isSexOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                    />
+                    {isSexOpen && (
+                      <div className={`absolute z-50 mt-1 w-full rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+                        {['Male', 'Female'].map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => { setForm({ ...form, sex: option }); setIsSexOpen(false) }}
+                            className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${option === form.sex ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Age</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={form.age}
+                      onChange={(e) => setForm({ ...form, age: e.target.value })}
+                      placeholder="Age"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
                 <div>
                   <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Email</Label>
                   <Input
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="manager@example.com"
+                    placeholder="juandelacruz@gmail.com"
                     className={inputClass}
                   />
                 </div>
                 <div>
                   <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Phone Number</Label>
-                  <Input
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="+63 9XX XXX XXXX"
-                    className={inputClass}
-                  />
+                  <div className="relative">
+                    <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium select-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+63</span>
+                    <Input
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, '').slice(0, 10)
+                        setForm({ ...form, phone: raw })
+                        setPhonePrefixError(raw.length > 0 && raw[0] !== '9')
+                      }}
+                      placeholder="9XX XXX XXXX"
+                      className={`pl-12 ${inputClass}`}
+                    />
+                  </div>
+                  {phonePrefixError && (
+                    <p className="text-xs text-red-500 mt-1">Contact number must start with 9 after +63</p>
+                  )}
                 </div>
               </div>
 
@@ -899,7 +934,7 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
                   disabled={saving}
                   className="bg-primary hover:bg-primary/90 text-white font-semibold"
                 >
-                  {editingManager ? 'Update' : saving ? 'Creating...' : 'Create Account'}
+                  {editingManager ? 'Update' : saving ? 'Creating...' : 'Create'}
                 </Button>
               </div>
             </div>
@@ -1011,6 +1046,84 @@ export default function OwnerManageApartmentTab({ clientId }: OwnerManageApartme
                   Done
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unit Detail / Edit Modal */}
+      {selectedUnit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedUnit(null)} />
+          <div className={`relative w-full max-w-md rounded-xl p-6 shadow-2xl ${isDark ? 'bg-navy-card border border-white/10' : 'bg-white border border-gray-200'}`}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Edit Unit
+              </h3>
+              <button
+                onClick={() => setSelectedUnit(null)}
+                className={`p-1 rounded transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label className="mb-1.5 block">Unit Name</Label>
+                <Input
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Unit 1"
+                />
+              </div>
+              <div>
+                <Label className="mb-1.5 block">Monthly Rent (₱)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={editForm.monthly_rent}
+                  onChange={(e) => setEditForm((f) => ({ ...f, monthly_rent: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <Label className="mb-1.5 block">Max Tenant Occupancy</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={editForm.max_occupancy}
+                  onChange={(e) => setEditForm((f) => ({ ...f, max_occupancy: e.target.value }))}
+                  placeholder="No limit"
+                />
+              </div>
+
+              {/* Read-only info */}
+              <div className={`rounded-lg p-3 space-y-2 text-sm ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                <div className="flex justify-between">
+                  <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Status</span>
+                  <span className={`font-medium capitalize ${selectedUnit.tenant_name ? 'text-red-500' : 'text-emerald-500'}`}>
+                    {selectedUnit.tenant_name ? 'Occupied' : 'Vacant'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Tenant</span>
+                  <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedUnit.tenant_name || '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Contact</span>
+                  <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedUnit.tenant_phone || '—'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" className="flex-1" onClick={() => setSelectedUnit(null)}>
+                Cancel
+              </Button>
+              <Button className="flex-1" onClick={saveUnitDetails} disabled={savingUnit}>
+                {savingUnit ? 'Saving...' : 'Save Changes'}
+              </Button>
             </div>
           </div>
         </div>

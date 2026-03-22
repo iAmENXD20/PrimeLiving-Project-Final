@@ -14,7 +14,7 @@ const passwordSchema = z
   .object({
     currentPassword: z.string().min(6, 'Current password is required'),
     newPassword: z.string().min(6, 'Password must be at least 6 characters'),
-    confirmPassword: z.string().min(6, 'Please confirm your new password'),
+    confirmPassword: z.string().min(1, 'Please confirm your new password'),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: 'Passwords do not match',
@@ -85,12 +85,9 @@ export default function AccountTab() {
 
   const labelClass = isDark ? 'text-gray-300' : 'text-gray-700'
   const sectionClass = `${cardClass} rounded-2xl border p-6 lg:p-8 shadow-sm`
-  const tileClass = isDark
-    ? 'rounded-xl border border-[#1E293B] bg-[#0A1628]/70 p-4'
-    : 'rounded-xl border border-gray-200 bg-gray-50 p-4'
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-up">
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-up">
       {/* Header */}
       <div className={`${sectionClass}`}>
         <h2 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -117,13 +114,11 @@ export default function AccountTab() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className={tileClass}>
-            <Label className={`text-sm ${labelClass}`}>Email</Label>
-            <p className={`mt-1 text-base font-semibold break-all ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-              {userEmail ?? '—'}
-            </p>
-          </div>
+        <div>
+          <Label className={`text-sm ${labelClass}`}>Email</Label>
+          <p className={`mt-1 text-base font-semibold break-all ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+            {userEmail ?? '—'}
+          </p>
         </div>
       </div>
 
@@ -170,8 +165,7 @@ export default function AccountTab() {
           </div>
 
           {/* New Password */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+          <div className="space-y-1.5">
             <Label className={labelClass}>New Password</Label>
             <div className="relative">
               <Input
@@ -193,10 +187,10 @@ export default function AccountTab() {
             {errors.newPassword && (
               <p className="text-red-500 text-sm">{errors.newPassword.message}</p>
             )}
-            </div>
+          </div>
 
           {/* Confirm Password */}
-            <div className="space-y-1.5">
+          <div className="space-y-1.5">
             <Label className={labelClass}>Confirm New Password</Label>
             <div className="relative">
               <Input
@@ -218,7 +212,6 @@ export default function AccountTab() {
             {errors.confirmPassword && (
               <p className="text-red-500 text-sm">{errors.confirmPassword.message}</p>
             )}
-            </div>
           </div>
 
           {/* Submit Button */}

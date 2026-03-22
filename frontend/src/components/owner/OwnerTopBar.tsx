@@ -31,7 +31,7 @@ export default function OwnerTopBar({ onMenuToggle, ownerName }: OwnerTopBarProp
             isDark ? 'text-gray-400' : 'text-gray-500'
           }`}
         >
-          Owner Dashboard
+          Apartment Owner Dashboard
         </span>
       </div>
 

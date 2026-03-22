@@ -1,18 +1,19 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
 import ManagerSidebar from '../components/manager/ManagerSidebar'
 import ManagerTopBar from '../components/manager/ManagerTopBar'
-import ManagerOverviewTab from '../components/manager/ManagerOverviewTab'
-import ManagerMaintenanceTab from '../components/manager/ManagerMaintenanceTab'
-import ManagerManageApartmentTab from '../components/manager/ManagerManageApartmentTab'
-import ManagerSettingsTab from '../components/manager/ManagerSettingsTab'
-import ManagerPaymentsTab from '../components/manager/ManagerPaymentsTab'
-import ManagerNotificationsTab from '../components/manager/ManagerNotificationsTab'
 import { getCurrentManager, getManagerNotifications } from '../lib/managerApi'
 import { supabase } from '../lib/supabase'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
 import { CardsSkeleton } from '../components/ui/skeleton'
+
+const ManagerOverviewTab = lazy(() => import('../components/manager/ManagerOverviewTab'))
+const ManagerMaintenanceTab = lazy(() => import('../components/manager/ManagerMaintenanceTab'))
+const ManagerManageApartmentTab = lazy(() => import('../components/manager/ManagerManageApartmentTab'))
+const ManagerSettingsTab = lazy(() => import('../components/manager/ManagerSettingsTab'))
+const ManagerPaymentsTab = lazy(() => import('../components/manager/ManagerPaymentsTab'))
+const ManagerNotificationsTab = lazy(() => import('../components/manager/ManagerNotificationsTab'))
 
 export default function ManagerDashboard() {
   const { isDark } = useTheme()
@@ -29,7 +30,7 @@ export default function ManagerDashboard() {
       try {
         const data = await getCurrentManager()
         if (data) {
-          setManager({ id: data.id, name: data.name, clientId: data.client_id, phone: data.phone })
+          setManager({ id: data.id, name: data.name, clientId: data.apartmentowner_id, phone: data.phone })
         } else {
           await supabase.auth.signOut()
           navigate('/login', { replace: true })
@@ -52,7 +53,7 @@ export default function ManagerDashboard() {
       const { count } = await supabase
         .from('maintenance')
         .select('id', { count: 'exact', head: true })
-        .eq('client_id', manager!.clientId!)
+        .eq('apartmentowner_id', manager!.clientId!)
         .eq('status', 'pending')
       setPendingMaintenanceCount(count ?? 0)
     }
@@ -169,7 +170,11 @@ export default function ManagerDashboard() {
         />
 
         {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">{renderContent()}</main>
+        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">
+          <Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+            {renderContent()}
+          </Suspense>
+        </main>
       </div>
     </div>
   )

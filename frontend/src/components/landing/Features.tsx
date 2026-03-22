@@ -38,7 +38,7 @@ const features = [
     icon: Wrench,
     title: 'Maintenance Requests',
     description:
-      'Tenants submit requests, managers track and resolve them with status updates.',
+      'Tenants submit requests, apartment managers track and resolve them with status updates.',
   },
   {
     icon: MessageSquare,

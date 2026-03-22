@@ -117,14 +117,14 @@ describe("apiClient behavior", () => {
       });
 
     const beforeMutation = await api.get<Array<{ id: string; tenant_name: string | null }>>(
-      "/apartments/with-tenants?client_id=abc",
+      "/apartments/with-tenants?apartmentowner_id=abc",
       { cacheTtlSeconds: 120 }
     );
 
     await api.post("/tenants/remove-from-unit", { unit_id: "u1" });
 
     const afterMutation = await api.get<Array<{ id: string; tenant_name: string | null }>>(
-      "/apartments/with-tenants?client_id=abc",
+      "/apartments/with-tenants?apartmentowner_id=abc",
       { cacheTtlSeconds: 120 }
     );
 

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Users, PhilippinePeso, Wrench, Building2, MapPin } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Users, PhilippinePeso, Wrench, Building2, MapPin, ChevronDown } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import {
   getOwnerDashboardStats,
@@ -26,6 +26,10 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
   const today = new Date()
   const [selectedMonth, setSelectedMonth] = useState<number>(0)
   const [selectedYear, setSelectedYear] = useState(today.getFullYear())
+  const [isMonthOpen, setIsMonthOpen] = useState(false)
+  const [isYearOpen, setIsYearOpen] = useState(false)
+  const monthRef = useRef<HTMLDivElement>(null)
+  const yearRef = useRef<HTMLDivElement>(null)
 
   const monthOptions = [
     { value: 0, label: 'All Time' },
@@ -65,6 +69,20 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
     }
     load()
   }, [clientId, selectedMonth, selectedYear])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (monthRef.current && !monthRef.current.contains(event.target as Node)) {
+        setIsMonthOpen(false)
+      }
+      if (yearRef.current && !yearRef.current.contains(event.target as Node)) {
+        setIsYearOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -123,33 +141,87 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
 
       <div className="flex flex-wrap items-center gap-3">
         <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Revenue period:</p>
-        <select
-          value={selectedMonth}
-          onChange={(event) => setSelectedMonth(Number(event.target.value))}
-          className={`px-3 py-2 rounded-lg border text-sm ${
-            isDark
-              ? 'bg-[#111D32] border-[#1E293B] text-white'
-              : 'bg-white border-gray-200 text-gray-700'
-          }`}
-        >
-          {monthOptions.map((month) => (
-            <option key={month.value} value={month.value}>{month.label}</option>
-          ))}
-        </select>
-        <select
-          value={selectedYear}
-          onChange={(event) => setSelectedYear(Number(event.target.value))}
-          disabled={selectedMonth === 0}
-          className={`px-3 py-2 rounded-lg border text-sm ${
-            isDark
-              ? 'bg-[#111D32] border-[#1E293B] text-white'
-              : 'bg-white border-gray-200 text-gray-700'
-          } ${selectedMonth === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
-        >
-          {yearOptions.map((year) => (
-            <option key={year} value={year}>{year}</option>
-          ))}
-        </select>
+        <div ref={monthRef} className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setIsMonthOpen((prev) => !prev)
+              setIsYearOpen(false)
+            }}
+            className={`h-10 min-w-[128px] rounded-lg border px-3 pr-9 text-sm text-left transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+              isDark
+                ? 'bg-[#111D32] border-[#1E293B] text-white'
+                : 'bg-white border-gray-200 text-gray-700'
+            }`}
+          >
+            {monthOptions.find((month) => month.value === selectedMonth)?.label || 'All Time'}
+          </button>
+          <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${isMonthOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+
+          {isMonthOpen && (
+            <div className={`absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${
+              isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
+            }`}>
+              {monthOptions.map((month) => (
+                <button
+                  key={month.value}
+                  type="button"
+                  onClick={() => {
+                    setSelectedMonth(month.value)
+                    setIsMonthOpen(false)
+                  }}
+                  className={`w-full px-3 py-2.5 text-left text-sm transition-colors ${
+                    isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
+                  } ${selectedMonth === month.value ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                >
+                  {month.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div ref={yearRef} className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              if (selectedMonth === 0) return
+              setIsYearOpen((prev) => !prev)
+              setIsMonthOpen(false)
+            }}
+            disabled={selectedMonth === 0}
+            className={`h-10 min-w-[84px] rounded-lg border px-3 pr-9 text-sm text-left transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+              isDark
+                ? 'bg-[#111D32] border-[#1E293B] text-white'
+                : 'bg-white border-gray-200 text-gray-700'
+            } ${selectedMonth === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
+          >
+            {selectedYear}
+          </button>
+          <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${isYearOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+
+          {isYearOpen && selectedMonth !== 0 && (
+            <div className={`absolute z-50 mt-1 w-full rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${
+              isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
+            }`}>
+              {yearOptions.map((year) => (
+                <button
+                  key={year}
+                  type="button"
+                  onClick={() => {
+                    setSelectedYear(year)
+                    setIsYearOpen(false)
+                  }}
+                  className={`w-full px-3 py-2.5 text-left text-sm transition-colors ${
+                    isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
+                  } ${selectedYear === year ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Stat Cards */}

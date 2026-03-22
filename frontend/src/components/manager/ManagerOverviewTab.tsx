@@ -29,7 +29,7 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
           getManagerMaintenanceRequests(clientId),
           getManagedApartments(managerId),
         ])
-        const resolvedClientId = clientId || apartments?.[0]?.client_id || ''
+        const resolvedClientId = clientId || apartments?.[0]?.apartmentowner_id || ''
         const [ownerAddress, ownerApartmentName] = resolvedClientId
           ? await Promise.all([
               getOwnerApartmentAddress(resolvedClientId),

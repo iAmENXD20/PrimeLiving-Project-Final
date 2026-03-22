@@ -7,6 +7,17 @@ export interface Client {
   email: string
   phone: string | null
   apartment_address: string | null
+  sex: string | null
+  age: string | null
+  apartment_classification: string | null
+  street_building: string | null
+  barangay: string | null
+  province: string | null
+  city_municipality: string | null
+  zip_code: string | null
+  number_of_units: string | null
+  number_of_floors: string | null
+  other_property_details: string | null
   status: 'active' | 'inactive'
   joined_date: string
   created_at: string
@@ -17,7 +28,7 @@ export interface Apartment {
   id: string
   name: string
   address: string
-  client_id: string | null
+  apartmentowner_id: string | null
   total_units: number
   monthly_rent: number
   status: 'active' | 'inactive'
@@ -40,8 +51,17 @@ export interface Inquiry {
   name: string
   email: string
   phone: string | null
-  apartment_name: string | null
-  message: string
+  sex: string | null
+  age: string | null
+  apartment_classification: string | null
+  street_building: string | null
+  barangay: string | null
+  province: string | null
+  city_municipality: string | null
+  zip_code: string | null
+  number_of_units: string | null
+  number_of_floors: string | null
+  other_property_details: string | null
   status: 'pending' | 'responded' | 'approved' | 'cancelled'
   created_at: string
 }
@@ -51,7 +71,7 @@ export interface Manager {
   name: string
   email: string
   phone: string | null
-  client_id: string | null
+  apartmentowner_id: string | null
   client_name?: string // computed from join
   status: 'active' | 'inactive'
   joined_date: string
@@ -91,7 +111,13 @@ export async function getClients() {
   return api.get<Client[]>('/clients')
 }
 
-export async function createClient(client: { name: string; email: string; phone?: string }) {
+export async function createClient(client: {
+  name: string; email: string; phone?: string; apartment_address?: string;
+  sex?: string; age?: string; apartment_classification?: string;
+  street_building?: string; barangay?: string; province?: string;
+  city_municipality?: string; zip_code?: string;
+  number_of_units?: string; number_of_floors?: string; other_property_details?: string;
+}) {
   const result = await api.post<Client & { generatedPassword?: string; requiresEmailVerification?: boolean }>('/clients', client)
   return {
     client: result,
@@ -121,7 +147,7 @@ export async function getManagers() {
   const managers = await api.get<Manager[]>('/managers')
 
   // Fetch client names for each manager
-  const clientIds = [...new Set(managers.filter(m => m.client_id).map(m => m.client_id))]
+  const clientIds = [...new Set(managers.filter(m => m.apartmentowner_id).map(m => m.apartmentowner_id))]
   let clientMap: Record<string, string> = {}
 
   if (clientIds.length > 0) {
@@ -133,11 +159,11 @@ export async function getManagers() {
 
   return managers.map(m => ({
     ...m,
-    client_name: m.client_id ? clientMap[m.client_id] || 'Unknown' : undefined,
+    client_name: m.apartmentowner_id ? clientMap[m.apartmentowner_id] || 'Unknown' : undefined,
   })) as Manager[]
 }
 
-export async function createManager(manager: { name: string; email: string; phone?: string; client_id?: string }) {
+export async function createManager(manager: { name: string; email: string; phone?: string; apartmentowner_id?: string }) {
   const result = await api.post<Manager & { generatedPassword: string }>('/managers', manager)
   return result
 }
@@ -161,13 +187,37 @@ export async function getApartmentsWithTenantCount() {
 
 // ── Inquiries ──────────────────────────────────────────────
 
-export async function submitInquiry(data: { name: string; email: string; phone?: string; apartment_name?: string; message: string }) {
+export async function submitInquiry(data: {
+  name: string
+  email: string
+  phone?: string
+  sex?: string
+  age?: string
+  apartment_classification?: string
+  street_building?: string
+  barangay?: string
+  province?: string
+  city_municipality?: string
+  zip_code?: string
+  number_of_units?: string
+  number_of_floors?: string
+  other_property_details?: string
+}) {
   await api.post('/inquiries', {
     name: data.name,
     email: data.email,
     phone: data.phone || null,
-    apartment_name: data.apartment_name || null,
-    message: data.message,
+    sex: data.sex || null,
+    age: data.age || null,
+    apartment_classification: data.apartment_classification || null,
+    street_building: data.street_building || null,
+    barangay: data.barangay || null,
+    province: data.province || null,
+    city_municipality: data.city_municipality || null,
+    zip_code: data.zip_code || null,
+    number_of_units: data.number_of_units || null,
+    number_of_floors: data.number_of_floors || null,
+    other_property_details: data.other_property_details || null,
   })
 }
 
@@ -196,14 +246,52 @@ export async function approveInquiry(
   inquiry: Inquiry,
   overrides?: { name?: string; email?: string; phone?: string }
 ) {
+  // Build apartment address from individual location fields
+  const addressParts = [
+    inquiry.street_building,
+    inquiry.barangay,
+    inquiry.city_municipality,
+    inquiry.province,
+    inquiry.zip_code,
+  ].filter(Boolean)
+  const apartmentAddress = addressParts.length > 0 ? addressParts.join(', ') : undefined
+
   // 1. Create client + auth account
   const result = await createClient({
     name: overrides?.name || inquiry.name,
     email: overrides?.email || inquiry.email,
     phone: overrides?.phone || inquiry.phone || undefined,
+    apartment_address: apartmentAddress,
+    sex: inquiry.sex || undefined,
+    age: inquiry.age || undefined,
+    apartment_classification: inquiry.apartment_classification || undefined,
+    street_building: inquiry.street_building || undefined,
+    barangay: inquiry.barangay || undefined,
+    province: inquiry.province || undefined,
+    city_municipality: inquiry.city_municipality || undefined,
+    zip_code: inquiry.zip_code || undefined,
+    number_of_units: inquiry.number_of_units || undefined,
+    number_of_floors: inquiry.number_of_floors || undefined,
+    other_property_details: inquiry.other_property_details || undefined,
   })
 
-  // 2. Mark inquiry as approved only after account creation succeeds
+  // 2. Auto-create units from inquiry's number_of_units
+  const unitCount = inquiry.number_of_units ? parseInt(inquiry.number_of_units, 10) : 0
+  if (unitCount > 0 && result.client?.id) {
+    const units = []
+    for (let i = 0; i < unitCount; i++) {
+      units.push({
+        name: `Unit ${i + 1}`,
+        address: apartmentAddress || '-',
+        monthly_rent: 0,
+        apartmentowner_id: result.client.id,
+        status: 'active',
+      })
+    }
+    await api.post('/apartments/bulk', { apartments: units })
+  }
+
+  // 3. Mark inquiry as approved only after account creation succeeds
   const updated = await updateInquiryStatus(inquiry.id, 'approved')
 
   return {

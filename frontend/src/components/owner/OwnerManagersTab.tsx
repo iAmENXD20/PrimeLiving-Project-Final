@@ -1,5 +1,5 @@
-import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, ChevronDown } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { useEmailValidation } from '@/hooks/useEmailValidation'
@@ -37,8 +37,11 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingManager, setEditingManager] = useState<Manager | null>(null)
-  const [form, setForm] = useState({ name: '', email: '', phone: '' })
+  const [form, setForm] = useState({ name: '', email: '', phone: '', sex: '', age: '' })
   const [saving, setSaving] = useState(false)
+  const [phonePrefixError, setPhonePrefixError] = useState(false)
+  const [isSexOpen, setIsSexOpen] = useState(false)
+  const sexRef = useRef<HTMLDivElement>(null)
   const [showCredentials, setShowCredentials] = useState(false)
   const [credentials, setCredentials] = useState({ email: '' })
   const [copiedField, setCopiedField] = useState<string | null>(null)
@@ -57,6 +60,14 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
   useEffect(() => {
     loadManagers()
   }, [clientId])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (sexRef.current && !sexRef.current.contains(e.target as Node)) setIsSexOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (emailCooldown <= 0) return
@@ -82,13 +93,13 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
 
   function openAddModal() {
     setEditingManager(null)
-    setForm({ name: '', email: '', phone: '' })
+    setForm({ name: '', email: '', phone: '', sex: '', age: '' })
     setShowModal(true)
   }
 
   function openEditModal(manager: Manager) {
     setEditingManager(manager)
-    setForm({ name: manager.name, email: manager.email, phone: manager.phone || '' })
+    setForm({ name: manager.name, email: manager.email, phone: (manager.phone || '').replace(/^\+63/, ''), sex: (manager as any).sex || '', age: (manager as any).age || '' })
     setShowModal(true)
     setOpenMenu(null)
   }
@@ -110,7 +121,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
         const updated = await updateOwnerManager(editingManager.id, {
           name: form.name,
           email: form.email,
-          phone: form.phone || undefined,
+          phone: form.phone ? `+63${form.phone}` : undefined,
         })
         setManagers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
         toast.success('Manager updated successfully')
@@ -119,8 +130,10 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
         const result = await createOwnerManager({
           name: form.name,
           email: form.email,
-          phone: form.phone || undefined,
-          client_id: clientId,
+          phone: form.phone ? `+63${form.phone}` : undefined,
+          sex: form.sex || undefined,
+          age: form.age || undefined,
+          apartmentowner_id: clientId,
         })
         setManagers((prev) => [result.manager, ...prev])
         setShowModal(false)
@@ -342,7 +355,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
             <div className={`relative w-full max-w-md rounded-xl border p-6 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
             <div className="flex items-center justify-between mb-2">
               <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {editingManager ? 'Edit Manager' : 'Create Account Manager'}
+                {editingManager ? 'Edit Manager' : 'Create Manager'}
               </h3>
               <button onClick={() => setShowModal(false)} className={isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}>
                 <X className="w-5 h-5" />
@@ -365,13 +378,54 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                   className={inputClass}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div ref={sexRef} className="relative">
+                  <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Sex</Label>
+                  <button
+                    type="button"
+                    onClick={() => setIsSexOpen((prev) => !prev)}
+                    className={`w-full h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${inputClass} ${!form.sex ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}`}
+                  >
+                    {form.sex || 'Select'}
+                  </button>
+                  <ChevronDown
+                    className={`pointer-events-none absolute right-3 bottom-3 h-4 w-4 transition-transform ${isSexOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                  />
+                  {isSexOpen && (
+                    <div className={`absolute z-50 mt-1 w-full rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+                      {['Male', 'Female'].map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => { setForm({ ...form, sex: option }); setIsSexOpen(false) }}
+                          className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${option === form.sex ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Age</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={form.age}
+                    onChange={(e) => setForm({ ...form, age: e.target.value })}
+                    placeholder="Age"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
               <div>
                 <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Email</Label>
                 <Input
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="manager@example.com"
+                  placeholder="juandelacruz@gmail.com"
                   className={inputClass}
                 />
                 {!editingManager && form.email.trim() && (
@@ -392,12 +446,23 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
               </div>
               <div>
                 <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Phone</Label>
-                <Input
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="+63 9XX XXX XXXX"
-                  className={inputClass}
-                />
+                <div className="relative">
+                  <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium select-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+63</span>
+                  <Input
+                    type="tel"
+                    value={form.phone}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '').slice(0, 10)
+                      setForm({ ...form, phone: raw })
+                      setPhonePrefixError(raw.length > 0 && raw[0] !== '9')
+                    }}
+                    placeholder="9XX XXX XXXX"
+                    className={`pl-12 ${inputClass}`}
+                  />
+                </div>
+                {phonePrefixError && (
+                  <p className="text-xs text-red-500 mt-1">Contact number must start with 9 after +63</p>
+                )}
               </div>
             </div>
 
@@ -420,7 +485,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                 }
                 className="bg-primary hover:bg-primary/90 text-white font-semibold"
               >
-                {editingManager ? 'Update' : saving ? 'Creating...' : 'Create Account'}
+                {editingManager ? 'Update' : saving ? 'Creating...' : 'Create'}
               </Button>
             </div>
           </div>

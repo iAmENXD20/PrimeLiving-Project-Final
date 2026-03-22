@@ -24,4 +24,4 @@ Provides in-app notification operations and SMS dispatch helpers.
 ## Important behavior
 
 - Bulk endpoints require `recipient_role` and `recipient_id`.
-- Notification/SMS helpers resolve context (`client_id`, `unit_id`, `apartment_id`) for consistent auditability.
+- Notification/SMS helpers resolve context (`apartmentowner_id`, `unit_id`, `apartment_id`) for consistent auditability.

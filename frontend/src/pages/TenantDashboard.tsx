@@ -1,18 +1,19 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { HelpCircle, X, ChevronDown } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import TenantSidebar from '../components/tenant/TenantSidebar'
 import TenantTopBar from '../components/tenant/TenantTopBar'
-import TenantOverviewTab from '../components/tenant/TenantOverviewTab'
-import TenantMaintenanceTab from '../components/tenant/TenantMaintenanceTab'
-import TenantPaymentsTab from '../components/tenant/TenantPaymentsTab'
-import TenantNotificationsTab from '../components/tenant/TenantNotificationsTab'
-import TenantAccountTab from '../components/tenant/TenantAccountTab'
-import TenantDocumentsTab from '../components/tenant/TenantDocumentsTab'
 import { getCurrentTenant, getTenantApartmentInfo, getUnreadNotificationCount, getTenantNotifications } from '../lib/tenantApi'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
 import { CardsSkeleton } from '../components/ui/skeleton'
+
+const TenantOverviewTab = lazy(() => import('../components/tenant/TenantOverviewTab'))
+const TenantMaintenanceTab = lazy(() => import('../components/tenant/TenantMaintenanceTab'))
+const TenantPaymentsTab = lazy(() => import('../components/tenant/TenantPaymentsTab'))
+const TenantNotificationsTab = lazy(() => import('../components/tenant/TenantNotificationsTab'))
+const TenantAccountTab = lazy(() => import('../components/tenant/TenantAccountTab'))
+const TenantDocumentsTab = lazy(() => import('../components/tenant/TenantDocumentsTab'))
 
 export default function TenantDashboard() {
   const { isDark } = useTheme()
@@ -33,10 +34,10 @@ export default function TenantDashboard() {
       try {
         const data = await getCurrentTenant()
         if (data) {
-          let clientId: string | null = data.client_id || null
+          let clientId: string | null = data.apartmentowner_id || null
           if (data.unit_id) {
             const aptInfo = await getTenantApartmentInfo(data.unit_id)
-            clientId = aptInfo?.client_id || clientId
+            clientId = aptInfo?.apartmentowner_id || clientId
           }
           setTenant({
             id: data.id,
@@ -179,7 +180,11 @@ export default function TenantDashboard() {
         />
 
         {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">{renderContent()}</main>
+        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">
+          <Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+            {renderContent()}
+          </Suspense>
+        </main>
       </div>
 
       {/* Floating FAQ Button */}

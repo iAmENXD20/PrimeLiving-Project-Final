@@ -3,10 +3,11 @@ import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { createNotifications } from "../utils/notifications";
+import { logActivity } from "../utils/activityLog";
 
 /**
  * GET /api/announcements
- * Get announcements (filtered by client_id)
+ * Get announcements (filtered by apartmentowner_id)
  */
 export async function getAnnouncements(
   req: AuthenticatedRequest,
@@ -18,8 +19,8 @@ export async function getAnnouncements(
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (req.query.client_id) {
-      query = query.eq("client_id", req.query.client_id as string);
+    if (req.query.apartmentowner_id) {
+      query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
 
     if (req.query.apartment_id) {
@@ -83,7 +84,7 @@ export async function createAnnouncement(
   res: Response
 ): Promise<void> {
   try {
-    const { client_id, apartment_id, title, message } = req.body;
+    const { apartmentowner_id, apartment_id, title, message } = req.body;
     const senderName =
       typeof req.body.created_by === "string" && req.body.created_by.trim().length > 0
         ? req.body.created_by.trim()
@@ -120,11 +121,11 @@ export async function createAnnouncement(
       return;
     }
 
-    if (client_id) {
+    if (apartmentowner_id) {
       let tenantQuery = supabaseAdmin
         .from("tenants")
         .select("id")
-        .eq("client_id", client_id)
+        .eq("apartmentowner_id", apartmentowner_id)
         .eq("status", "active");
 
       if (recipientTenantIds.length > 0) {
@@ -134,7 +135,7 @@ export async function createAnnouncement(
       const { data: tenants } = await tenantQuery;
 
       const tenantNotifications = (tenants || []).map((tenant: any) => ({
-        client_id,
+        apartmentowner_id,
         apartment_id: apartment_id || null,
         recipient_role: "tenant" as const,
         recipient_id: tenant.id,
@@ -144,7 +145,7 @@ export async function createAnnouncement(
       }));
 
       const managerNotifications: Array<{
-        client_id: string;
+        apartmentowner_id: string;
         recipient_role: "manager";
         recipient_id: string;
         type: string;
@@ -154,14 +155,14 @@ export async function createAnnouncement(
 
       if (req.user?.role === "owner") {
         const { data: managers } = await supabaseAdmin
-          .from("managers")
+          .from("apartment_managers")
           .select("id")
-          .eq("client_id", client_id)
+          .eq("apartmentowner_id", apartmentowner_id)
           .eq("status", "active");
 
         managerNotifications.push(
           ...(managers || []).map((manager: any) => ({
-            client_id,
+            apartmentowner_id,
             apartment_id: apartment_id || null,
             recipient_role: "manager" as const,
             recipient_id: manager.id,
@@ -181,6 +182,20 @@ export async function createAnnouncement(
       "Announcement created successfully",
       201
     );
+
+    if (apartmentowner_id) {
+      logActivity({
+        apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: senderName,
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "announcement_created",
+        entity_type: "announcement",
+        entity_id: data.id,
+        description: `Created announcement: ${title}`,
+        metadata: { title },
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -197,6 +212,13 @@ export async function deleteAnnouncement(
   try {
     const { id } = req.params;
 
+    // Fetch announcement before deletion for logging
+    const { data: announcement } = await supabaseAdmin
+      .from("announcements")
+      .select("title, apartmentowner_id")
+      .eq("id", id)
+      .single();
+
     const { error } = await supabaseAdmin
       .from("announcements")
       .delete()
@@ -208,6 +230,19 @@ export async function deleteAnnouncement(
     }
 
     sendSuccess(res, null, "Announcement deleted successfully");
+
+    if (announcement) {
+      logActivity({
+        apartmentowner_id: announcement.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: req.user?.email || "System",
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "announcement_deleted",
+        entity_type: "announcement",
+        entity_id: id,
+        description: `Deleted announcement: ${announcement.title}`,
+      });
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

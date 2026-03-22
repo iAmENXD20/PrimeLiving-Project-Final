@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase";
 
 interface NotificationPayload {
-  client_id: string;
+  apartmentowner_id: string;
   recipient_role: "manager" | "tenant";
   recipient_id: string;
   type: string;
@@ -27,7 +27,7 @@ async function resolveApartmentId(payload: NotificationPayload): Promise<string 
   const { data: apartment } = await supabaseAdmin
     .from("apartments")
     .select("id")
-    .eq("client_id", payload.client_id)
+    .eq("apartmentowner_id", payload.apartmentowner_id)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();

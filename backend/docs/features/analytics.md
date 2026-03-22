@@ -18,7 +18,7 @@ Exposes dashboard metrics and distribution reports for admin/owner/manager views
 ## How it works
 
 1. Endpoints aggregate data from tenants, units, payments, maintenance, and users.
-2. Client-scoped routes require `client_id` query context.
+2. Client-scoped routes require `apartmentowner_id` query context.
 3. Outputs are shaped for dashboard widgets and chart components.
 4. Manager-specific routes resolve managed unit scope then aggregate metrics.
 

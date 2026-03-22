@@ -13,7 +13,7 @@ interface SidebarProps {
 
 const navItems = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'clients', label: 'Clients', icon: Users },
+  { id: 'clients', label: 'Apartment Owners', icon: Users },
   { id: 'inquiries', label: 'Inquiries', icon: Mail },
   { id: 'settings', label: 'Account Settings', icon: Settings },
 ]

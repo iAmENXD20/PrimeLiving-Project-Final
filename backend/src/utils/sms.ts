@@ -4,7 +4,7 @@ import { supabaseAdmin } from "../config/supabase";
 interface SmsContext {
   apartment_id?: string | null;
   unit_id?: string | null;
-  client_id?: string | null;
+  apartmentowner_id?: string | null;
 }
 
 async function resolveApartmentId(context?: SmsContext): Promise<string | null> {
@@ -21,11 +21,11 @@ async function resolveApartmentId(context?: SmsContext): Promise<string | null> 
     if (unit?.apartment_id) return unit.apartment_id;
   }
 
-  if (context.client_id) {
+  if (context.apartmentowner_id) {
     const { data: apartment } = await supabaseAdmin
       .from("apartments")
       .select("id")
-      .eq("client_id", context.client_id)
+      .eq("apartmentowner_id", context.apartmentowner_id)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();

@@ -72,7 +72,7 @@ export default function StatsOverview({
       onClick: onUsersClick,
     },
     {
-      label: 'Apartment Clients',
+      label: 'Apartment Owners',
       value: clients,
       icon: <Users className="w-5 h-5 text-cyan-400" />,
       iconColor: 'bg-cyan-400/15',

@@ -57,7 +57,7 @@ async function main() {
 
   // 3. Link auth_user_id to existing client record
   const { data: client, error: clientError } = await supabase
-    .from('clients')
+    .from('apartment_owners')
     .update({ auth_user_id: userId })
     .eq('email', NERMA_EMAIL)
     .select()

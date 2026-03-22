@@ -21,7 +21,7 @@ interface TenantOverviewTabProps {
 export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, clientId }: TenantOverviewTabProps) {
   const { isDark } = useTheme()
   const [stats, setStats] = useState({ pendingMaintenance: 0, resolvedMaintenance: 0, totalPaid: 0, pendingPayments: 0 })
-  const [apartmentInfo, setApartmentInfo] = useState<{ name: string; address: string; monthly_rent: number; client_id: string } | null>(null)
+  const [apartmentInfo, setApartmentInfo] = useState<{ name: string; address: string; monthly_rent: number; apartmentowner_id: string } | null>(null)
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [recentMaintenance, setRecentMaintenance] = useState<TenantMaintenanceRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,7 +41,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, c
         if (apartmentId) {
           const info = await getTenantApartmentInfo(apartmentId)
           setApartmentInfo(info)
-          const fallbackClientId = info?.client_id || clientId || null
+          const fallbackClientId = info?.apartmentowner_id || clientId || null
           const [fallbackAddress, fallbackApartmentName] = fallbackClientId
             ? await Promise.all([
                 getOwnerApartmentAddress(fallbackClientId),

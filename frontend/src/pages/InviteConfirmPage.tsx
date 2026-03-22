@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { EmailOtpType } from '@supabase/supabase-js'
-import { ArrowLeft, Building2, CheckCircle2, KeyRound, Sun, Moon } from 'lucide-react'
+import { ArrowLeft, Building2, CheckCircle2, KeyRound, Sun, Moon, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '@/context/ThemeContext'
 import { Label } from '@/components/ui/label'
@@ -17,6 +17,8 @@ export default function InviteConfirmPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const tokenHash = useMemo(() => searchParams.get('token_hash') || '', [searchParams])
   const type = useMemo(() => searchParams.get('type') || 'invite', [searchParams])
@@ -24,6 +26,21 @@ export default function InviteConfirmPage() {
   async function handleActivate() {
     if (!password || password.length < 8) {
       setError('Password must be at least 8 characters.')
+      return
+    }
+
+    if (!/[A-Za-z]/.test(password)) {
+      setError('Password must contain at least one letter.')
+      return
+    }
+
+    if (!/[0-9]/.test(password)) {
+      setError('Password must contain at least one number.')
+      return
+    }
+
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      setError('Password must contain at least one special character.')
       return
     }
 
@@ -169,13 +186,23 @@ export default function InviteConfirmPage() {
                 <KeyRound className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                 <Input
                   id="invite-password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 8 characters"
-                  className={`pl-10 ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
+                  className={`pl-10 pr-10 ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
+              <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                Must contain letters, numbers, and a special character
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -184,12 +211,19 @@ export default function InviteConfirmPage() {
                 <KeyRound className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                 <Input
                   id="invite-confirm-password"
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter password"
-                  className={`pl-10 ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
+                  className={`pl-10 pr-10 ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
           </div>

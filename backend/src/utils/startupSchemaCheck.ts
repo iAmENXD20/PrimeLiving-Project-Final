@@ -1,10 +1,10 @@
 import { supabaseAdmin } from "../config/supabase";
 
 const CRITICAL_TABLES = [
-  "clients",
+  "apartment_owners",
   "apartments",
   "units",
-  "managers",
+  "apartment_managers",
   "tenants",
   "announcements",
   "notifications",

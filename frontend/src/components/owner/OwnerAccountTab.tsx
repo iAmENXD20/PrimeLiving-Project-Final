@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Eye, EyeOff, Lock, ShieldCheck, MapPin, Pencil, Check, X } from 'lucide-react'
+import { Eye, EyeOff, Lock, ShieldCheck, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +12,15 @@ import { supabase } from '@/lib/supabase'
 import { getOwnerApartmentAddress, updateOwnerApartmentAddress } from '@/lib/ownerApi'
 import { PROVINCE_LIST, getCitiesByProvince, PH_PROVINCES } from '@/lib/phLocations'
 import AutocompleteInput from '@/components/ui/AutocompleteInput'
+
+function formatPhoneTo63(phone: string): string {
+  if (!phone) return ''
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('63')) return `+63 ${digits.slice(2)}`
+  if (digits.startsWith('0')) return `+63 ${digits.slice(1)}`
+  if (digits.startsWith('9') && digits.length === 10) return `+63 ${digits}`
+  return phone
+}
 
 // Get cities based on exact or partial province match, or all cities if empty
 function getCitySuggestions(province: string): string[] {
@@ -34,7 +43,7 @@ const passwordSchema = z
   .object({
     currentPassword: z.string().min(6, 'Current password is required'),
     newPassword: z.string().min(6, 'Password must be at least 6 characters'),
-    confirmPassword: z.string().min(6, 'Please confirm your new password'),
+    confirmPassword: z.string().min(1, 'Please confirm your new password'),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: 'Passwords do not match',
@@ -57,12 +66,11 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
   const [ownerPhone, setOwnerPhone] = useState<string | null>(null)
   const [ownerStatus, setOwnerStatus] = useState<string>('active')
   const [memberSince, setMemberSince] = useState<string | null>(null)
+  const [phoneInput, setPhoneInput] = useState('')
+  const [phoneSaving, setPhoneSaving] = useState(false)
   const [unitsCount, setUnitsCount] = useState(0)
   const [activeManagersCount, setActiveManagersCount] = useState(0)
   const [activeTenantsCount, setActiveTenantsCount] = useState(0)
-  const [editingPhone, setEditingPhone] = useState(false)
-  const [phoneInput, setPhoneInput] = useState('')
-  const [phoneSaving, setPhoneSaving] = useState(false)
   const [addrFields, setAddrFields] = useState({ street: '', barangay: '', city: '', province: '', zip: '' })
   const [addressSaving, setAddressSaving] = useState(false)
   const [addressErrors, setAddressErrors] = useState<Record<string, string>>({})
@@ -71,17 +79,19 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? null)
     })
-    supabase.from('clients').select('name, phone, status, created_at').eq('id', clientId).single().then(({ data }) => {
+    supabase.from('apartment_owners').select('name, phone, status, created_at').eq('id', clientId).single().then(({ data }) => {
       setOwnerName(data?.name ?? null)
       setOwnerPhone(data?.phone ?? null)
       setOwnerStatus(data?.status || 'active')
       setMemberSince(data?.created_at || null)
+      const d = (data?.phone || '').replace(/\D/g, '')
+      setPhoneInput(d.startsWith('63') ? d.slice(2) : d.startsWith('0') ? d.slice(1) : d)
     })
 
     Promise.all([
-      supabase.from('units').select('id', { count: 'exact', head: true }).eq('client_id', clientId),
-      supabase.from('managers').select('id', { count: 'exact', head: true }).eq('client_id', clientId).eq('status', 'active'),
-      supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('client_id', clientId).eq('status', 'active'),
+      supabase.from('units').select('id', { count: 'exact', head: true }).eq('apartmentowner_id', clientId),
+      supabase.from('apartment_managers').select('id', { count: 'exact', head: true }).eq('apartmentowner_id', clientId).eq('status', 'active'),
+      supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('apartmentowner_id', clientId).eq('status', 'active'),
     ]).then(([unitsRes, managersRes, tenantsRes]) => {
       setUnitsCount(unitsRes.count || 0)
       setActiveManagersCount(managersRes.count || 0)
@@ -105,19 +115,20 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
   }, [clientId])
 
   const handleSavePhone = async () => {
+    if (phoneInput === ((ownerPhone || '').replace(/\D/g, '').replace(/^63/, '') || ownerPhone || '')) return
     setPhoneSaving(true)
     try {
-      const { error } = await supabase.from('clients').update({ phone: phoneInput }).eq('id', clientId)
+      const { error } = await supabase.from('apartment_owners').update({ phone: phoneInput }).eq('id', clientId)
       if (error) throw error
       setOwnerPhone(phoneInput)
-      setEditingPhone(false)
-      toast.success('Phone number updated!')
+      toast.success('Contact number updated!')
     } catch {
-      toast.error('Failed to update phone number')
+      toast.error('Failed to update contact number')
     } finally {
       setPhoneSaving(false)
     }
   }
+
 
   const {
     register,
@@ -166,14 +177,10 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
 
   const labelClass = isDark ? 'text-gray-300' : 'text-gray-700'
   const sectionClass = `${cardClass} rounded-2xl border p-6 lg:p-8 shadow-sm`
-  const infoGridClass = `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 [&>div]:rounded-xl [&>div]:border [&>div]:p-4 [&>div]:min-h-[88px] [&_p]:truncate ${
-    isDark
-      ? '[&>div]:border-[#1E293B] [&>div]:bg-[#0A1628]/70'
-      : '[&>div]:border-gray-200 [&>div]:bg-gray-50'
-  }`
+  const infoGridClass = `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 [&>div]:min-h-[56px] [&_p]:truncate`
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-up">
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-up">
       {/* Header */}
       <div className={sectionClass}>
         <h2 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -203,79 +210,37 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
         <div className={infoGridClass}>
           <div>
             <Label className={`text-sm ${labelClass}`}>Name</Label>
-            <p className={`mt-1 text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-              {ownerName ?? '—'}
-            </p>
+            <Input className={`mt-1 text-base font-semibold ${inputClass}`} value={ownerName ?? '—'} disabled />
           </div>
           <div>
             <Label className={`text-sm ${labelClass}`}>Email</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {userEmail ?? '—'}
-            </p>
+            <Input className={`mt-1 text-base ${inputClass}`} value={userEmail ?? '—'} disabled />
           </div>
           <div>
             <Label className={`text-sm ${labelClass}`}>Role</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              Owner
-            </p>
+            <Input className={`mt-1 text-base ${inputClass}`} value="Owner" disabled />
           </div>
           <div>
             <Label className={`text-sm ${labelClass}`}>Status</Label>
-            <p className={`mt-1 text-base font-medium capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {ownerStatus}
-            </p>
+            <Input className={`mt-1 text-base capitalize ${inputClass}`} value={ownerStatus} disabled />
           </div>
           <div>
-            <Label className={`text-sm ${labelClass}`}>Member Since</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {memberSince ? new Date(memberSince).toLocaleDateString() : 'Not set'}
-            </p>
+            <Label className={`text-sm ${labelClass}`}>Date Joined</Label>
+            <Input className={`mt-1 text-base ${inputClass}`} value={memberSince ? new Date(memberSince).toLocaleDateString() : 'Not set'} disabled />
           </div>
           <div>
-            <Label className={`text-sm ${labelClass}`}>Total Units</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {unitsCount}
-            </p>
-          </div>
-          <div>
-            <Label className={`text-sm ${labelClass}`}>Active Managers</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {activeManagersCount}
-            </p>
-          </div>
-          <div>
-            <Label className={`text-sm ${labelClass}`}>Active Tenants</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {activeTenantsCount}
-            </p>
-          </div>
-          <div>
-            <Label className={`text-sm ${labelClass}`}>Phone</Label>
-            {editingPhone ? (
-              <div className="flex items-center gap-2 mt-1">
-                <Input
-                  className={`text-base ${inputClass}`}
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
-                  placeholder="Enter phone number"
-                />
-                <button type="button" onClick={handleSavePhone} disabled={phoneSaving} className="text-green-500 hover:text-green-400">
-                  <Check className="w-5 h-5" />
-                </button>
-                <button type="button" onClick={() => setEditingPhone(false)} className="text-red-500 hover:text-red-400">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 mt-1 min-w-0">
-                <p className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                  {ownerPhone || 'Not provided'}
-                </p>
-                <button type="button" onClick={() => { setPhoneInput(ownerPhone || ''); setEditingPhone(true) }} className={`${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
-                  <Pencil className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+            <Label className={`text-sm ${labelClass}`}>Contact Number</Label>
+            <div className="flex items-center gap-1 mt-1">
+              <span className={`text-base font-medium whitespace-nowrap ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>+63</span>
+              <Input
+                className={`text-base ${inputClass}`}
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ''))}
+                onBlur={handleSavePhone}
+                placeholder="9XXXXXXXXX"
+                maxLength={10}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -291,113 +256,49 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
               Apartment Address
             </h3>
             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              Set your apartment building address
+              Your apartment building address
             </p>
           </div>
         </div>
 
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault()
-            // Validate all address fields are filled
-            const errs: Record<string, string> = {}
-            if (!addrFields.street.trim()) errs.street = 'Street / Building is required'
-            if (!addrFields.barangay.trim()) errs.barangay = 'Barangay is required'
-            if (!addrFields.province.trim()) errs.province = 'Province is required'
-            if (!addrFields.city.trim()) errs.city = 'City / Municipality is required'
-            if (!addrFields.zip.trim()) errs.zip = 'Zip Code is required'
-            setAddressErrors(errs)
-            if (Object.keys(errs).length > 0) {
-              toast.error('Please fill in all address fields')
-              return
-            }
-            setAddressSaving(true)
-            try {
-              const combined = [addrFields.street, addrFields.barangay, addrFields.city, `${addrFields.province} ${addrFields.zip}`.trim()].filter(Boolean).join(', ')
-              await updateOwnerApartmentAddress(clientId, combined)
-              toast.success('Apartment address updated!')
-            } catch {
-              toast.error('Failed to update apartment address')
-            } finally {
-              setAddressSaving(false)
-            }
-          }}
-          className="space-y-4"
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className={labelClass}>Street / Building <span className="text-red-500">*</span></Label>
-              <Input
-                type="text"
-                placeholder="e.g. 123 Rizal Ave, Bldg A"
-                className={`${inputClass} ${addressErrors.street ? 'border-red-500 focus:border-red-500' : ''}`}
-                value={addrFields.street}
-                onChange={(e) => { setAddrFields({ ...addrFields, street: e.target.value }); setAddressErrors((prev) => { const { street, ...rest } = prev; return rest }) }}
-                required
-              />
-              {addressErrors.street && <p className="text-xs text-red-500 mt-1">{addressErrors.street}</p>}
+        {addrFields.street || addrFields.barangay || addrFields.city || addrFields.province || addrFields.zip ? (
+          <div className={infoGridClass}>
+            <div>
+              <Label className={`text-sm ${labelClass}`}>Street / Building</Label>
+              <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                {addrFields.street || '—'}
+              </p>
             </div>
-            <div className="space-y-1.5">
-              <Label className={labelClass}>Barangay <span className="text-red-500">*</span></Label>
-              <Input
-                type="text"
-                placeholder="e.g. Brgy. San Antonio"
-                className={`${inputClass} ${addressErrors.barangay ? 'border-red-500 focus:border-red-500' : ''}`}
-                value={addrFields.barangay}
-                onChange={(e) => { setAddrFields({ ...addrFields, barangay: e.target.value }); setAddressErrors((prev) => { const { barangay, ...rest } = prev; return rest }) }}
-                required
-              />
-              {addressErrors.barangay && <p className="text-xs text-red-500 mt-1">{addressErrors.barangay}</p>}
+            <div>
+              <Label className={`text-sm ${labelClass}`}>Barangay</Label>
+              <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                {addrFields.barangay || '—'}
+              </p>
+            </div>
+            <div>
+              <Label className={`text-sm ${labelClass}`}>Province</Label>
+              <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                {addrFields.province || '—'}
+              </p>
+            </div>
+            <div>
+              <Label className={`text-sm ${labelClass}`}>City / Municipality</Label>
+              <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                {addrFields.city || '—'}
+              </p>
+            </div>
+            <div>
+              <Label className={`text-sm ${labelClass}`}>Zip Code</Label>
+              <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                {addrFields.zip || '—'}
+              </p>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label className={labelClass}>Province <span className="text-red-500">*</span></Label>
-              <AutocompleteInput
-                value={addrFields.province}
-                onChange={(val) => { setAddrFields({ ...addrFields, province: val, city: '' }); setAddressErrors((prev) => { const { province, ...rest } = prev; return rest }) }}
-                suggestions={PROVINCE_LIST}
-                placeholder="e.g. Metro Manila"
-                className={`${inputClass} ${addressErrors.province ? 'border-red-500 focus:border-red-500' : ''}`}
-                isDark={isDark}
-              />
-              {addressErrors.province && <p className="text-xs text-red-500 mt-1">{addressErrors.province}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label className={labelClass}>City / Municipality <span className="text-red-500">*</span></Label>
-              <AutocompleteInput
-                value={addrFields.city}
-                onChange={(val) => { setAddrFields({ ...addrFields, city: val }); setAddressErrors((prev) => { const { city, ...rest } = prev; return rest }) }}
-                suggestions={getCitySuggestions(addrFields.province)}
-                placeholder="e.g. Quezon City"
-                className={`${inputClass} ${addressErrors.city ? 'border-red-500 focus:border-red-500' : ''}`}
-                isDark={isDark}
-              />
-              {addressErrors.city && <p className="text-xs text-red-500 mt-1">{addressErrors.city}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label className={labelClass}>Zip Code <span className="text-red-500">*</span></Label>
-              <Input
-                type="text"
-                placeholder="e.g. 1100"
-                className={`${inputClass} ${addressErrors.zip ? 'border-red-500 focus:border-red-500' : ''}`}
-                value={addrFields.zip}
-                onChange={(e) => { setAddrFields({ ...addrFields, zip: e.target.value }); setAddressErrors((prev) => { const { zip, ...rest } = prev; return rest }) }}
-                required
-              />
-              {addressErrors.zip && <p className="text-xs text-red-500 mt-1">{addressErrors.zip}</p>}
-            </div>
-          </div>
-          <div className="pt-1">
-            <Button
-              type="submit"
-              disabled={addressSaving}
-              className="w-full sm:w-auto px-8 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors"
-            >
-              {addressSaving ? 'Saving...' : 'Save Address'}
-            </Button>
-          </div>
-        </form>
+        ) : (
+          <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            No address set yet. The address will be populated from your inquiry submission.
+          </p>
+        )}
       </div>
 
       {/* Change Password */}

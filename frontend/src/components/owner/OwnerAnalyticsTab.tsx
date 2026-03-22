@@ -52,7 +52,7 @@ export default function OwnerAnalyticsTab({ clientId }: OwnerAnalyticsTabProps) 
         const availableCount = units.length - occupiedCount
 
         setStatusData([
-          { name: 'Managers', value: mgrs.length },
+          { name: 'Apartment Managers', value: mgrs.length },
           { name: 'Occupied', value: occupiedCount },
           { name: 'Vacant', value: availableCount },
         ])

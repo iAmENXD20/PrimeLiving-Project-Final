@@ -3,18 +3,27 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Eye, EyeOff, Lock, ShieldCheck, Pencil, Check, X } from 'lucide-react'
+import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
 
+function formatPhoneTo63(phone: string): string {
+  if (!phone) return ''
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('63')) return `+63 ${digits.slice(2)}`
+  if (digits.startsWith('0')) return `+63 ${digits.slice(1)}`
+  if (digits.startsWith('9') && digits.length === 10) return `+63 ${digits}`
+  return phone
+}
+
 const passwordSchema = z
   .object({
     currentPassword: z.string().min(6, 'Current password is required'),
     newPassword: z.string().min(6, 'Password must be at least 6 characters'),
-    confirmPassword: z.string().min(6, 'Please confirm your new password'),
+    confirmPassword: z.string().min(1, 'Please confirm your new password'),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: 'Passwords do not match',
@@ -38,13 +47,16 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
   const [showConfirm, setShowConfirm] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [phone, setPhone] = useState(tenantPhone || '')
-  const [editingPhone, setEditingPhone] = useState(false)
-  const [phoneInput, setPhoneInput] = useState('')
+  const [phoneInput, setPhoneInput] = useState(() => {
+    const d = (tenantPhone || '').replace(/\D/g, '')
+    return d.startsWith('63') ? d.slice(2) : d.startsWith('0') ? d.slice(1) : d
+  })
   const [phoneSaving, setPhoneSaving] = useState(false)
   const [tenantStatus, setTenantStatus] = useState<string>('active')
   const [moveInDate, setMoveInDate] = useState<string | null>(null)
   const [apartmentName, setApartmentName] = useState<string | null>(null)
   const [ownerName, setOwnerName] = useState<string | null>(null)
+  const [propertyAddress, setPropertyAddress] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadProfile() {
@@ -53,7 +65,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
         tenantId
           ? supabase
               .from('tenants')
-              .select('status, move_in_date, unit_id, client_id')
+              .select('status, move_in_date, unit_id, apartmentowner_id')
               .eq('id', tenantId)
               .maybeSingle()
           : Promise.resolve({ data: null } as any),
@@ -62,7 +74,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
       setUserEmail(userData.user?.email ?? null)
 
       const resolvedApartmentId = (tenantRes?.data?.unit_id as string | null) || apartmentId || null
-      const resolvedClientId = (tenantRes?.data?.client_id as string | null) || clientId || null
+      const resolvedClientId = (tenantRes?.data?.apartmentowner_id as string | null) || clientId || null
 
       if (tenantRes?.data?.status) setTenantStatus(tenantRes.data.status)
       if (tenantRes?.data?.move_in_date) setMoveInDate(tenantRes.data.move_in_date)
@@ -78,11 +90,12 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
 
       if (resolvedClientId) {
         const { data: owner } = await supabase
-          .from('clients')
-          .select('name')
+          .from('apartment_owners')
+          .select('name, apartment_address')
           .eq('id', resolvedClientId)
           .maybeSingle()
         setOwnerName(owner?.name || null)
+        setPropertyAddress(owner?.apartment_address || null)
       }
     }
 
@@ -138,14 +151,10 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
 
   const labelClass = isDark ? 'text-gray-300' : 'text-gray-700'
   const sectionClass = `${cardClass} rounded-2xl border p-6 lg:p-8 shadow-sm`
-  const infoGridClass = `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 [&>div]:rounded-xl [&>div]:border [&>div]:p-4 [&>div]:min-h-[88px] [&_p]:truncate ${
-    isDark
-      ? '[&>div]:border-[#1E293B] [&>div]:bg-[#0A1628]/70'
-      : '[&>div]:border-gray-200 [&>div]:bg-gray-50'
-  }`
+  const infoGridClass = `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 [&>div]:min-h-[56px] [&_p]:truncate`
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-up">
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-up">
       {/* Header */}
       <div className={sectionClass}>
         <h2 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -175,87 +184,65 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
         <div className={infoGridClass}>
           <div>
             <Label className={`text-sm ${labelClass}`}>Name</Label>
-            <p className={`mt-1 text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-              {tenantName || '—'}
-            </p>
+            <Input className={`mt-1 text-base font-semibold ${inputClass}`} value={tenantName || '—'} disabled />
           </div>
           <div>
             <Label className={`text-sm ${labelClass}`}>Email</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {userEmail ?? '—'}
-            </p>
+            <Input className={`mt-1 text-base ${inputClass}`} value={userEmail ?? '—'} disabled />
           </div>
           <div>
             <Label className={`text-sm ${labelClass}`}>Role</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              Tenant
-            </p>
+            <Input className={`mt-1 text-base ${inputClass}`} value="Tenant" disabled />
           </div>
           <div>
             <Label className={`text-sm ${labelClass}`}>Status</Label>
-            <p className={`mt-1 text-base font-medium capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {tenantStatus}
-            </p>
+            <Input className={`mt-1 text-base capitalize ${inputClass}`} value={tenantStatus} disabled />
           </div>
           <div>
             <Label className={`text-sm ${labelClass}`}>Move-in Date</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {moveInDate ? new Date(moveInDate).toLocaleDateString() : 'Not set'}
-            </p>
+            <Input className={`mt-1 text-base ${inputClass}`} value={moveInDate ? new Date(moveInDate).toLocaleDateString() : 'Not set'} disabled />
           </div>
           <div>
             <Label className={`text-sm ${labelClass}`}>Assigned Unit</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {apartmentName || 'Unassigned'}
-            </p>
+            <Input className={`mt-1 text-base ${inputClass}`} value={apartmentName || 'Unassigned'} disabled />
           </div>
           <div>
             <Label className={`text-sm ${labelClass}`}>Property Owner</Label>
-            <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-              {ownerName || 'Not linked'}
-            </p>
+            <Input className={`mt-1 text-base ${inputClass}`} value={ownerName || 'Not linked'} disabled />
           </div>
           <div>
-            <Label className={`text-sm ${labelClass}`}>Phone</Label>
-            {editingPhone ? (
-              <div className="flex items-center gap-2 mt-1">
-                <Input
-                  className={`text-base ${inputClass}`}
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
-                  placeholder="Enter phone number"
-                />
-                <button type="button" onClick={async () => {
+            <Label className={`text-sm ${labelClass}`}>Property Address</Label>
+            <Input className={`mt-1 text-base ${inputClass}`} value={propertyAddress || 'Not set'} disabled />
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Contact Number</Label>
+            <div className="flex items-center gap-1 mt-1">
+              <span className={`text-base font-medium whitespace-nowrap ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>+63</span>
+              <Input
+                className={`text-base ${inputClass}`}
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ''))}
+                onBlur={async () => {
+                  const d = (phone || '').replace(/\D/g, '')
+                  const current = d.startsWith('63') ? d.slice(2) : d.startsWith('0') ? d.slice(1) : d
+                  if (phoneInput === current) return
                   if (!tenantId) return
                   setPhoneSaving(true)
                   try {
                     const { error } = await supabase.from('tenants').update({ phone: phoneInput }).eq('id', tenantId)
                     if (error) throw error
                     setPhone(phoneInput)
-                    setEditingPhone(false)
-                    toast.success('Phone number updated!')
+                    toast.success('Contact number updated!')
                   } catch {
-                    toast.error('Failed to update phone number')
+                    toast.error('Failed to update contact number')
                   } finally {
                     setPhoneSaving(false)
                   }
-                }} disabled={phoneSaving} className="text-green-500 hover:text-green-400">
-                  <Check className="w-5 h-5" />
-                </button>
-                <button type="button" onClick={() => setEditingPhone(false)} className="text-red-500 hover:text-red-400">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 mt-1 min-w-0">
-                <p className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                  {phone || 'Not provided'}
-                </p>
-                <button type="button" onClick={() => { setPhoneInput(phone || ''); setEditingPhone(true) }} className={`${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
-                  <Pencil className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+                }}
+                placeholder="9XXXXXXXXX"
+                maxLength={10}
+              />
+            </div>
           </div>
         </div>
       </div>

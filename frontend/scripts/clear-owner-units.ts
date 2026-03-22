@@ -16,26 +16,26 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 async function clearOwnerUnits() {
   console.log('🔧 Finding test manager\'s client...\n')
 
-  // Find the test manager's client_id
+  // Find the test manager's apartmentowner_id
   const { data: manager, error: mgrError } = await supabase
-    .from('managers')
-    .select('id, client_id')
+    .from('apartment_managers')
+    .select('id, apartmentowner_id')
     .eq('email', 'manager@primeliving.test')
     .single()
 
-  if (mgrError || !manager || !manager.client_id) {
+  if (mgrError || !manager || !manager.apartmentowner_id) {
     console.error('❌ Test manager or client not found:', mgrError?.message)
     process.exit(1)
   }
 
-  const clientId = manager.client_id
+  const clientId = manager.apartmentowner_id
   console.log(`✅ Found client: ${clientId}\n`)
 
   // First, unlink any tenants from these apartments
   const { data: apartments } = await supabase
     .from('apartments')
     .select('id')
-    .eq('client_id', clientId)
+    .eq('apartmentowner_id', clientId)
 
   if (apartments && apartments.length > 0) {
     const aptIds = apartments.map(a => a.id)
@@ -57,7 +57,7 @@ async function clearOwnerUnits() {
     const { error: delErr } = await supabase
       .from('apartments')
       .delete()
-      .eq('client_id', clientId)
+      .eq('apartmentowner_id', clientId)
 
     if (delErr) {
       console.error('❌ Failed to delete apartments:', delErr.message)

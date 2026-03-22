@@ -9,7 +9,7 @@ export interface TenantProfile {
   email: string | null
   phone: string | null
   unit_id: string | null
-  client_id: string | null
+  apartmentowner_id: string | null
   status: string
   move_in_date: string
   created_at: string
@@ -20,7 +20,7 @@ export interface TenantMaintenanceRequest {
   id: string
   tenant_id: string | null
   unit_id: string | null
-  client_id: string | null
+  apartmentowner_id: string | null
   title: string
   description: string
   priority: 'low' | 'medium' | 'high' | 'urgent'
@@ -32,7 +32,7 @@ export interface TenantMaintenanceRequest {
 
 export interface TenantPayment {
   id: string
-  client_id: string
+  apartmentowner_id: string
   tenant_id: string | null
   unit_id: string | null
   amount: number
@@ -58,7 +58,7 @@ export interface TenantDueScheduleItem {
 
 export interface TenantAnnouncement {
   id: string
-  client_id: string
+  apartmentowner_id: string
   title: string
   message: string
   created_by: string
@@ -67,7 +67,7 @@ export interface TenantAnnouncement {
 
 export interface TenantNotification {
   id: string
-  client_id: string | null
+  apartmentowner_id: string | null
   recipient_role: 'tenant' | 'manager'
   recipient_id: string
   type: string
@@ -79,7 +79,7 @@ export interface TenantNotification {
 
 export interface TenantDocument {
   id: string
-  client_id: string | null
+  apartmentowner_id: string | null
   unit_id: string | null
   tenant_id: string | null
   uploaded_by: string | null
@@ -123,7 +123,7 @@ export async function getTenantApartmentInfo(apartmentId: string) {
       name: data.name,
       address: data.address,
       monthly_rent: data.monthly_rent,
-      client_id: data.client_id,
+      apartmentowner_id: data.apartmentowner_id,
     }
   } catch {
     return null
@@ -138,7 +138,7 @@ export async function getTenantMaintenanceRequests(tenantId: string): Promise<Te
 export async function createTenantMaintenanceRequest(request: {
   tenant_id: string
   unit_id: string | null
-  client_id: string | null
+  apartmentowner_id: string | null
   title: string
   description: string
   priority: 'low' | 'medium' | 'high' | 'urgent'
@@ -204,7 +204,7 @@ export async function uploadPaymentReceipt(file: File, tenantId: string): Promis
 // ── Submit Cash Payment Verification Request ───────────────
 export async function submitCashPaymentVerification(params: {
   tenant_id: string
-  client_id: string
+  apartmentowner_id: string
   unit_id: string | null
   amount: number
   receipt_url: string
@@ -214,7 +214,7 @@ export async function submitCashPaymentVerification(params: {
 }) {
   return api.post<any>('/payments/submit-proof', {
     tenant_id: params.tenant_id,
-    client_id: params.client_id,
+    apartmentowner_id: params.apartmentowner_id,
     unit_id: params.unit_id,
     amount: params.amount,
     receipt_url: params.receipt_url,
@@ -226,7 +226,7 @@ export async function submitCashPaymentVerification(params: {
 
 // ── Announcements / Notifications ──────────────────────────
 export async function getTenantAnnouncements(clientId: string, tenantId?: string): Promise<TenantAnnouncement[]> {
-  const params = new URLSearchParams({ client_id: clientId })
+  const params = new URLSearchParams({ apartmentowner_id: clientId })
   if (tenantId) {
     params.set('tenant_id', tenantId)
   }
@@ -236,7 +236,7 @@ export async function getTenantAnnouncements(clientId: string, tenantId?: string
 
 export async function getTenantDocuments(tenantId: string, clientId?: string | null): Promise<TenantDocument[]> {
   const params = new URLSearchParams({ tenant_id: tenantId })
-  if (clientId) params.set('client_id', clientId)
+  if (clientId) params.set('apartmentowner_id', clientId)
 
   const data = await api.get<any[]>(`/documents?${params.toString()}`)
   return (data || []).map((doc: any) => ({
@@ -252,7 +252,7 @@ export async function getTenantNotifications(tenantId: string, clientId?: string
     recipient_role: 'tenant',
     recipient_id: tenantId,
   })
-  if (clientId) params.set('client_id', clientId)
+  if (clientId) params.set('apartmentowner_id', clientId)
   return api.get<TenantNotification[]>(`/notifications?${params.toString()}`, { skipCache: true })
 }
 
@@ -275,7 +275,7 @@ export async function deleteAllTenantNotifications(tenantId: string, clientId?: 
   await api.delete('/notifications/all', {
     recipient_role: 'tenant',
     recipient_id: tenantId,
-    client_id: clientId || undefined,
+    apartmentowner_id: clientId || undefined,
   })
 }
 
@@ -292,9 +292,9 @@ export async function getClientPaymentQrUrl(clientId?: string | null, apartmentI
 
   if (tenantId) {
     try {
-      const byTenant = await api.get<{ qr_url: string; client_id?: string }>(`/payments/qr/by-tenant/${tenantId}`)
+      const byTenant = await api.get<{ qr_url: string; apartmentowner_id?: string }>(`/payments/qr/by-tenant/${tenantId}`)
       if (byTenant.qr_url) {
-        const resolvedKey = byTenant.client_id || cacheKey
+        const resolvedKey = byTenant.apartmentowner_id || cacheKey
         localStorage.setItem(`${QR_CACHE_KEY}_${resolvedKey}`, byTenant.qr_url)
         localStorage.setItem(`${QR_CACHE_KEY}_${cacheKey}`, byTenant.qr_url)
         return byTenant.qr_url
@@ -318,9 +318,9 @@ export async function getClientPaymentQrUrl(clientId?: string | null, apartmentI
 
   if (apartmentId) {
     try {
-      const fallback = await api.get<{ qr_url: string; client_id?: string }>(`/payments/qr/by-apartment/${apartmentId}`)
+      const fallback = await api.get<{ qr_url: string; apartmentowner_id?: string }>(`/payments/qr/by-apartment/${apartmentId}`)
       if (fallback.qr_url) {
-        const resolvedKey = fallback.client_id || cacheKey
+        const resolvedKey = fallback.apartmentowner_id || cacheKey
         localStorage.setItem(`${QR_CACHE_KEY}_${resolvedKey}`, fallback.qr_url)
         localStorage.setItem(`${QR_CACHE_KEY}_${cacheKey}`, fallback.qr_url)
         return fallback.qr_url

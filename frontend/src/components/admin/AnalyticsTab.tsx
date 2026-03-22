@@ -138,7 +138,7 @@ export default function AnalyticsTab() {
               {selectedClient.name}
             </h2>
             <p className={`text-base mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              Client overview — Tenants &amp; Managers
+              Apartment Owner overview — Tenants &amp; Apartment Managers
             </p>
           </div>
         </div>
@@ -277,7 +277,7 @@ export default function AnalyticsTab() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Bar chart – Tenants per Apartment */}
         <div className={`${cardClass} lg:col-span-3`}>
-          <h3 className={headingClass}>Client's Summary</h3>
+          <h3 className={headingClass}>Apartment Owner Summary</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={barData} barCategoryGap="20%" barGap={4}>
               <CartesianGrid
@@ -337,7 +337,7 @@ export default function AnalyticsTab() {
               />
               <Bar
                 dataKey="managers"
-                name="Managers"
+                name="Apartment Managers"
                 fill="#8B5CF6"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={50}
@@ -349,9 +349,9 @@ export default function AnalyticsTab() {
           </ResponsiveContainer>
         </div>
 
-        {/* Active Clients List */}
+        {/* Active Apartment Owners List */}
         <div className={`${cardClass} lg:col-span-2 max-h-[420px] flex flex-col`}>
-          <h3 className={headingClass}>Active Clients</h3>
+          <h3 className={headingClass}>Active Apartment Owners</h3>
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
             {barData.map((client, idx) => (
               <div
@@ -387,7 +387,7 @@ export default function AnalyticsTab() {
                 <button
                   onClick={() => handleViewClient({ id: client.id, name: client.fullName || client.name })}
                   className="flex-shrink-0 ml-2 flex items-center gap-1.5 px-3 py-1.5 bg-primary/15 text-primary hover:bg-primary/25 rounded-lg text-sm font-medium transition-colors"
-                  title="View client details"
+                  title="View apartment owner details"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   View

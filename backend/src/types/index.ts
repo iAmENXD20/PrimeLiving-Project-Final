@@ -35,7 +35,7 @@ export interface Manager {
   name: string;
   email: string;
   phone: string;
-  client_id: string;
+  apartmentowner_id: string;
   status: string;
   created_at: string;
 }
@@ -46,7 +46,7 @@ export interface Apartment {
   address: string;
   monthly_rent: number;
   total_units: number;
-  client_id: string;
+  apartmentowner_id: string;
   manager_id: string | null;
   payment_due_day: number;
   status: string;
@@ -60,7 +60,7 @@ export interface Tenant {
   email: string;
   phone: string;
   unit_id: string;
-  client_id: string;
+  apartmentowner_id: string;
   status: string;
   move_in_date: string;
   created_at: string;
@@ -81,7 +81,7 @@ export interface MaintenanceRequest {
   id: string;
   tenant_id: string;
   unit_id: string;
-  client_id: string;
+  apartmentowner_id: string;
   title: string;
   description: string;
   priority: string;
@@ -93,7 +93,7 @@ export interface MaintenanceRequest {
 export interface Revenue {
   id: string;
   unit_id: string;
-  client_id: string;
+  apartmentowner_id: string;
   amount: number;
   month: string;
   description: string;
@@ -102,7 +102,7 @@ export interface Revenue {
 
 export interface Payment {
   id: string;
-  client_id: string;
+  apartmentowner_id: string;
   tenant_id: string;
   unit_id: string;
   amount: number;
@@ -118,7 +118,7 @@ export interface Payment {
 
 export interface Document {
   id: string;
-  client_id: string;
+  apartmentowner_id: string;
   unit_id: string;
   tenant_id: string | null;
   uploaded_by: string;
@@ -131,11 +131,26 @@ export interface Document {
 
 export interface Announcement {
   id: string;
-  client_id: string;
+  apartmentowner_id: string;
   unit_id: string | null;
   title: string;
   content: string;
   created_by: string;
+  created_at: string;
+}
+
+export interface ApartmentLog {
+  id: string;
+  apartmentowner_id: string;
+  apartment_id: string | null;
+  actor_id: string | null;
+  actor_name: string;
+  actor_role: "owner" | "manager" | "tenant" | "system";
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  description: string;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 

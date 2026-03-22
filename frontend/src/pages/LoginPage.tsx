@@ -14,7 +14,7 @@ import api from '@/lib/apiClient'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
 })
 
 type LoginForm = z.infer<typeof loginSchema>
@@ -36,7 +36,6 @@ export default function LoginPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
   const [isResetting, setIsResetting] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
@@ -46,6 +45,8 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
   })
 
   const onSubmit = async (data: LoginForm) => {
@@ -61,13 +62,8 @@ export default function LoginPage() {
 
     toast.success('Login successful!')
 
-    // Handle remember me
-    if (rememberMe) {
-      localStorage.setItem('primeliving-remember', 'true')
-    } else {
-      localStorage.removeItem('primeliving-remember')
-      sessionStorage.setItem('primeliving-session-active', 'true')
-    }
+    localStorage.removeItem('primeliving-remember')
+    sessionStorage.setItem('primeliving-session-active', 'true')
 
     // Route based on normalized role from backend (with metadata fallback)
     let role = normalizeRole(
@@ -215,14 +211,14 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="you@example.com"
+                placeholder="juandelacruz@gmail.com"
                 autoComplete="email"
                 {...register('email')}
                 className={errors.email ? 'border-red-500/50' : ''}
               />
-              {errors.email && (
-                <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>
-              )}
+              <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                Use a valid email format (e.g., juandelacruz@gmail.com)
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -262,22 +258,6 @@ export default function LoginPage() {
               {errors.password && (
                 <p className="text-red-400 text-xs mt-1">{errors.password.message}</p>
               )}
-            </div>
-
-            {/* Remember me */}
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="remember"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className={`w-4 h-4 rounded text-primary focus:ring-primary/30 cursor-pointer ${
-                  isDark ? 'border-white/20 bg-navy-card' : 'border-gray-300 bg-white'
-                }`}
-              />
-              <label htmlFor="remember" className={`text-sm cursor-pointer ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Remember me
-              </label>
             </div>
 
             <Button
@@ -348,7 +328,7 @@ export default function LoginPage() {
                 <Input
                   id="reset-email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="juandelacruz@gmail.com"
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
                   autoFocus

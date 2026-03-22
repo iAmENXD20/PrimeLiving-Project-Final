@@ -23,8 +23,8 @@ router.get("/by-auth/:authUserId", authorize("admin", "owner"), getClientByAuthI
 router.get("/", authorize("admin"), getClients);
 router.get("/:id/location", authorize("admin", "owner", "manager", "tenant"), getClientLocation);
 router.get("/:id", authorize("admin", "owner"), getClientById);
-router.post("/", authorize("admin"), invalidateCache(["clients", "analytics"]), createClient);
-router.put("/:id", authorize("admin", "owner"), invalidateCache(["clients", "analytics"]), updateClient);
-router.delete("/:id", authorize("admin"), invalidateCache(["clients", "analytics"]), deleteClient);
+router.post("/", authorize("admin"), invalidateCache(["apartment_owners", "analytics"]), createClient);
+router.put("/:id", authorize("admin", "owner"), invalidateCache(["apartment_owners", "analytics"]), updateClient);
+router.delete("/:id", authorize("admin"), invalidateCache(["apartment_owners", "analytics"]), deleteClient);
 
 export default router;

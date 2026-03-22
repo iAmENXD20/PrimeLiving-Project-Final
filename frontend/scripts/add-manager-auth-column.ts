@@ -24,7 +24,7 @@ async function main() {
 
   // Try inserting a row with auth_user_id to check if column exists
   const { error: testErr } = await supabase
-    .from('managers')
+    .from('apartment_managers')
     .select('auth_user_id')
     .limit(1)
 
