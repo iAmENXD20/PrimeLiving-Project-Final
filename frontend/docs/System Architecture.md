@@ -30,7 +30,7 @@ Supabase (PostgreSQL, JWT Auth, Storage, Email)
 
 ## External Services
 
-- **PhilSMS** — SMS notifications
+- **Semaphore** — SMS notifications
 - **Abstract API** — Email validation
 - **PSGC API** — Philippine geographic data (cities, barangays)
 

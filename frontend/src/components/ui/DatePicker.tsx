@@ -8,6 +8,7 @@ interface DatePickerProps {
   placeholder?: string
   isDark: boolean
   className?: string
+  upward?: boolean
 }
 
 const MONTHS = [
@@ -17,7 +18,7 @@ const MONTHS = [
 
 const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
-export default function DatePicker({ value, onChange, min, placeholder = 'Select date', isDark, className }: DatePickerProps) {
+export default function DatePicker({ value, onChange, min, placeholder = 'Select date', isDark, className, upward }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -147,7 +148,7 @@ export default function DatePicker({ value, onChange, min, placeholder = 'Select
 
       {/* Dropdown Calendar */}
       <div
-        className={`absolute left-0 mt-1 z-30 w-[290px] rounded-xl border shadow-xl transition-all duration-200 origin-top ${
+        className={`absolute left-0 ${upward ? 'bottom-full mb-1' : 'mt-1'} z-30 w-[290px] rounded-xl border shadow-xl transition-all duration-200 ${upward ? 'origin-bottom' : 'origin-top'} ${
           open ? 'opacity-100 scale-y-100 pointer-events-auto' : 'opacity-0 scale-y-75 pointer-events-none'
         } ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}
       >

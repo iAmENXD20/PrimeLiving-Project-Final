@@ -57,6 +57,14 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
   const [recordForm, setRecordForm] = useState({ tenantId: '', paymentId: '', description: '', paymentMode: 'cash' as 'gcash' | 'maya' | 'cash' | 'bank_transfer' })
   const [recordLoading, setRecordLoading] = useState(false)
 
+  // Custom dropdown states for Record Cash Payment modal
+  const [isTenantOpen, setIsTenantOpen] = useState(false)
+  const [isBillingOpen, setIsBillingOpen] = useState(false)
+  const [isPaymentModeOpen, setIsPaymentModeOpen] = useState(false)
+  const tenantDropdownRef = useRef<HTMLDivElement>(null)
+  const billingDropdownRef = useRef<HTMLDivElement>(null)
+  const paymentModeDropdownRef = useRef<HTMLDivElement>(null)
+
   // Month/Year filter
   const now = new Date()
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null)
@@ -131,10 +139,25 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
       if (monthPickerRef.current && !monthPickerRef.current.contains(e.target as Node)) {
         setMonthPickerOpen(false)
       }
+      if (tenantDropdownRef.current && !tenantDropdownRef.current.contains(e.target as Node)) {
+        setIsTenantOpen(false)
+      }
+      if (billingDropdownRef.current && !billingDropdownRef.current.contains(e.target as Node)) {
+        setIsBillingOpen(false)
+      }
+      if (paymentModeDropdownRef.current && !paymentModeDropdownRef.current.contains(e.target as Node)) {
+        setIsPaymentModeOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    setIsTenantOpen(false)
+    setIsBillingOpen(false)
+    setIsPaymentModeOpen(false)
+  }, [showRecordModal])
 
   const monthFiltered = payments.filter((p) => {
     if (selectedMonth === null) return true
@@ -605,22 +628,54 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                 <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Tenant
                 </label>
-                <select
-                  value={recordForm.tenantId}
-                  onChange={(e) => setRecordForm(f => ({ ...f, tenantId: e.target.value, paymentId: '' }))}
-                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                    isDark
-                      ? 'bg-[#0A1628] border-[#1E293B] text-white focus:border-primary'
-                      : 'bg-white border-gray-200 text-gray-900 focus:border-primary'
-                  } focus:outline-none`}
-                >
-                  <option value="">Select a tenant</option>
-                  {tenants.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} {t.apartment_name ? `— ${t.apartment_name}` : ''}
-                    </option>
-                  ))}
-                </select>
+                <div ref={tenantDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsTenantOpen(!isTenantOpen)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                      isDark
+                        ? 'bg-[#111D32] border-[#1E293B] text-white hover:border-primary/40'
+                        : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
+                    }`}
+                  >
+                    <span className={!recordForm.tenantId ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
+                      {recordForm.tenantId
+                        ? (() => {
+                            const t = tenants.find((tenant) => tenant.id === recordForm.tenantId)
+                            return t ? `${t.name} ${t.apartment_name ? `— ${t.apartment_name}` : ''}` : 'Select a tenant'
+                          })()
+                        : 'Select a tenant'}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isTenantOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isTenantOpen && (
+                  <div
+                    className={`absolute left-0 top-full mt-1 z-50 w-full rounded-lg border shadow-lg max-h-60 overflow-y-auto ${
+                      isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
+                    }`}
+                  >
+                    {tenants.map((t) => (
+                      <button
+                        type="button"
+                        key={t.id}
+                        onClick={() => {
+                          setRecordForm(f => ({ ...f, tenantId: t.id, paymentId: '' }))
+                          setIsTenantOpen(false)
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          recordForm.tenantId === t.id
+                            ? 'bg-primary text-white font-medium'
+                            : isDark
+                              ? 'text-gray-300 hover:bg-white/5'
+                              : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {t.name} {t.apartment_name ? `— ${t.apartment_name}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                  )}
+                </div>
               </div>
 
               {/* Billing Period (Pending/Overdue) */}
@@ -628,34 +683,69 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                 <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Billing Period
                 </label>
-                <select
-                  value={recordForm.paymentId}
-                  onChange={(e) => setRecordForm(f => ({ ...f, paymentId: e.target.value }))}
-                  disabled={!recordForm.tenantId || recordDuePayments.length === 0}
-                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                    isDark
-                      ? 'bg-[#0A1628] border-[#1E293B] text-white focus:border-primary'
-                      : 'bg-white border-gray-200 text-gray-900 focus:border-primary'
-                  } focus:outline-none ${(!recordForm.tenantId || recordDuePayments.length === 0) ? 'opacity-60 cursor-not-allowed' : ''}`}
-                >
-                  <option value="">
-                    {!recordForm.tenantId
-                      ? 'Select tenant first'
-                      : recordDuePayments.length === 0
-                        ? 'No pending/overdue billings'
-                        : 'Select billing period'}
-                  </option>
-                  {recordDuePayments.map((payment) => {
-                    const periodLabelText = payment.period_from && payment.period_to
-                      ? `${new Date(payment.period_from + 'T00:00:00').toLocaleDateString()} - ${new Date(payment.period_to + 'T00:00:00').toLocaleDateString()}`
-                      : new Date(payment.payment_date).toLocaleDateString()
-                    return (
-                      <option key={payment.id} value={payment.id}>
-                        {periodLabelText} • ₱{Number(payment.amount).toLocaleString()} • {payment.status}
-                      </option>
-                    )
-                  })}
-                </select>
+                <div ref={billingDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (recordForm.tenantId && recordDuePayments.length > 0) setIsBillingOpen(!isBillingOpen)
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                      isDark
+                        ? 'bg-[#111D32] border-[#1E293B] text-white hover:border-primary/40'
+                        : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
+                    } ${(!recordForm.tenantId || recordDuePayments.length === 0) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    <span className={!recordForm.paymentId ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
+                      {recordForm.paymentId
+                        ? (() => {
+                            const p = recordDuePayments.find((payment) => payment.id === recordForm.paymentId)
+                            if (!p) return 'Select billing period'
+                            const periodLabelText = p.period_from && p.period_to
+                              ? `${new Date(p.period_from + 'T00:00:00').toLocaleDateString()} - ${new Date(p.period_to + 'T00:00:00').toLocaleDateString()}`
+                              : new Date(p.payment_date).toLocaleDateString()
+                            return `${periodLabelText} • ₱${Number(p.amount).toLocaleString()} • ${p.status}`
+                          })()
+                        : !recordForm.tenantId
+                          ? 'Select tenant first'
+                          : recordDuePayments.length === 0
+                            ? 'No pending/overdue billings'
+                            : 'Select billing period'}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isBillingOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isBillingOpen && (
+                  <div
+                    className={`absolute left-0 top-full mt-1 z-50 w-full rounded-lg border shadow-lg max-h-60 overflow-y-auto ${
+                      isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
+                    }`}
+                  >
+                    {recordDuePayments.map((payment) => {
+                      const periodLabelText = payment.period_from && payment.period_to
+                        ? `${new Date(payment.period_from + 'T00:00:00').toLocaleDateString()} - ${new Date(payment.period_to + 'T00:00:00').toLocaleDateString()}`
+                        : new Date(payment.payment_date).toLocaleDateString()
+                      return (
+                        <button
+                          type="button"
+                          key={payment.id}
+                          onClick={() => {
+                            setRecordForm(f => ({ ...f, paymentId: payment.id }))
+                            setIsBillingOpen(false)
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                            recordForm.paymentId === payment.id
+                              ? 'bg-primary text-white font-medium'
+                              : isDark
+                                ? 'text-gray-300 hover:bg-white/5'
+                                : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {periodLabelText} • ₱{Number(payment.amount).toLocaleString()} • {payment.status}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  )}
+                </div>
               </div>
 
               {/* Payment Type */}
@@ -663,20 +753,47 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                 <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Payment Mode
                 </label>
-                <select
-                  value={recordForm.paymentMode}
-                  onChange={(e) => setRecordForm(f => ({ ...f, paymentMode: e.target.value as any }))}
-                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                    isDark
-                      ? 'bg-[#0A1628] border-[#1E293B] text-white'
-                      : 'bg-white border-gray-200 text-gray-900'
-                  } focus:outline-none focus:border-primary`}
-                >
-                  <option value="cash">Cash</option>
-                  <option value="gcash">GCash</option>
-                  <option value="maya">Maya</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                </select>
+                <div ref={paymentModeDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsPaymentModeOpen(!isPaymentModeOpen)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                      isDark
+                        ? 'bg-[#111D32] border-[#1E293B] text-white hover:border-primary/40'
+                        : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
+                    }`}
+                  >
+                    <span>
+                      {recordForm.paymentMode === 'gcash' ? 'GCash' : recordForm.paymentMode === 'maya' ? 'Maya' : recordForm.paymentMode === 'cash' ? 'Cash' : 'Bank Transfer'}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPaymentModeOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isPaymentModeOpen && (
+                  <div
+                    className={`absolute left-0 top-full mt-1 z-50 w-full rounded-lg border shadow-lg overflow-hidden ${
+                      isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
+                    }`}
+                  >
+                    {([['cash', 'Cash'], ['gcash', 'GCash'], ['maya', 'Maya'], ['bank_transfer', 'Bank Transfer']] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => {
+                          setRecordForm(f => ({ ...f, paymentMode: value }))
+                          setIsPaymentModeOpen(false)
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          recordForm.paymentMode === value
+                            ? 'bg-primary text-white font-medium'
+                            : isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  )}
+                </div>
               </div>
 
               {/* Amount */}

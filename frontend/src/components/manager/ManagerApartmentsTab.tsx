@@ -1,5 +1,5 @@
-import { UserMinus, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronDown, UserMinus, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
+import DatePicker from '@/components/ui/DatePicker'
 import { CardsSkeleton } from '@/components/ui/skeleton'
 import {
   getManagerUnits,
@@ -35,10 +36,26 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
   const [editForm, setEditForm] = useState({ name: '', tenantId: '', monthlyRent: '', billingStartAt: todayDate })
   const [emptyingUnitId, setEmptyingUnitId] = useState<string | null>(null)
   const [unitToEmpty, setUnitToEmpty] = useState<UnitWithTenant | null>(null)
+  const [isTenantDropdownOpen, setIsTenantDropdownOpen] = useState(false)
+  const tenantDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadUnits()
   }, [clientId])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (tenantDropdownRef.current && !tenantDropdownRef.current.contains(e.target as Node)) {
+        setIsTenantDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  useEffect(() => {
+    setIsTenantDropdownOpen(false)
+  }, [showEditModal])
 
   async function loadUnits() {
     try {
@@ -336,26 +353,55 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
               </div>
               <div>
                 <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Assign Tenant Account</Label>
-                <select
-                  value={editForm.tenantId}
-                  onChange={(e) => {
-                    const nextTenantId = e.target.value
-                    const selectedTenant = tenants.find((tenant) => tenant.id === nextTenantId)
-                    setEditForm({
-                      ...editForm,
-                      tenantId: nextTenantId,
-                      billingStartAt: selectedTenant?.move_in_date?.slice(0, 10) || todayDate,
-                    })
-                  }}
-                  className={`mt-2 w-full rounded-lg border px-3 py-2.5 text-sm ${inputClass}`}
-                >
-                  <option value="">— No tenant assigned —</option>
-                  {tenants.map((tenant) => (
-                    <option key={tenant.id} value={tenant.id}>
-                      {tenant.name} ({tenant.email})
-                    </option>
-                  ))}
-                </select>
+                <div ref={tenantDropdownRef} className="relative mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsTenantDropdownOpen(!isTenantDropdownOpen)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                      isDark
+                        ? 'bg-[#111D32] border-[#1E293B] text-white hover:border-primary/40'
+                        : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
+                    }`}
+                  >
+                    <span className={!editForm.tenantId ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
+                      {editForm.tenantId
+                        ? tenants.find((t) => t.id === editForm.tenantId)?.name || '— No tenant assigned —'
+                        : '— No tenant assigned —'}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isTenantDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isTenantDropdownOpen && (
+                  <div
+                    className={`absolute left-0 top-full mt-1 z-50 w-full rounded-lg border shadow-lg max-h-60 overflow-y-auto ${
+                      isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
+                    }`}
+                  >
+                    {tenants.map((tenant) => (
+                      <button
+                        type="button"
+                        key={tenant.id}
+                        onClick={() => {
+                          setEditForm({
+                            ...editForm,
+                            tenantId: tenant.id,
+                            billingStartAt: tenant.move_in_date?.slice(0, 10) || todayDate,
+                          })
+                          setIsTenantDropdownOpen(false)
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          editForm.tenantId === tenant.id
+                            ? 'bg-primary text-white font-medium'
+                            : isDark
+                              ? 'text-gray-300 hover:bg-white/5'
+                              : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {tenant.name}
+                      </button>
+                    ))}
+                  </div>
+                  )}
+                </div>
               </div>
               {selectedTenantDetails && (
                 <div className={`rounded-lg border p-3 text-sm space-y-2 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
@@ -381,11 +427,12 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
               {editForm.tenantId && (
                 <div>
                   <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Billing Start Date</Label>
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={editForm.billingStartAt}
-                    onChange={(e) => setEditForm({ ...editForm, billingStartAt: e.target.value })}
-                    className={`mt-2 ${inputClass}`}
+                    onChange={(date) => setEditForm({ ...editForm, billingStartAt: date })}
+                    isDark={isDark}
+                    className="mt-2"
+                    upward
                   />
                 </div>
               )}
