@@ -175,7 +175,7 @@ export async function createClient(
       name, email, phone, apartment_address,
       sex, age, apartment_classification,
       street_building, barangay, province, city_municipality, zip_code,
-      number_of_units, number_of_floors, other_property_details,
+      number_of_units, number_of_floors, number_of_rooms, other_property_details,
     } = req.body;
     const normalizedEmail = String(email || "").trim().toLowerCase();
 
@@ -260,6 +260,7 @@ export async function createClient(
         zip_code,
         number_of_units,
         number_of_floors,
+        number_of_rooms,
         other_property_details,
         status: "active",
       })

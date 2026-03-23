@@ -64,6 +64,7 @@ const inquirySchema = z.object({
   apartmentClassification: z.string().min(1, 'Apartment classification is required'),
   numberOfUnits: z.string().optional(),
   numberOfFloors: z.string().optional(),
+  numberOfRooms: z.string().optional(),
   otherPropertyDetails: z.string().optional(),
 }).superRefine((data, ctx) => {
   const isPositiveInteger = (value?: string) => !!value && /^\d+$/.test(value) && Number(value) > 0
@@ -87,6 +88,12 @@ const inquirySchema = z.object({
     case 'Condominium':
       requirePositive('numberOfUnits', 'number of units')
       requirePositive('numberOfFloors', 'number of floors')
+      break
+    case 'Boarding House':
+      requirePositive('numberOfRooms', 'number of rooms')
+      break
+    case 'Dormitory':
+      requirePositive('numberOfRooms', 'number of rooms')
       break
     case 'Townhouse':
       requirePositive('numberOfFloors', 'number of residential units')
@@ -188,6 +195,7 @@ export default function Contact() {
       apartmentClassification: '',
       numberOfUnits: '',
       numberOfFloors: '',
+      numberOfRooms: '',
       otherPropertyDetails: '',
     },
   })
@@ -221,6 +229,7 @@ export default function Contact() {
 
   const needsUnits = ['Apartment Building', 'Condominium'].includes(apartmentClassification)
   const needsFloors = ['Apartment Building', 'Condominium', 'Townhouse'].includes(apartmentClassification)
+  const needsRooms = ['Boarding House', 'Dormitory'].includes(apartmentClassification)
   const needsOtherDetails = apartmentClassification === 'Other'
 
   useEffect(() => {
@@ -322,6 +331,7 @@ export default function Contact() {
         zip_code: data.zipCode,
         number_of_units: data.numberOfUnits || undefined,
         number_of_floors: data.numberOfFloors || undefined,
+        number_of_rooms: data.numberOfRooms || undefined,
         other_property_details: data.otherPropertyDetails || undefined,
       })
       toast.success('Inquiry submitted successfully! We will be in touch soon.')
@@ -601,6 +611,7 @@ export default function Contact() {
                             setValue('apartmentClassification', classification, { shouldValidate: true })
                             setValue('numberOfUnits', '')
                             setValue('numberOfFloors', '')
+                            setValue('numberOfRooms', '')
                             setValue('otherPropertyDetails', '')
                             setIsClassificationOpen(false)
                           }}
@@ -621,7 +632,7 @@ export default function Contact() {
                   )}
                 </div>
 
-                {apartmentClassification && (needsUnits || needsFloors || needsOtherDetails) && (
+                {apartmentClassification && (needsUnits || needsFloors || needsRooms || needsOtherDetails) && (
                   <div className={`rounded-lg border p-3 space-y-3 animate-in fade-in duration-200 ${
                     isDark
                       ? 'border-[#1E293B] bg-[#0A1628]'
@@ -668,6 +679,26 @@ export default function Contact() {
                           />
                           {errors.numberOfFloors && (
                             <p className="text-red-400 text-xs mt-1">{errors.numberOfFloors.message}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {needsRooms && (
+                        <div>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            placeholder="Number of rooms"
+                            {...register('numberOfRooms', {
+                              onChange: (e) => {
+                                e.target.value = e.target.value.replace(/\D/g, '')
+                              },
+                            })}
+                            className={errors.numberOfRooms ? 'border-red-500/50' : ''}
+                          />
+                          {errors.numberOfRooms && (
+                            <p className="text-red-400 text-xs mt-1">{errors.numberOfRooms.message}</p>
                           )}
                         </div>
                       )}

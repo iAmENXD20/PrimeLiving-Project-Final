@@ -1,4 +1,4 @@
-import { Search, Eye, CheckCircle, Clock, ShieldCheck, Ban, Copy, Check, XCircle, Mail, Phone, MessageSquare, Send, Building2, MapPin, Layers, Building, User, Calendar } from 'lucide-react'
+import { Search, Eye, CheckCircle, Clock, ShieldCheck, Ban, Copy, Check, XCircle, Mail, Phone, MessageSquare, Send, Building2, MapPin, Layers, Building, User, Calendar, DoorOpen } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
@@ -519,6 +519,7 @@ export default function InquiriesTab() {
                 const propertySpecs = [
                   { label: 'Units', value: selectedInquiry.number_of_units, icon: Layers },
                   { label: classification === 'Townhouse' ? 'Residential Units' : 'Floors', value: selectedInquiry.number_of_floors, icon: Building },
+                  { label: 'Rooms', value: selectedInquiry.number_of_rooms, icon: DoorOpen },
                   { label: 'Other Details', value: selectedInquiry.other_property_details, icon: MessageSquare },
                 ].filter(item => item.value)
 
@@ -533,15 +534,6 @@ export default function InquiriesTab() {
                           <p className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{classification || '—'}</p>
                         </div>
                       </div>
-                      {location && (
-                        <div className="flex items-start gap-3 px-4 py-3">
-                          <MapPin className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Location</p>
-                            <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{location}</p>
-                          </div>
-                        </div>
-                      )}
                       {propertySpecs.map(({ label, value, icon: Icon }) => (
                         <div key={label} className="flex items-center gap-3 px-4 py-3">
                           <Icon className={`w-4 h-4 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
@@ -551,6 +543,15 @@ export default function InquiriesTab() {
                           </div>
                         </div>
                       ))}
+                      {location && (
+                        <div className="flex items-start gap-3 px-4 py-3">
+                          <MapPin className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Location</p>
+                            <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{location}</p>
+                          </div>
+                        </div>
+                      )}
                       {!location && propertySpecs.length === 0 && !classification && (
                         <div className="flex items-center gap-3 px-4 py-3">
                           <MessageSquare className={`w-4 h-4 shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />

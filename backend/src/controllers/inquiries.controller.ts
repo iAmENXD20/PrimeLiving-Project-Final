@@ -75,7 +75,7 @@ export async function createInquiry(
     const {
       name, email, phone, sex, age, apartment_classification,
       street_building, barangay, province, city_municipality, zip_code,
-      number_of_units, number_of_floors, other_property_details,
+      number_of_units, number_of_floors, number_of_rooms, other_property_details,
     } = req.body;
 
     const { data, error } = await supabaseAdmin
@@ -94,6 +94,7 @@ export async function createInquiry(
         zip_code: zip_code || null,
         number_of_units: number_of_units || null,
         number_of_floors: number_of_floors || null,
+        number_of_rooms: number_of_rooms || null,
         other_property_details: other_property_details || null,
         status: "pending",
       })
