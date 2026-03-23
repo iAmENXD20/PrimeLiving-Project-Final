@@ -45,12 +45,18 @@ Supabase (PostgreSQL, JWT Auth, Storage, Email)
 - **Backend → Supabase Auth** — The backend verifies JWT tokens and creates user accounts through Supabase Auth.
 - **Backend → Supabase Storage** — The backend stores QR receipt images in Supabase Storage.
 - **Backend → Supabase Email** — Supabase sends emails automatically for account activation, email verification, owner invites, and password resets.
-- **Backend → PhilSMS** — The backend sends SMS notifications to Philippine phone numbers for tenant creation, maintenance updates, payment confirmations, announcements, and invitations.
+- **Backend →Semapgore* — The backend sends SMS notifications to Philippine phone numbers for tenant creation, maintenance updates, payment confirmations, announcements, and invitations.
 - **Backend → Abstract API** — The backend validates email addresses during signup and inquiry submission using Abstract API.
 - **Supabase** — Database, authentication, file storage, email service
 
 ---
 
+## deployment - vercel
+
+
+we will user git hub as our collaboration for coding
+
 ## Payments
 
-Manual (Cash / QR) — No third-party payment gateway
+Manual - Cash/QR/ maya/gcash/bank
+ — No third-party payment gateway

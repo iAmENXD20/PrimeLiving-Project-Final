@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ClipboardList, Filter, X, RefreshCcw, Search } from 'lucide-react'
+import { ClipboardList, Filter, X, RefreshCcw, Search, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { useTheme } from '../../context/ThemeContext'
 import { Button } from '@/components/ui/button'
 import { TableSkeleton } from '@/components/ui/skeleton'
@@ -61,6 +62,7 @@ export default function ManagerApartmentLogsTab({ clientId }: ManagerApartmentLo
 
   // Detail modal
   const [selectedLog, setSelectedLog] = useState<ManagerApartmentLog | null>(null)
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
     loadLogs()
@@ -76,6 +78,34 @@ export default function ManagerApartmentLogsTab({ clientId }: ManagerApartmentLo
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleDownloadExcel() {
+    const sortedAll = [...filtered].sort((a, b) => {
+      const numA = parseInt((a.arc_id || '').replace(/\D/g, '')) || 0
+      const numB = parseInt((b.arc_id || '').replace(/\D/g, '')) || 0
+      return sortOrder === 'asc' ? numA - numB : numB - numA
+    })
+    const rows = sortedAll.map((log) => {
+      const { date, time } = formatTimestamp(log.created_at)
+      const changes = formatFieldChanges(log)
+      const changesText = changes.map((c) =>
+        c.from ? `${c.field}: ${c.from} → ${c.to}` : `${c.field}: ${c.to}`
+      ).join('\n')
+      return {
+        'Archive ID': log.arc_id || '',
+        'Role': log.actor_role || '',
+        'User Name': log.actor_name || '',
+        'Description': log.description || '',
+        'Field Changes': changesText,
+        'Date': date,
+        'Time': time,
+      }
+    })
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Activity Logs')
+    XLSX.writeFile(wb, `Management Activity Logs.xlsx`)
   }
 
   // Apply filters
@@ -103,7 +133,12 @@ export default function ManagerApartmentLogsTab({ clientId }: ManagerApartmentLo
   })
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const sorted = [...filtered].sort((a, b) => {
+    const numA = parseInt((a.arc_id || '').replace(/\D/g, '')) || 0
+    const numB = parseInt((b.arc_id || '').replace(/\D/g, '')) || 0
+    return sortOrder === 'asc' ? numA - numB : numB - numA
+  })
+  const paginated = sorted.slice((page - 1) * pageSize, page * pageSize)
 
   useEffect(() => { setPage(1) }, [filterRole, filterDateFrom, filterDateTo, searchQuery])
   useEffect(() => { if (page > totalPages) setPage(totalPages) }, [page, totalPages])
@@ -158,6 +193,12 @@ export default function ManagerApartmentLogsTab({ clientId }: ManagerApartmentLo
             <RefreshCcw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+          {filtered.length > 0 && (
+            <Button variant="outline" size="sm" onClick={handleDownloadExcel}>
+              <Download className="w-4 h-4 mr-1" />
+              Download
+            </Button>
+          )}
         </div>
       </div>
 
@@ -226,7 +267,15 @@ export default function ManagerApartmentLogsTab({ clientId }: ManagerApartmentLo
             <table className="w-full text-sm">
               <thead>
                 <tr className={isDark ? 'bg-[#0A1628] text-gray-400' : 'bg-gray-50 text-gray-500'}>
-                  <th className="text-left px-4 py-3 font-medium">Archive ID</th>
+                  <th className="text-left px-4 py-3 font-medium">
+                    <button
+                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                      className="flex items-center gap-1 hover:text-primary transition-colors"
+                    >
+                      Archive ID
+                      {sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+                    </button>
+                  </th>
                   <th className="text-left px-4 py-3 font-medium">Role</th>
                   <th className="text-left px-4 py-3 font-medium">User Name</th>
                   <th className="text-left px-4 py-3 font-medium">Field Changes</th>

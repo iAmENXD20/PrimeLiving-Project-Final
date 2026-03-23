@@ -35,6 +35,8 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
   const [tenantName, setTenantName] = useState('')
   const [selectedDuePaymentId, setSelectedDuePaymentId] = useState('')
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<'gcash' | 'maya' | 'cash' | 'bank_transfer'>('gcash')
+  const [isPaymentModeOpen, setIsPaymentModeOpen] = useState(false)
+  const paymentModeRef = useRef<HTMLDivElement>(null)
   const [isBillingMenuOpen, setIsBillingMenuOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [duePage, setDuePage] = useState(1)
@@ -180,6 +182,9 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
     const handleClickOutside = (event: MouseEvent) => {
       if (billingDropdownRef.current && !billingDropdownRef.current.contains(event.target as Node)) {
         setIsBillingMenuOpen(false)
+      }
+      if (paymentModeRef.current && !paymentModeRef.current.contains(event.target as Node)) {
+        setIsPaymentModeOpen(false)
       }
     }
 
@@ -495,20 +500,42 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
                 <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Payment Mode
                 </label>
-                <select
-                  value={selectedPaymentMode}
-                  onChange={(e) => setSelectedPaymentMode(e.target.value as any)}
-                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                    isDark
-                      ? 'bg-[#0A1628] border-[#1E293B] text-white'
-                      : 'bg-white border-gray-200 text-gray-900'
-                  } focus:outline-none focus:border-primary`}
-                >
-                  <option value="gcash">GCash</option>
-                  <option value="maya">Maya</option>
-                  <option value="cash">Cash</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                </select>
+                <div className="relative" ref={paymentModeRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsPaymentModeOpen(!isPaymentModeOpen)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                      isDark
+                        ? 'bg-[#111D32] border-[#1E293B] text-white hover:border-primary/40'
+                        : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
+                    }`}
+                  >
+                    <span>{selectedPaymentMode === 'gcash' ? 'GCash' : selectedPaymentMode === 'maya' ? 'Maya' : selectedPaymentMode === 'cash' ? 'Cash' : 'Bank Transfer'}</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPaymentModeOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  <div
+                    className={`absolute left-0 top-full mt-1 z-50 w-full rounded-lg border shadow-lg overflow-hidden transition-all duration-200 origin-top ${
+                      isPaymentModeOpen
+                        ? 'opacity-100 scale-y-100'
+                        : 'opacity-0 scale-y-0 pointer-events-none'
+                    } ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}
+                  >
+                    {([['gcash', 'GCash'], ['maya', 'Maya'], ['cash', 'Cash'], ['bank_transfer', 'Bank Transfer']] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => { setSelectedPaymentMode(value); setIsPaymentModeOpen(false) }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          value === selectedPaymentMode
+                            ? 'bg-primary text-white font-medium'
+                            : isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className={`p-4 rounded-xl border-2 border-dashed ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
