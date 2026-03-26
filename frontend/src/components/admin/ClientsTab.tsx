@@ -214,7 +214,6 @@ export default function ClientsTab() {
                 { label: 'Barangay', value: selectedClient.barangay },
                 { label: 'City/Municipality', value: selectedClient.city_municipality },
                 { label: 'Province', value: selectedClient.province },
-                { label: 'Zip Code', value: selectedClient.zip_code },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <p className={`text-xs font-medium mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{label}</p>

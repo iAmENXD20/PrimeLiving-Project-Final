@@ -14,7 +14,6 @@ export interface Client {
   barangay: string | null
   province: string | null
   city_municipality: string | null
-  zip_code: string | null
   number_of_units: string | null
   number_of_floors: string | null
   other_property_details: string | null
@@ -58,7 +57,6 @@ export interface Inquiry {
   barangay: string | null
   province: string | null
   city_municipality: string | null
-  zip_code: string | null
   number_of_units: string | null
   number_of_floors: string | null
   number_of_rooms: string | null
@@ -116,7 +114,7 @@ export async function createClient(client: {
   name: string; email: string; phone?: string; apartment_address?: string;
   sex?: string; age?: string; apartment_classification?: string;
   street_building?: string; barangay?: string; province?: string;
-  city_municipality?: string; zip_code?: string;
+  city_municipality?: string;
   number_of_units?: string; number_of_floors?: string; number_of_rooms?: string; other_property_details?: string;
 }) {
   const result = await api.post<Client & { generatedPassword?: string; requiresEmailVerification?: boolean }>('/clients', client)
@@ -199,7 +197,6 @@ export async function submitInquiry(data: {
   barangay?: string
   province?: string
   city_municipality?: string
-  zip_code?: string
   number_of_units?: string
   number_of_floors?: string
   number_of_rooms?: string
@@ -216,7 +213,6 @@ export async function submitInquiry(data: {
     barangay: data.barangay || null,
     province: data.province || null,
     city_municipality: data.city_municipality || null,
-    zip_code: data.zip_code || null,
     number_of_units: data.number_of_units || null,
     number_of_floors: data.number_of_floors || null,
     number_of_rooms: data.number_of_rooms || null,
@@ -255,7 +251,6 @@ export async function approveInquiry(
     inquiry.barangay,
     inquiry.city_municipality,
     inquiry.province,
-    inquiry.zip_code,
   ].filter(Boolean)
   const apartmentAddress = addressParts.length > 0 ? addressParts.join(', ') : undefined
 
@@ -272,7 +267,6 @@ export async function approveInquiry(
     barangay: inquiry.barangay || undefined,
     province: inquiry.province || undefined,
     city_municipality: inquiry.city_municipality || undefined,
-    zip_code: inquiry.zip_code || undefined,
     number_of_units: inquiry.number_of_units || undefined,
     number_of_floors: inquiry.number_of_floors || undefined,
     number_of_rooms: inquiry.number_of_rooms || undefined,
@@ -326,3 +320,4 @@ export async function getTenantsPerApartment() {
 export async function getUserDistribution() {
   return api.get<{ name: string; value: number }[]>('/analytics/user-distribution')
 }
+

@@ -71,7 +71,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
   const [unitsCount, setUnitsCount] = useState(0)
   const [activeManagersCount, setActiveManagersCount] = useState(0)
   const [activeTenantsCount, setActiveTenantsCount] = useState(0)
-  const [addrFields, setAddrFields] = useState({ street: '', barangay: '', city: '', province: '', zip: '' })
+  const [addrFields, setAddrFields] = useState({ street: '', barangay: '', city: '', province: '' })
   const [addressSaving, setAddressSaving] = useState(false)
   const [addressErrors, setAddressErrors] = useState<Record<string, string>>({})
 
@@ -102,13 +102,10 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
         // Parse "street, barangay, city, province zip" back into fields
         const parts = addr.split(', ')
         if (parts.length >= 4) {
-          const lastPart = parts[3] || ''
-          const spaceIdx = lastPart.lastIndexOf(' ')
-          const province = spaceIdx > 0 ? lastPart.slice(0, spaceIdx) : lastPart
-          const zip = spaceIdx > 0 ? lastPart.slice(spaceIdx + 1) : ''
-          setAddrFields({ street: parts[0] || '', barangay: parts[1] || '', city: parts[2] || '', province, zip })
+          const province = parts[3] || ''
+          setAddrFields({ street: parts[0] || '', barangay: parts[1] || '', city: parts[2] || '', province })
         } else {
-          setAddrFields({ street: addr, barangay: '', city: '', province: '', zip: '' })
+          setAddrFields({ street: addr, barangay: '', city: '', province: '' })
         }
       }
     })
@@ -261,7 +258,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
           </div>
         </div>
 
-        {addrFields.street || addrFields.barangay || addrFields.city || addrFields.province || addrFields.zip ? (
+        {addrFields.street || addrFields.barangay || addrFields.city || addrFields.province ? (
           <div className={infoGridClass}>
             <div>
               <Label className={`text-sm ${labelClass}`}>Street / Building</Label>
@@ -285,12 +282,6 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
               <Label className={`text-sm ${labelClass}`}>City / Municipality</Label>
               <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                 {addrFields.city || '—'}
-              </p>
-            </div>
-            <div>
-              <Label className={`text-sm ${labelClass}`}>Zip Code</Label>
-              <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                {addrFields.zip || '—'}
               </p>
             </div>
           </div>

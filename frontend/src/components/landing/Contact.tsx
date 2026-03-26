@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input'
 import { useTheme } from '@/context/ThemeContext'
 import { useInView } from '@/hooks/useInView'
 import { submitInquiry } from '@/lib/api'
-import zipcodes from 'zipcodes-ph'
 import { PROVINCE_LIST, getCitiesByProvince, PH_PROVINCES } from '@/lib/phLocations'
 import { getBarangays } from '@/lib/psgcApi'
 
@@ -60,7 +59,6 @@ const inquirySchema = z.object({
   barangay: z.string().min(2, 'Barangay is required'),
   province: z.string().min(1, 'Province is required'),
   cityMunicipality: z.string().min(1, 'City / Municipality is required'),
-  zipCode: z.string().regex(/^\d{4}$/, 'Zip code must be 4 digits'),
   apartmentClassification: z.string().min(1, 'Apartment classification is required'),
   numberOfUnits: z.string().optional(),
   numberOfFloors: z.string().optional(),
@@ -109,14 +107,6 @@ const inquirySchema = z.object({
       break
   }
 
-  const expectedZip = getZipCodeForLocation(data.cityMunicipality)
-  if (expectedZip && data.zipCode !== expectedZip) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['zipCode'],
-      message: `Zip code for ${data.cityMunicipality} is ${expectedZip}`,
-    })
-  }
 })
 
 type InquiryForm = z.infer<typeof inquirySchema>
@@ -158,18 +148,6 @@ function getCitySuggestions(province: string): string[] {
   return match ? getCitiesByProvince(match) : []
 }
 
-const getZipCodeForLocation = (locationName: string): string | null => {
-  if (!locationName) return null
-  const direct = zipcodes.reverse(locationName)
-  if (typeof direct === 'number') return String(direct)
-
-  const normalized = locationName.replace(/^City of\s+/i, '')
-  const fallback = zipcodes.reverse(normalized)
-  if (typeof fallback === 'number') return String(fallback)
-
-  return null
-}
-
 export default function Contact() {
   const { isDark } = useTheme()
   const { ref, isInView } = useInView()
@@ -191,7 +169,6 @@ export default function Contact() {
       barangay: '',
       province: '',
       cityMunicipality: '',
-      zipCode: '',
       apartmentClassification: '',
       numberOfUnits: '',
       numberOfFloors: '',
@@ -257,14 +234,6 @@ export default function Contact() {
   }, [])
 
   useEffect(() => {
-    if (!selectedCityMunicipality) return
-    const expectedZip = getZipCodeForLocation(selectedCityMunicipality)
-    if (expectedZip) {
-      setValue('zipCode', expectedZip, { shouldValidate: true })
-    }
-  }, [selectedCityMunicipality, setValue])
-
-  useEffect(() => {
     if (!selectedCityMunicipality || !selectedProvince) {
       setBarangayList([])
       return
@@ -328,7 +297,6 @@ export default function Contact() {
         barangay: data.barangay,
         province: data.province,
         city_municipality: data.cityMunicipality,
-        zip_code: data.zipCode,
         number_of_units: data.numberOfUnits || undefined,
         number_of_floors: data.numberOfFloors || undefined,
         number_of_rooms: data.numberOfRooms || undefined,
@@ -766,7 +734,6 @@ export default function Contact() {
                                 setValue('province', province, { shouldValidate: true })
                                 setValue('cityMunicipality', '', { shouldValidate: true })
                                 setValue('barangay', '', { shouldValidate: false })
-                                setValue('zipCode', '', { shouldValidate: true })
                                 setBarangayList([])
                                 setIsProvinceOpen(false)
                               }}
@@ -840,21 +807,6 @@ export default function Contact() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <p className={`text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Street / Building <span className="text-red-500">*</span>
-                    </p>
-                    <Input
-                      type="text"
-                      placeholder="e.g. 123 Rizal Ave, Bldg A"
-                      {...register('streetBuilding')}
-                      className={errors.streetBuilding ? 'border-red-500/50' : ''}
-                    />
-                    {errors.streetBuilding && (
-                      <p className="text-red-400 text-xs mt-1">{errors.streetBuilding.message}</p>
-                    )}
-                  </div>
-
                   <div ref={barangayRef}>
                     <p className={`text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       Barangay <span className="text-red-500">*</span>
@@ -929,37 +881,19 @@ export default function Contact() {
                       <p className="text-red-400 text-xs mt-1">{errors.barangay.message}</p>
                     )}
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className={`text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Zip Code <span className="text-red-500">*</span>
+                      Street / Building <span className="text-red-500">*</span>
                     </p>
                     <Input
                       type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder="Auto-filled"
-                      readOnly={!!selectedCityMunicipality && !!getZipCodeForLocation(selectedCityMunicipality)}
-                      {...register('zipCode', {
-                        onChange: (e) => {
-                          e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4)
-                        },
-                      })}
-                      className={`${errors.zipCode ? 'border-red-500/50' : ''} ${
-                        selectedCityMunicipality && getZipCodeForLocation(selectedCityMunicipality)
-                          ? (isDark ? 'bg-[#0A1628]/50' : 'bg-gray-50')
-                          : ''
-                      }`}
+                      placeholder="e.g. 123 Rizal Ave, Bldg A"
+                      {...register('streetBuilding')}
+                      className={errors.streetBuilding ? 'border-red-500/50' : ''}
                     />
-                    {selectedCityMunicipality && getZipCodeForLocation(selectedCityMunicipality) && !errors.zipCode && (
-                      <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        Auto-detected from {selectedCityMunicipality}
-                      </p>
-                    )}
-                    {errors.zipCode && (
-                      <p className="text-red-400 text-xs mt-1">{errors.zipCode.message}</p>
+                    {errors.streetBuilding && (
+                      <p className="text-red-400 text-xs mt-1">{errors.streetBuilding.message}</p>
                     )}
                   </div>
                 </div>

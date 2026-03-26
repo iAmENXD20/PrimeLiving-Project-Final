@@ -247,6 +247,7 @@ CREATE POLICY "Allow all access to payments" ON payments FOR ALL USING (true) WI
 -- ============================================================
 -- ALTER TABLE apartments ADD COLUMN IF NOT EXISTS payment_due_day INTEGER DEFAULT NULL CHECK (payment_due_day >= 1 AND payment_due_day <= 31);
 
+
 -- ============================================================
 -- Note: Password management is handled via Supabase Auth.
 -- Use supabase.auth.updateUser({ password }) from the client.

@@ -513,7 +513,6 @@ export default function InquiriesTab() {
                   selectedInquiry.barangay,
                   selectedInquiry.city_municipality,
                   selectedInquiry.province,
-                  selectedInquiry.zip_code,
                 ].filter(Boolean).join(', ') || null
 
                 const propertySpecs = [

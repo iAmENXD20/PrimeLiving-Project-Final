@@ -74,7 +74,7 @@ export async function createInquiry(
   try {
     const {
       name, email, phone, sex, age, apartment_classification,
-      street_building, barangay, province, city_municipality, zip_code,
+      street_building, barangay, province, city_municipality,
       number_of_units, number_of_floors, number_of_rooms, other_property_details,
     } = req.body;
 
@@ -91,7 +91,6 @@ export async function createInquiry(
         barangay: barangay || null,
         province: province || null,
         city_municipality: city_municipality || null,
-        zip_code: zip_code || null,
         number_of_units: number_of_units || null,
         number_of_floors: number_of_floors || null,
         number_of_rooms: number_of_rooms || null,

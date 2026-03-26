@@ -28,11 +28,37 @@ export function isValidEmailFormat(email: string): boolean {
   return emailPattern.test(email);
 }
 
+// Well-known email domains that are guaranteed to have valid MX records.
+// Skip DNS lookup for these to avoid false negatives from network/DNS issues.
+const TRUSTED_DOMAINS = new Set([
+  "gmail.com",
+  "yahoo.com",
+  "yahoo.com.ph",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "icloud.com",
+  "me.com",
+  "aol.com",
+  "protonmail.com",
+  "proton.me",
+  "mail.com",
+  "zoho.com",
+  "ymail.com",
+  "msn.com",
+  "googlemail.com",
+]);
+
 export async function hasDeliverableEmailDomain(email: string): Promise<boolean> {
   const domain = email.split("@")[1]?.trim().toLowerCase();
 
   if (!domain) {
     return false;
+  }
+
+  // Skip DNS for trusted/well-known providers
+  if (TRUSTED_DOMAINS.has(domain)) {
+    return true;
   }
 
   try {
@@ -41,6 +67,8 @@ export async function hasDeliverableEmailDomain(email: string): Promise<boolean>
       return true;
     }
   } catch {
+    // DNS failure (timeout, network issue) — treat as valid to avoid false negatives
+    return true;
   }
 
   try {
@@ -56,7 +84,8 @@ export async function hasDeliverableEmailDomain(email: string): Promise<boolean>
 
     return hasIpv4 || hasIpv6;
   } catch {
-    return false;
+    // DNS failure — treat as valid to avoid blocking legitimate emails
+    return true;
   }
 }
 

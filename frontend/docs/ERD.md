@@ -36,6 +36,7 @@ The central entity — represents apartment building owners/clients who register
 | zip_code | TEXT | — |
 | number_of_units | TEXT | — |
 | number_of_floors | TEXT | — |
+| number_of_rooms | TEXT | — |
 | other_property_details | TEXT | — |
 | status | TEXT | DEFAULT 'active', CHECK ('active', 'inactive') |
 | joined_date | TIMESTAMPTZ | DEFAULT NOW() |
@@ -67,19 +68,19 @@ Managers assigned to work under an apartment owner.
 
 ### 3. `apartments`
 
-Represents an apartment building/property owned by an apartment owner and managed by a manager.
+Represents an apartment building/property owned by an apartment owner.
 
 | Column | Data Type | Constraints |
 |--------|-----------|-------------|
 | **id** | UUID | PK, DEFAULT gen_random_uuid() |
+| apartmentowner_id | UUID | FK → apartment_owners(id) ON DELETE SET NULL |
 | name | TEXT | NOT NULL |
 | address | TEXT | — |
-| apartmentowner_id | UUID | FK → apartment_owners(id) ON DELETE SET NULL |
-| manager_id | UUID | FK → apartment_managers(id) ON DELETE SET NULL |
-| payment_due_day | INTEGER | DEFAULT NULL, CHECK (1–31) |
 | status | TEXT | NOT NULL, DEFAULT 'active', CHECK ('active', 'inactive') |
 | created_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() |
 | updated_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() |
+
+**Indexes:** `idx_apartments_client_id`
 
 ---
 
@@ -97,9 +98,14 @@ Individual rental units within an apartment building.
 | manager_id | UUID | FK → apartment_managers(id) ON DELETE SET NULL |
 | apartment_id | UUID | FK → apartments(id) ON DELETE SET NULL |
 | max_occupancy | INTEGER | DEFAULT NULL |
+| payment_due_day | INTEGER | DEFAULT NULL, CHECK (1–31) |
 | status | TEXT | DEFAULT 'active', CHECK ('active', 'inactive') |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
 | updated_at | TIMESTAMPTZ | DEFAULT NOW() |
+
+**Indexes:** `idx_units_apartment_id`
+
+> **Note:** The original `apartments` table was renamed to `units` via migration. A legacy compatibility view `apartments` (pointing to `units`) may still exist for backward compatibility. A new `apartments` table was created at the building/property level.
 
 ---
 
@@ -123,6 +129,9 @@ Tenants who rent a unit within an apartment.
 | move_in_date | TIMESTAMPTZ | DEFAULT NOW() |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
 | updated_at | TIMESTAMPTZ | DEFAULT NOW() |
+
+**Indexes:** `idx_tenants_unit_id`
+**Triggers:** `trg_sync_unit_apartment_ids_tenants` — keeps `unit_id` and `apartment_id` in sync
 
 ---
 
@@ -148,6 +157,9 @@ Tracks monthly billing and payment records for tenants.
 | period_to | DATE | — |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
 
+**Indexes:** `idx_payments_unit_id`
+**Triggers:** `trg_sync_unit_apartment_ids_payments` — keeps `unit_id` and `apartment_id` in sync
+
 ---
 
 ### 7. `maintenance`
@@ -169,7 +181,11 @@ Maintenance/repair requests submitted by tenants.
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
 | updated_at | TIMESTAMPTZ | DEFAULT NOW() |
 
----
+**Indexes:** `idx_maintenance_unit_id`
+**Triggers:** `trg_sync_unit_apartment_ids_maintenance` — keeps `unit_id` and `apartment_id` in sync
+**Legacy View:** `maintenance_requests` → compatibility view mapped to `maintenance`
+
+---5
 
 ### 8. `announcements`
 
@@ -185,6 +201,8 @@ Notices posted by owners/managers, delivered to tenants.
 | created_by | TEXT | — |
 | recipient_tenant_ids | UUID[] | NULL |
 | created_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() |
+
+**Indexes:** `idx_announcements_apartment_id`
 
 ---
 
@@ -202,9 +220,12 @@ Contract, lease, and other files uploaded by managers for tenants.
 | uploaded_by | UUID | FK → apartment_managers(id) ON DELETE SET NULL |
 | file_name | TEXT | NOT NULL |
 | file_url | TEXT | NOT NULL |
-| file_type | TEXT | NOT NULL, DEFAULT 'application/pdf' |
+| file_type | TEXT | DEFAULT 'application/pdf' |
 | description | TEXT | — |
 | created_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() |
+
+**Indexes:** `idx_documents_unit_id`
+**Triggers:** `trg_sync_unit_apartment_ids_documents` — keeps `unit_id` and `apartment_id` in sync
 
 ---
 
@@ -222,6 +243,9 @@ Monthly revenue tracking per apartment/unit.
 | month | DATE | NOT NULL |
 | description | TEXT | — |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
+
+**Indexes:** `idx_revenues_unit_id`
+**Triggers:** `trg_sync_unit_apartment_ids_revenues` — keeps `unit_id` and `apartment_id` in sync
 
 ---
 
@@ -245,6 +269,7 @@ Landing page inquiries from potential apartment owners.
 | zip_code | TEXT | — |
 | number_of_units | TEXT | — |
 | number_of_floors | TEXT | — |
+| number_of_rooms | TEXT | — |
 | other_property_details | TEXT | — |
 | status | TEXT | DEFAULT 'pending', CHECK ('pending', 'responded', 'approved', 'cancelled', 'closed') |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
@@ -259,7 +284,6 @@ Audit/activity log for all actions within an apartment owner's scope.
 | Column | Data Type | Constraints |
 |--------|-----------|-------------|
 | **id** | UUID | PK, DEFAULT gen_random_uuid() |
-| arc_id | TEXT | NOT NULL, AUTO-GENERATED ('AR-001', 'AR-002', ...) |
 | apartmentowner_id | UUID | FK → apartment_owners(id) ON DELETE CASCADE |
 | apartment_id | UUID | — |
 | actor_id | UUID | — |
@@ -293,6 +317,10 @@ In-app notification records delivered to managers and tenants.
 | is_read | BOOLEAN | — |
 | created_at | TIMESTAMPTZ | — |
 
+**Indexes:** `idx_notifications_apartment_id`
+
+> **Note:** Created directly in Supabase — no CREATE TABLE SQL in the codebase.
+
 ---
 
 ### 14. `sms_logs`
@@ -309,6 +337,10 @@ Logs of all SMS messages sent via Semaphore API.
 | apartment_id | UUID | FK → apartments(id) ON DELETE SET NULL |
 | apartmentowner_id | UUID | — |
 | created_at | TIMESTAMPTZ | — |
+
+**Indexes:** `idx_sms_logs_apartment_id`
+
+> **Note:** Created directly in Supabase — no CREATE TABLE SQL in the codebase.
 
 ---
 
@@ -330,7 +362,6 @@ Logs of all SMS messages sent via Semaphore API.
 | apartment_owners → apartment_logs | 1 : N | `apartment_logs.apartmentowner_id` |
 | apartment_owners → notifications | 1 : N | `notifications.apartmentowner_id` |
 | apartment_owners → sms_logs | 1 : N | `sms_logs.apartmentowner_id` |
-| apartment_managers → apartments | 1 : N | `apartments.manager_id` |
 | apartment_managers → units | 1 : N | `units.manager_id` |
 | apartment_managers → documents | 1 : N | `documents.uploaded_by` |
 | apartments → units | 1 : N | `units.apartment_id` |
@@ -353,107 +384,257 @@ Logs of all SMS messages sent via Semaphore API.
 
 ---
 
-## ERD Diagram (Text Representation)
+## ERD Diagram (Mermaid)
 
-```
-┌─────────────────────┐
-│   apartment_owners   │
-│─────────────────────│
-│ PK id               │
-│    auth_user_id     │
-│    name             │
-│    email            │
-│    phone            │
-│    status           │
-│    ...              │
-└──────────┬──────────┘
-           │ 1
-           │
-     ┌─────┼─────────────────────────────────────────┐
-     │     │                                         │
-     ▼ N   ▼ N                                       ▼ N
-┌────────────────┐  ┌────────────────┐    ┌────────────────────┐
-│apartment_managers│  │   apartments   │    │     inquiries      │
-│────────────────│  │────────────────│    │────────────────────│
-│ PK id          │  │ PK id          │    │ PK id              │
-│ FK owner_id    │  │ FK owner_id    │    │    name, email      │
-│    name, email │  │ FK manager_id  │    │    status           │
-│    status      │  │    name        │    │    ...              │
-└───────┬────────┘  │    address     │    └────────────────────┘
-        │           │    payment_due │
-        │           │    status      │
-        │           └───────┬────────┘
-        │                   │ 1
-        │         ┌─────────┼──────────────────────┐
-        │         │         │                      │
-        │         ▼ N       ▼ N                    ▼ N
-        │   ┌──────────┐  ┌──────────────┐  ┌──────────────┐
-        │   │  units    │  │announcements │  │ notifications│
-        │   │──────────│  │──────────────│  │──────────────│
-        │   │ PK id    │  │ PK id        │  │ PK id        │
-        │   │FK apt_id │  │FK owner_id   │  │FK apartment  │
-        │   │FK owner  │  │FK apt_id     │  │  recipient   │
-        │   │FK manager│  │  title, msg  │  │  type, title │
-        │   │  name    │  │  created_by  │  │  is_read     │
-        │   │  rent    │  └──────────────┘  └──────────────┘
-        │   │  status  │
-        │   └────┬─────┘
-        │        │ 1
-        │   ┌────┼─────────────────────┐
-        │   │    │                     │
-        │   ▼ N  ▼ N                   ▼ N
-        │ ┌──────────┐ ┌────────────┐ ┌──────────┐
-        │ │ tenants  │ │ payments   │ │maintenance│
-        │ │──────────│ │────────────│ │──────────│
-        │ │ PK id    │ │ PK id      │ │ PK id    │
-        │ │FK unit   │ │FK tenant   │ │FK tenant │
-        │ │FK apt    │ │FK unit     │ │FK unit   │
-        │ │FK owner  │ │FK apt      │ │FK apt    │
-        │ │  name    │ │FK owner    │ │FK owner  │
-        │ │  email   │ │  amount    │ │  title   │
-        │ │  phone   │ │  status    │ │ priority │
-        │ │  status  │ │  mode      │ │  status  │
-        │ │  move_in │ │  receipt   │ │  photo   │
-        │ └────┬─────┘ └────────────┘ └──────────┘
-        │      │ 1
-        │      │
-        │      ▼ N
-        │ ┌──────────────┐
-        │ │  documents   │
-        │ │──────────────│
-        │ │ PK id        │
-        │ │FK owner_id   │
-        │ │FK apt_id     │
-        │ │FK unit_id    │
-        │ │FK tenant_id  │
-        │ │FK uploaded_by│───── apartment_managers
-        │ │  file_name   │
-        │ │  file_url    │
-        │ └──────────────┘
-        │
-        │         ┌──────────────┐   ┌──────────────┐
-        │         │  revenues    │   │  sms_logs    │
-        │         │──────────────│   │──────────────│
-        │         │ PK id        │   │ PK id        │
-        │         │FK apt_id     │   │  phone       │
-        │         │FK unit_id    │   │  message     │
-        │         │FK owner_id   │   │  status      │
-        │         │  amount      │   │FK apartment  │
-        │         │  month       │   │FK owner_id   │
-        │         └──────────────┘   └──────────────┘
-        │
-        │         ┌──────────────────┐
-        └────────►│ apartment_logs   │
-                  │──────────────────│
-                  │ PK id            │
-                  │    arc_id        │
-                  │FK owner_id       │
-                  │    actor_name    │
-                  │    actor_role    │
-                  │    action        │
-                  │    description   │
-                  │    metadata      │
-                  └──────────────────┘
+```mermaid
+erDiagram
+    apartment_owners {
+        UUID id PK
+        UUID auth_user_id UK
+        TEXT name
+        TEXT email UK
+        TEXT phone
+        TEXT sex
+        TEXT age
+        TEXT apartment_address
+        TEXT apartment_classification
+        TEXT street_building
+        TEXT barangay
+        TEXT province
+        TEXT city_municipality
+        TEXT zip_code
+        TEXT number_of_units
+        TEXT number_of_floors
+        TEXT number_of_rooms
+        TEXT other_property_details
+        TEXT status
+        TIMESTAMPTZ joined_date
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    apartment_managers {
+        UUID id PK
+        UUID auth_user_id UK
+        TEXT name
+        TEXT email UK
+        TEXT phone
+        TEXT sex
+        TEXT age
+        UUID apartmentowner_id FK
+        TEXT status
+        TIMESTAMPTZ joined_date
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    apartments {
+        UUID id PK
+        UUID apartmentowner_id FK
+        TEXT name
+        TEXT address
+        TEXT status
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    units {
+        UUID id PK
+        TEXT name
+        NUMERIC monthly_rent
+        INTEGER total_units
+        UUID apartmentowner_id FK
+        UUID manager_id FK
+        UUID apartment_id FK
+        INTEGER max_occupancy
+        INTEGER payment_due_day
+        TEXT status
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tenants {
+        UUID id PK
+        UUID auth_user_id UK
+        TEXT name
+        TEXT email
+        TEXT phone
+        TEXT sex
+        TEXT age
+        UUID apartment_id FK
+        UUID unit_id FK
+        UUID apartmentowner_id FK
+        TEXT status
+        TIMESTAMPTZ move_in_date
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    payments {
+        UUID id PK
+        UUID apartmentowner_id FK
+        UUID tenant_id FK
+        UUID apartment_id FK
+        UUID unit_id FK
+        NUMERIC amount
+        TIMESTAMPTZ payment_date
+        TEXT status
+        TEXT description
+        TEXT payment_mode
+        TEXT receipt_url
+        TEXT verification_status
+        DATE period_from
+        DATE period_to
+        TIMESTAMPTZ created_at
+    }
+
+    maintenance {
+        UUID id PK
+        UUID tenant_id FK
+        UUID apartment_id FK
+        UUID unit_id FK
+        UUID apartmentowner_id FK
+        TEXT title
+        TEXT description
+        TEXT priority
+        TEXT status
+        TEXT photo_url
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    announcements {
+        UUID id PK
+        UUID apartmentowner_id FK
+        UUID apartment_id FK
+        TEXT title
+        TEXT message
+        TEXT created_by
+        UUID_ARRAY recipient_tenant_ids
+        TIMESTAMPTZ created_at
+    }
+
+    documents {
+        UUID id PK
+        UUID apartmentowner_id FK
+        UUID apartment_id FK
+        UUID unit_id FK
+        UUID tenant_id FK
+        UUID uploaded_by FK
+        TEXT file_name
+        TEXT file_url
+        TEXT file_type
+        TEXT description
+        TIMESTAMPTZ created_at
+    }
+
+    revenues {
+        UUID id PK
+        UUID apartment_id FK
+        UUID unit_id FK
+        UUID apartmentowner_id FK
+        NUMERIC amount
+        DATE month
+        TEXT description
+        TIMESTAMPTZ created_at
+    }
+
+    inquiries {
+        UUID id PK
+        TEXT name
+        TEXT email
+        TEXT phone
+        TEXT sex
+        TEXT age
+        TEXT apartment_classification
+        TEXT street_building
+        TEXT barangay
+        TEXT province
+        TEXT city_municipality
+        TEXT zip_code
+        TEXT number_of_units
+        TEXT number_of_floors
+        TEXT number_of_rooms
+        TEXT other_property_details
+        TEXT status
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    apartment_logs {
+        UUID id PK
+        UUID apartmentowner_id FK
+        UUID apartment_id
+        UUID actor_id
+        TEXT actor_name
+        TEXT actor_role
+        TEXT action
+        TEXT entity_type
+        UUID entity_id
+        TEXT description
+        JSONB metadata
+        TIMESTAMPTZ created_at
+    }
+
+    notifications {
+        UUID id PK
+        UUID apartmentowner_id
+        UUID apartment_id FK
+        TEXT recipient_role
+        UUID recipient_id
+        TEXT type
+        TEXT title
+        TEXT message
+        BOOLEAN is_read
+        TIMESTAMPTZ created_at
+    }
+
+    sms_logs {
+        UUID id PK
+        TEXT phone
+        TEXT message
+        TEXT status
+        TEXT error
+        UUID apartment_id FK
+        UUID apartmentowner_id
+        TIMESTAMPTZ created_at
+    }
+
+    apartment_owners ||--o{ apartment_managers : "has many"
+    apartment_owners ||--o{ apartments : "owns"
+    apartment_owners ||--o{ units : "owns"
+    apartment_owners ||--o{ tenants : "has many"
+    apartment_owners ||--o{ payments : "receives"
+    apartment_owners ||--o{ maintenance : "manages"
+    apartment_owners ||--o{ announcements : "posts"
+    apartment_owners ||--o{ documents : "stores"
+    apartment_owners ||--o{ revenues : "tracks"
+    apartment_owners ||--o{ apartment_logs : "logs"
+    apartment_owners ||--o{ notifications : "receives"
+    apartment_owners ||--o{ sms_logs : "sends"
+
+    apartment_managers ||--o{ units : "manages"
+    apartment_managers ||--o{ documents : "uploads"
+
+    apartments ||--o{ units : "contains"
+    apartments ||--o{ tenants : "houses"
+    apartments ||--o{ payments : "billed to"
+    apartments ||--o{ maintenance : "requests for"
+    apartments ||--o{ announcements : "announced in"
+    apartments ||--o{ documents : "filed under"
+    apartments ||--o{ revenues : "generates"
+    apartments ||--o{ notifications : "notified"
+    apartments ||--o{ sms_logs : "sms for"
+
+    units ||--o{ tenants : "rented by"
+    units ||--o{ payments : "billed for"
+    units ||--o{ maintenance : "requests for"
+    units ||--o{ documents : "filed under"
+    units ||--o{ revenues : "generates"
+
+    tenants ||--o{ payments : "pays"
+    tenants ||--o{ maintenance : "submits"
+    tenants ||--o{ documents : "assigned to"
 ```
 
 ---
@@ -469,11 +650,26 @@ Logs of all SMS messages sent via Semaphore API.
 | One **tenant** has many **payments** | Monthly billings generate payment records |
 | One **tenant** has many **maintenance** requests | Tenants can submit multiple requests |
 | One **tenant** has many **documents** | Contracts, leases per tenant |
+| One **apartment_manager** manages many **units** | `units.manager_id` → manager |
 | One **apartment_manager** uploads many **documents** | `documents.uploaded_by` → manager |
 | One **apartment_owner** has many **apartment_logs** | All activity is logged per owner scope |
 | One **apartment** has many **announcements** | Managers post announcements per building |
 | One **apartment** has many **notifications** | System-generated notifications per building |
 | One **apartment** has many **sms_logs** | SMS sent for a specific building |
+
+---
+
+## Database Triggers
+
+| Trigger | Table | Description |
+|---------|-------|-------------|
+| `trg_sync_unit_apartment_ids_tenants` | tenants | Syncs `unit_id` ↔ `apartment_id` on INSERT/UPDATE |
+| `trg_sync_unit_apartment_ids_payments` | payments | Syncs `unit_id` ↔ `apartment_id` on INSERT/UPDATE |
+| `trg_sync_unit_apartment_ids_documents` | documents | Syncs `unit_id` ↔ `apartment_id` on INSERT/UPDATE |
+| `trg_sync_unit_apartment_ids_maintenance` | maintenance | Syncs `unit_id` ↔ `apartment_id` on INSERT/UPDATE |
+| `trg_sync_unit_apartment_ids_revenues` | revenues | Syncs `unit_id` ↔ `apartment_id` on INSERT/UPDATE |
+
+All triggers call `sync_unit_and_apartment_ids()` — ensures canonical `unit_id` and legacy `apartment_id` stay consistent.
 
 ---
 
@@ -488,8 +684,9 @@ Logs of all SMS messages sent via Semaphore API.
 
 ## Notes
 
-- The `apartments` table in the original schema was renamed to `units` during migration. A new `apartments` table was created to represent the building/property level.
-- `tenants.unit_id` and `tenants.apartment_id` are kept in sync via a database trigger.
+- The original `apartments` table was renamed to `units` via migration. A new `apartments` table was created to represent the building/property level.
+- Legacy compatibility views (`apartments` → `units`, `maintenance_requests` → `maintenance`) may still exist.
+- `tenants.unit_id` and `tenants.apartment_id` are kept in sync via a database trigger (`sync_unit_and_apartment_ids()`).
 - `notifications` and `sms_logs` tables were created directly in Supabase (no CREATE TABLE SQL in the codebase).
 - All UUIDs use `gen_random_uuid()` for automatic generation.
 - Timestamps use `TIMESTAMPTZ` with `DEFAULT NOW()`.
