@@ -125,6 +125,15 @@ export default function OwnerAnnouncementsTab({ clientId, ownerName }: OwnerAnno
                 : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
             } focus:outline-none focus:border-primary`}
           />
+          {(title.trim() || message.trim()) && (() => {
+            const smsLength = `[PrimeLiving] ${title}\n\n${message}`.length
+            const isOver = smsLength > 160
+            return (
+              <p className={`text-xs mt-1 ${isOver ? 'text-amber-500' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                SMS preview: {smsLength}/160 characters{isOver && ' (will be truncated)'}
+              </p>
+            )
+          })()}
           <div className="flex gap-3 justify-end">
             <button
               onClick={() => { setShowForm(false); setTitle(''); setMessage('') }}

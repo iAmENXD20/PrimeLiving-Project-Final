@@ -422,7 +422,7 @@ describe("controller unit tests", () => {
         success: true,
         data: expect.objectContaining({
           sms_enabled: expect.any(Boolean),
-          philsms_api_key_configured: expect.any(Boolean),
+          semaphore_api_key_configured: expect.any(Boolean),
         }),
       })
     );

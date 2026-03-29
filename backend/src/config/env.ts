@@ -14,19 +14,15 @@ export const env = {
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
   CACHE_ENABLED: process.env.CACHE_ENABLED || "true",
   CACHE_DEFAULT_TTL_SECONDS: parseInt(process.env.CACHE_DEFAULT_TTL_SECONDS || "30", 10),
-  PHILSMS_API_KEY:
-    process.env.PHILSMS_API_KEY ||
-    process.env.PHILSMS_TOKEN ||
+  SEMAPHORE_API_KEY:
     process.env.SEMAPHORE_API_KEY ||
     process.env.SEMAPHORE_APIKEY ||
     process.env.SMS_API_KEY ||
     "",
-  PHILSMS_SENDER_ID:
-    process.env.PHILSMS_SENDER_ID ||
-    process.env.PHILSMS_SENDER_NAME ||
+  SEMAPHORE_SENDER_NAME:
     process.env.SEMAPHORE_SENDER_NAME ||
     "",
-  PHILSMS_API_URL: process.env.PHILSMS_API_URL || "https://dashboard.philsms.com/api/v3/sms/send",
+  SEMAPHORE_API_URL: process.env.SEMAPHORE_API_URL || "https://api.semaphore.co/api/v4/messages",
   SMS_ENABLED: process.env.SMS_ENABLED,
   EMAIL_VERIFICATION_API_KEY: process.env.EMAIL_VERIFICATION_API_KEY || "",
   EMAIL_VERIFICATION_API_URL:
@@ -48,8 +44,8 @@ for (const varName of requiredVars) {
   }
 }
 
-if (env.SMS_ENABLED !== "false" && !env.PHILSMS_API_KEY) {
-  console.warn("SMS is enabled but PHILSMS_API_KEY is missing. SMS delivery will fail.");
+if (env.SMS_ENABLED !== "false" && !env.SEMAPHORE_API_KEY) {
+  console.warn("SMS is enabled but SEMAPHORE_API_KEY is missing. SMS delivery will fail.");
 }
 
 if (env.EMAIL_VERIFICATION_REQUIRED === "true" && !env.EMAIL_VERIFICATION_API_KEY) {

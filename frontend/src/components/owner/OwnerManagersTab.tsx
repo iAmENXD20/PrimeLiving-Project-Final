@@ -1,11 +1,8 @@
-import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, ChevronDown } from 'lucide-react'
-import { useState, useEffect, useRef } from 'react'
+import { Search, Plus, MoreHorizontal, Edit2, Trash2, Copy, Check } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { useEmailValidation } from '@/hooks/useEmailValidation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   getOwnerManagers,
   createOwnerManager,
@@ -37,20 +34,12 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingManager, setEditingManager] = useState<Manager | null>(null)
-  const [form, setForm] = useState({ name: '', email: '', phone: '', sex: '', age: '' })
+  const [form, setForm] = useState({ name: '', email: '', phone: '' })
   const [saving, setSaving] = useState(false)
   const [phonePrefixError, setPhonePrefixError] = useState(false)
-  const [isSexOpen, setIsSexOpen] = useState(false)
-  const sexRef = useRef<HTMLDivElement>(null)
   const [showCredentials, setShowCredentials] = useState(false)
-  const [credentials, setCredentials] = useState({ email: '' })
+  const [credentials, setCredentials] = useState({ email: '', password: '' })
   const [copiedField, setCopiedField] = useState<string | null>(null)
-  const [smsPhone, setSmsPhone] = useState('')
-  const [smsSending, setSmsSending] = useState(false)
-  const [smsSent, setSmsSent] = useState(false)
-  const [emailSending, setEmailSending] = useState(false)
-  const [emailSent, setEmailSent] = useState(false)
-  const [emailCooldown, setEmailCooldown] = useState(0)
   const [managerToDelete, setManagerToDelete] = useState<Manager | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [page, setPage] = useState(1)
@@ -60,24 +49,6 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
   useEffect(() => {
     loadManagers()
   }, [clientId])
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (sexRef.current && !sexRef.current.contains(e.target as Node)) setIsSexOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  useEffect(() => {
-    if (emailCooldown <= 0) return
-
-    const timerId = window.setInterval(() => {
-      setEmailCooldown((prev) => (prev > 0 ? prev - 1 : 0))
-    }, 1000)
-
-    return () => window.clearInterval(timerId)
-  }, [emailCooldown])
 
   async function loadManagers() {
     try {
@@ -93,13 +64,13 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
 
   function openAddModal() {
     setEditingManager(null)
-    setForm({ name: '', email: '', phone: '', sex: '', age: '' })
+    setForm({ name: '', email: '', phone: '' })
     setShowModal(true)
   }
 
   function openEditModal(manager: Manager) {
     setEditingManager(manager)
-    setForm({ name: manager.name, email: manager.email, phone: (manager.phone || '').replace(/^\+63/, ''), sex: (manager as any).sex || '', age: (manager as any).age || '' })
+    setForm({ name: manager.name, email: manager.email, phone: (manager.phone || '').replace(/^\+63/, '') })
     setShowModal(true)
     setOpenMenu(null)
   }
@@ -131,15 +102,13 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
           name: form.name,
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
-          sex: form.sex || undefined,
-          age: form.age || undefined,
           apartmentowner_id: clientId,
         })
         setManagers((prev) => [result.manager, ...prev])
         setShowModal(false)
-        setCredentials({ email: form.email })
+        setCredentials({ email: form.email, password: result.generatedPassword || '' })
         setShowCredentials(true)
-        toast.success('Manager invitation sent successfully')
+        toast.success('Manager account created successfully')
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save manager'
@@ -192,10 +161,6 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
   const cardClass = `rounded-xl border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
   }`
-
-  const inputClass = isDark
-    ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder:text-gray-500'
-    : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400'
 
   return (
     <>
@@ -349,84 +314,54 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20">
-            <div className={`relative w-full max-w-md rounded-xl border p-6 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/65 animate-in fade-in duration-200" onClick={() => setShowModal(false)} />
+          <div className={`relative w-full max-w-md mx-4 rounded-2xl border overflow-hidden animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200 shadow-2xl'}`}>
+            {/* Header */}
+            <div className={`px-6 py-5 border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {editingManager ? 'Edit Manager' : 'Create Manager'}
               </h3>
-              <button onClick={() => setShowModal(false)} className={isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}>
-                <X className="w-5 h-5" />
-              </button>
+              {!editingManager && (
+                <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Fill in the manager's details. Password and verification will be sent via email.
+                </p>
+              )}
             </div>
-            {!editingManager && (
-              <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Enter the manager's email address. This will be used as their login credential.
-              </p>
-            )}
-            {editingManager && <div className="mb-4" />}
 
-            <div className="space-y-4">
+            {/* Form */}
+            <div className="px-6 py-5 space-y-4">
               <div>
-                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Name</Label>
-                <Input
+                <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Manager name"
-                  className={inputClass}
+                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                  }`}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div ref={sexRef} className="relative">
-                  <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Sex</Label>
-                  <button
-                    type="button"
-                    onClick={() => setIsSexOpen((prev) => !prev)}
-                    className={`w-full h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${inputClass} ${!form.sex ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}`}
-                  >
-                    {form.sex || 'Select'}
-                  </button>
-                  <ChevronDown
-                    className={`pointer-events-none absolute right-3 bottom-3 h-4 w-4 transition-transform ${isSexOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
-                  />
-                  {isSexOpen && (
-                    <div className={`absolute z-50 mt-1 w-full rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
-                      {['Male', 'Female'].map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => { setForm({ ...form, sex: option }); setIsSexOpen(false) }}
-                          className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${option === form.sex ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
-                        >
-                          {option}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Age</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={120}
-                    value={form.age}
-                    onChange={(e) => setForm({ ...form, age: e.target.value })}
-                    placeholder="Age"
-                    className={inputClass}
-                  />
-                </div>
-              </div>
+
               <div>
-                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Email</Label>
-                <Input
+                <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   placeholder="juandelacruz@gmail.com"
-                  className={inputClass}
+                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                  }`}
                 />
                 {!editingManager && form.email.trim() && (
                   <p
@@ -444,11 +379,14 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                   </p>
                 )}
               </div>
+
               <div>
-                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Phone</Label>
+                <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Phone
+                </label>
                 <div className="relative">
-                  <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium select-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+63</span>
-                  <Input
+                  <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+63</span>
+                  <input
                     type="tel"
                     value={form.phone}
                     onChange={(e) => {
@@ -457,7 +395,12 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                       setPhonePrefixError(raw.length > 0 && raw[0] !== '9')
                     }}
                     placeholder="9XX XXX XXXX"
-                    className={`pl-12 ${inputClass}`}
+                    maxLength={10}
+                    className={`w-full pl-12 pr-3 py-2.5 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                      isDark
+                        ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                    }`}
                   />
                 </div>
                 {phonePrefixError && (
@@ -466,15 +409,19 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <Button
-                variant="outline"
+            {/* Footer */}
+            <div className={`px-6 py-4 border-t flex gap-3 justify-end ${isDark ? 'border-[#1E293B] bg-[#0D1526]' : 'border-gray-100 bg-gray-50/50'}`}>
+              <button
                 onClick={() => setShowModal(false)}
-                className={isDark ? 'border-[#1E293B] text-gray-300 hover:bg-white/5' : ''}
+                className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                  isDark
+                    ? 'bg-white/5 text-gray-300 hover:bg-white/10 border border-[#1E293B]'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                }`}
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 onClick={handleSave}
                 disabled={
                   saving ||
@@ -483,120 +430,77 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                       managerEmailValidation.isChecking ||
                       managerEmailValidation.isInvalid))
                 }
-                className="bg-primary hover:bg-primary/90 text-white font-semibold"
+                className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-primary hover:bg-primary-600 text-white transition-all disabled:opacity-50"
               >
                 {editingManager ? 'Update' : saving ? 'Creating...' : 'Create'}
-              </Button>
+              </button>
             </div>
-          </div>
           </div>
         </div>
       )}
 
       {/* Credentials Modal */}
       {showCredentials && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20">
-            <div className={`relative w-full max-w-md rounded-xl border p-6 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
-              <h3 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Manager Invitation Sent
-              </h3>
+          <div className={`relative w-full max-w-md mx-4 rounded-xl border p-6 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+            <h3 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Manager Account Created
+            </h3>
 
-              <div className="space-y-3">
+            <div className={`rounded-lg p-4 mb-4 ${isDark ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-200'}`}>
+              <p className={`text-sm font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                A verification email has been sent. The manager must verify their email before logging in.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className={`flex items-center justify-between rounded-lg p-3 ${isDark ? 'bg-[#0A1628] border border-[#1E293B]' : 'bg-gray-50 border border-gray-200'}`}>
+                <div>
+                  <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Email</p>
+                  <p className={`text-sm font-mono mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{credentials.email}</p>
+                </div>
+                <button
+                  onClick={() => copyToClipboard(credentials.email, 'Email')}
+                  className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-200 text-gray-500'}`}
+                >
+                  {copiedField === 'Email' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {credentials.password && (
                 <div className={`flex items-center justify-between rounded-lg p-3 ${isDark ? 'bg-[#0A1628] border border-[#1E293B]' : 'bg-gray-50 border border-gray-200'}`}>
                   <div>
-                    <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Email</p>
-                    <p className={`text-sm font-mono mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{credentials.email}</p>
+                    <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Password</p>
+                    <p className={`text-sm font-mono mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{credentials.password}</p>
                   </div>
                   <button
-                    onClick={() => copyToClipboard(credentials.email, 'Email')}
+                    onClick={() => copyToClipboard(credentials.password, 'Password')}
                     className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-200 text-gray-500'}`}
                   >
-                    {copiedField === 'Email' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    {copiedField === 'Password' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
+              )}
+            </div>
 
-                <div className={`rounded-lg p-3 ${isDark ? 'bg-emerald-500/10 border border-emerald-500/25' : 'bg-emerald-50 border border-emerald-200'}`}>
-                  <p className={`text-xs font-medium ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Status</p>
-                  <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>Invited</p>
-                </div>
-              </div>
-
+            {credentials.password && (
               <div className={`mt-4 rounded-lg p-3 ${isDark ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-yellow-50 border border-yellow-200'}`}>
                 <p className={`text-xs ${isDark ? 'text-yellow-400' : 'text-yellow-700'}`}>
-                  The manager should check their email to accept the invite and set their own password.
+                  ⚠️ Save these credentials now. The password cannot be retrieved after closing this dialog.
                 </p>
               </div>
+            )}
 
-              {/* Email Send Section */}
-              <div className="mt-5 space-y-3">
-                <Label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Send invite reminder via Email
-                </Label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                    <input
-                      type="email"
-                      value={credentials.email}
-                      readOnly
-                      className={`w-full pl-10 pr-4 py-2.5 rounded-lg border text-sm transition-colors ${
-                        isDark
-                          ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500 focus:border-primary'
-                          : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-primary'
-                      } focus:outline-none`}
-                    />
-                  </div>
-                  <Button
-                    onClick={async () => {
-                      setEmailSending(true)
-                      try {
-                        await new Promise((resolve) => setTimeout(resolve, 1500))
-                        setEmailSent(true)
-                        setEmailCooldown(30)
-                        toast.success(`Invite reminder sent to ${credentials.email}`)
-                      } catch {
-                        toast.error('Failed to send email')
-                      } finally {
-                        setEmailSending(false)
-                      }
-                    }}
-                    disabled={emailSending || emailCooldown > 0}
-                    className="gap-2 bg-primary hover:bg-primary/90 text-white font-semibold disabled:opacity-50"
-                  >
-                    <Send className="w-4 h-4" />
-                    {emailSending
-                      ? 'Sending...'
-                      : emailCooldown > 0
-                      ? `Resend in ${emailCooldown}s`
-                      : emailSent
-                      ? 'Resend Email'
-                      : 'Send Email'}
-                  </Button>
-                </div>
-                {emailSent && (
-                  <p className={`text-xs flex items-center gap-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                    <Check className="w-3.5 h-3.5" />
-                    Invite reminder sent successfully to {credentials.email}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex justify-end mt-6">
-                <Button
-                  onClick={() => {
-                    setShowCredentials(false)
-                    setSmsPhone('')
-                    setSmsSent(false)
-                    setEmailSent(false)
-                    setEmailCooldown(0)
-                  }}
-                  className="bg-primary hover:bg-primary/90 text-white font-semibold"
-                >
-                  Done
-                </Button>
-              </div>
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => {
+                  setShowCredentials(false)
+                }}
+                className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-primary hover:bg-primary-600 text-white transition-colors"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

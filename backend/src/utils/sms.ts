@@ -70,81 +70,63 @@ function normalizePhone(phone: string): string {
 }
 
 export async function sendSmsSemaphore(phone: string, message: string): Promise<void> {
-  const apiKey = env.PHILSMS_API_KEY;
+  const apiKey = env.SEMAPHORE_API_KEY;
   if (env.SMS_ENABLED === "false") return;
   if (!apiKey) {
-    throw new Error("PHILSMS_API_KEY is not configured");
+    throw new Error("SEMAPHORE_API_KEY is not configured");
   }
 
   const normalizedPhone = normalizePhone(phone);
   if (!/^63\d{10}$/.test(normalizedPhone)) {
     throw new Error(`Invalid PH mobile number format: ${phone}`);
   }
-  if (!env.PHILSMS_SENDER_ID) {
-    throw new Error("PHILSMS_SENDER_ID is not configured. Set an authorized sender ID in backend/.env.");
-  }
+
+  // Semaphore expects 09XX format (local PH), convert back from 63 prefix
+  const localPhone = `0${normalizedPhone.slice(2)}`;
+
+  // Truncate to 160 characters to conserve SMS credits (1 credit per 160 chars)
+  const truncatedMessage = message.length > 160 ? message.slice(0, 157) + "..." : message;
 
   const payload: Record<string, string> = {
-    recipient: normalizedPhone,
-    message,
-    type: "plain",
+    apikey: apiKey,
+    number: localPhone,
+    message: truncatedMessage,
   };
 
-  payload.sender_id = env.PHILSMS_SENDER_ID;
-
-  const alternateUrl = env.PHILSMS_API_URL.includes("dashboard.philsms.com")
-    ? "https://app.philsms.com/api/v3/sms/send"
-    : "https://dashboard.philsms.com/api/v3/sms/send";
-
-  const keyCandidates = Array.from(new Set([apiKey, apiKey.split("|")[1]].filter(Boolean) as string[]));
-  const urlCandidates = Array.from(new Set([env.PHILSMS_API_URL, alternateUrl]));
-
-  let lastError = "PhilSMS send failed";
-
-  for (const url of urlCandidates) {
-    for (const key of keyCandidates) {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      let responseBody: any = null;
-      const text = await response.text();
-      try {
-        responseBody = text ? JSON.parse(text) : null;
-      } catch {
-        responseBody = text;
-      }
-
-      const providerMessage =
-        typeof responseBody === "string"
-          ? responseBody
-          : responseBody?.message || JSON.stringify(responseBody || {});
-
-      if (!response.ok) {
-        lastError = `PhilSMS failed (${response.status}): ${providerMessage}`;
-        const isAuthError = /unauthenticated/i.test(providerMessage);
-        if (isAuthError) continue;
-        throw new Error(lastError);
-      }
-
-      if (responseBody && typeof responseBody === "object" && responseBody.status === "error") {
-        lastError = `PhilSMS error: ${responseBody.message || "Unknown provider error"}`;
-        const isAuthError = /unauthenticated/i.test(responseBody.message || "");
-        if (isAuthError) continue;
-        throw new Error(lastError);
-      }
-
-      return;
-    }
+  if (env.SEMAPHORE_SENDER_NAME) {
+    payload.sendername = env.SEMAPHORE_SENDER_NAME;
   }
 
-  throw new Error(lastError);
+  const url = env.SEMAPHORE_API_URL;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  let responseBody: any = null;
+  const text = await response.text();
+  try {
+    responseBody = text ? JSON.parse(text) : null;
+  } catch {
+    responseBody = text;
+  }
+
+  if (!response.ok) {
+    const errorMsg =
+      typeof responseBody === "string"
+        ? responseBody
+        : responseBody?.message || JSON.stringify(responseBody || {});
+    throw new Error(`Semaphore SMS failed (${response.status}): ${errorMsg}`);
+  }
+
+  // Semaphore returns an array on success; check for error responses
+  if (responseBody && typeof responseBody === "object" && !Array.isArray(responseBody) && responseBody.status === false) {
+    throw new Error(`Semaphore SMS error: ${responseBody.message || "Unknown error"}`);
+  }
 }
 
 export async function sendSmsToMany(
@@ -168,4 +150,4 @@ export async function sendSmsToMany(
   );
 }
 
-export const sendSmsPhilSms = sendSmsSemaphore;
+export const sendSmsPhilSms = sendSmsSemaphore; // backward compat alias

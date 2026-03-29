@@ -81,31 +81,7 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
         recipientTenantIds,
       )
 
-      // Simulate SMS sending to selected recipients
-      setSmsSending(true)
-      try {
-        const recipientsWithPhone = recipients.filter((r) => r.phone)
-        const recipientsWithoutPhone = recipients.filter((r) => !r.phone)
-
-        if (recipientsWithPhone.length > 0) {
-          // Simulated SMS send (frontend-only)
-          await new Promise(resolve => setTimeout(resolve, 1500))
-          toast.success(`SMS sent to ${recipientsWithPhone.length} tenant(s)`, {
-            description: recipientsWithPhone.map(t => t.name).join(', '),
-          })
-        }
-
-        if (recipientsWithoutPhone.length > 0) {
-          toast.info(`Skipped ${recipientsWithoutPhone.length} tenant(s) without phone number.`)
-        }
-      } catch (smsErr) {
-        console.error('SMS sending failed:', smsErr)
-        toast.error('Failed to send SMS notifications')
-      } finally {
-        setSmsSending(false)
-      }
-
-      toast.success('Announcement created and posted to tenant dashboard')
+      toast.success('Announcement created and SMS sent to tenants with phone numbers')
       setAnnouncements((prev) => [
         {
           ...createdAnnouncement,
@@ -212,6 +188,15 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
                 : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
             } focus:outline-none focus:border-primary`}
           />
+          {(title.trim() || message.trim()) && (() => {
+            const smsLength = `[PrimeLiving] ${title}\n\n${message}`.length
+            const isOver = smsLength > 160
+            return (
+              <p className={`text-xs mt-1 ${isOver ? 'text-amber-500' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                SMS preview: {smsLength}/160 characters{isOver && ' (will be truncated)'}
+              </p>
+            )
+          })()}
 
           <div className="space-y-2">
             <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>

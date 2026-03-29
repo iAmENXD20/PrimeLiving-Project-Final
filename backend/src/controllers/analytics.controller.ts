@@ -119,6 +119,16 @@ export async function getOwnerStats(
       activeTenants = count ?? 0;
     }
 
+    // Fallback: if unit-based query returned 0, try direct apartmentowner_id lookup
+    if (activeTenants === 0) {
+      const { count } = await supabaseAdmin
+        .from("tenants")
+        .select("*", { count: "exact", head: true })
+        .eq("apartmentowner_id", apartmentownerId)
+        .eq("status", "active");
+      activeTenants = count ?? 0;
+    }
+
     const totalRevenue =
       revenueRes.data?.reduce(
         (sum: number, r: any) => sum + (r.amount || 0),
@@ -227,12 +237,20 @@ export async function getManagerStats(
       apartmentIds = (clientApartments || []).map((a: any) => a.id);
     }
 
+    // Query active tenants - try by unit_id first, fallback to apartmentowner_id
+    let tenantsQuery = supabaseAdmin
+      .from("tenants")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "active");
+
+    if (apartmentIds.length > 0) {
+      tenantsQuery = tenantsQuery.in("unit_id", apartmentIds);
+    } else {
+      tenantsQuery = tenantsQuery.eq("apartmentowner_id", apartmentownerId);
+    }
+
     const [tenants, pendingMaintenance, allMaintenance] = await Promise.all([
-      supabaseAdmin
-        .from("tenants")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "active")
-        .in("unit_id", apartmentIds.length ? apartmentIds : ["__none__"]),
+      tenantsQuery,
       supabaseAdmin
         .from("maintenance")
         .select("*", { count: "exact", head: true })
@@ -243,6 +261,17 @@ export async function getManagerStats(
         .select("*", { count: "exact", head: true })
         .eq("apartmentowner_id", apartmentownerId),
     ]);
+
+    // If unit-based query returned 0 but we have apartmentIds, try direct apartmentowner_id
+    let totalActiveTenants = tenants.count ?? 0;
+    if (totalActiveTenants === 0 && apartmentIds.length > 0) {
+      const { count: directCount } = await supabaseAdmin
+        .from("tenants")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "active")
+        .eq("apartmentowner_id", apartmentownerId);
+      totalActiveTenants = directCount ?? 0;
+    }
 
     // Get paid/unpaid tenants for current month
     const now = new Date();
@@ -273,7 +302,6 @@ export async function getManagerStats(
         .map((p: any) => p.tenant_id)
         .filter(Boolean)
     );
-    const totalActiveTenants = tenants.count ?? 0;
     const paidTenants = paidTenantIds.size;
     const unpaidTenants = Math.max(0, totalActiveTenants - paidTenants);
 

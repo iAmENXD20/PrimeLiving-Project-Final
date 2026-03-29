@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { createNotifications } from "../utils/notifications";
+import { sendSmsToMany } from "../utils/sms";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 
 /**
@@ -21,10 +22,6 @@ export async function getAnnouncements(
 
     if (req.query.apartmentowner_id) {
       query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
-    }
-
-    if (req.query.apartment_id) {
-      query = query.eq("apartment_id", req.query.apartment_id as string);
     }
 
     if (req.query.tenant_id) {
@@ -84,7 +81,7 @@ export async function createAnnouncement(
   res: Response
 ): Promise<void> {
   try {
-    const { apartmentowner_id, apartment_id, title, message } = req.body;
+    const { apartmentowner_id, title, message } = req.body;
     const senderName =
       typeof req.body.created_by === "string" && req.body.created_by.trim().length > 0
         ? req.body.created_by.trim()
@@ -104,8 +101,10 @@ export async function createAnnouncement(
       : [];
 
     const insertPayload = {
-      ...req.body,
-      apartment_id: apartment_id || null,
+      apartmentowner_id,
+      title,
+      message,
+      created_by: senderName,
       recipient_tenant_ids:
         recipientTenantIds.length > 0 ? recipientTenantIds : null,
     };
@@ -124,7 +123,7 @@ export async function createAnnouncement(
     if (apartmentowner_id) {
       let tenantQuery = supabaseAdmin
         .from("tenants")
-        .select("id")
+        .select("id, phone")
         .eq("apartmentowner_id", apartmentowner_id)
         .eq("status", "active");
 
@@ -136,7 +135,6 @@ export async function createAnnouncement(
 
       const tenantNotifications = (tenants || []).map((tenant: any) => ({
         apartmentowner_id,
-        apartment_id: apartment_id || null,
         recipient_role: "tenant" as const,
         recipient_id: tenant.id,
         type: "announcement_created",
@@ -163,7 +161,6 @@ export async function createAnnouncement(
         managerNotifications.push(
           ...(managers || []).map((manager: any) => ({
             apartmentowner_id,
-            apartment_id: apartment_id || null,
             recipient_role: "manager" as const,
             recipient_id: manager.id,
             type: "announcement_created",
@@ -174,6 +171,18 @@ export async function createAnnouncement(
       }
 
       await createNotifications([...tenantNotifications, ...managerNotifications]);
+
+      // Send SMS to tenants with phone numbers
+      const tenantPhones = (tenants || [])
+        .map((t: any) => t.phone)
+        .filter(Boolean);
+
+      if (tenantPhones.length > 0) {
+        const smsMessage = `[PrimeLiving] ${title}\n\n${message}`;
+        sendSmsToMany(tenantPhones, smsMessage, { apartmentowner_id }).catch(
+          (err) => console.error("Announcement SMS failed:", err)
+        );
+      }
     }
 
     sendSuccess(
