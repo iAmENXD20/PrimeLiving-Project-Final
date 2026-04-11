@@ -13,10 +13,10 @@ function toInviteConfirmUrl(baseUrl: string): string {
 }
 
 /**
- * GET /api/clients
- * Get all clients
+ * GET /api/owners
+ * Get all owners
  */
-export async function getClients(
+export async function getOwners(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -38,10 +38,10 @@ export async function getClients(
 }
 
 /**
- * GET /api/clients/:id
- * Get a single client by ID
+ * GET /api/owners/:id
+ * Get a single owner by ID
  */
-export async function getClientById(
+export async function getOwnerById(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -66,10 +66,10 @@ export async function getClientById(
 }
 
 /**
- * GET /api/clients/:id/location
- * Get client apartment location for authorized users tied to the same client.
+ * GET /api/owners/:id/location
+ * Get owner apartment location for authorized users tied to the same owner.
  */
-export async function getClientLocation(
+export async function getOwnerLocation(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -84,15 +84,14 @@ export async function getClientLocation(
 
     let allowed = false;
 
-    if (user.role === "admin") {
-      allowed = true;
-    } else if (user.role === "owner") {
+    if (user.role === "owner") {
       const { data: owner } = await supabaseAdmin
         .from("apartment_owners")
         .select("id")
         .eq("id", id)
         .eq("auth_user_id", user.id)
         .maybeSingle();
+      if (owner) allowed = true;
       allowed = Boolean(owner);
     } else if (user.role === "manager") {
       const { data: manager } = await supabaseAdmin
@@ -119,7 +118,7 @@ export async function getClientLocation(
 
     const { data, error } = await supabaseAdmin
       .from("apartment_owners")
-      .select("id, apartment_address, name")
+      .select("id, first_name, last_name")
       .eq("id", id)
       .single();
 
@@ -135,10 +134,10 @@ export async function getClientLocation(
 }
 
 /**
- * GET /api/clients/by-auth/:authUserId
- * Get a client by their auth_user_id
+ * GET /api/owners/by-auth/:authUserId
+ * Get an owner by their auth_user_id
  */
-export async function getClientByAuthId(
+export async function getOwnerByAuthId(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -163,19 +162,16 @@ export async function getClientByAuthId(
 }
 
 /**
- * POST /api/clients
- * Create a new client (also creates a Supabase Auth account)
+ * POST /api/owners
+ * Create a new owner (also creates a Supabase Auth account)
  */
-export async function createClient(
+export async function createOwner(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
     const {
-      name, email, phone, apartment_address,
-      sex, age, apartment_classification,
-      street_building, barangay, province, city_municipality,
-      number_of_units, number_of_floors, number_of_rooms, other_property_details,
+      first_name, last_name, email, phone,
     } = req.body;
     const normalizedEmail = String(email || "").trim().toLowerCase();
 
@@ -189,16 +185,16 @@ export async function createClient(
       return;
     }
 
-    const [existingClientLookup, existingManagerLookup, existingTenantLookup] = await Promise.all([
+    const [existingOwnerLookup, existingManagerLookup, existingTenantLookup] = await Promise.all([
       supabaseAdmin.from("apartment_owners").select("id").eq("email", normalizedEmail).maybeSingle(),
       supabaseAdmin.from("apartment_managers").select("id").eq("email", normalizedEmail).maybeSingle(),
       supabaseAdmin.from("tenants").select("id").eq("email", normalizedEmail).maybeSingle(),
     ]);
 
-    if (existingClientLookup.error || existingManagerLookup.error || existingTenantLookup.error) {
+    if (existingOwnerLookup.error || existingManagerLookup.error || existingTenantLookup.error) {
       sendError(
         res,
-        existingClientLookup.error?.message ||
+        existingOwnerLookup.error?.message ||
           existingManagerLookup.error?.message ||
           existingTenantLookup.error?.message ||
           "Failed to validate email",
@@ -207,7 +203,7 @@ export async function createClient(
       return;
     }
 
-    if (existingClientLookup.data || existingManagerLookup.data || existingTenantLookup.data) {
+    if (existingOwnerLookup.data || existingManagerLookup.data || existingTenantLookup.data) {
       sendError(res, "Email is already used by another account", 409);
       return;
     }
@@ -225,7 +221,7 @@ export async function createClient(
         redirectTo,
         data: {
           role: "owner",
-          name,
+          name: `${first_name} ${last_name}`.trim(),
           login_email: normalizedEmail,
           app_name: "PrimeLiving",
         },
@@ -241,33 +237,22 @@ export async function createClient(
       return;
     }
 
-    // Create client record linked to auth user
+    // Create owner record linked to auth user
     const { data, error } = await supabaseAdmin
       .from("apartment_owners")
       .insert({
         auth_user_id: inviteData.user.id,
-        name,
+        first_name,
+        last_name: last_name || '',
         email: normalizedEmail,
         phone,
-        apartment_address,
-        sex,
-        age,
-        apartment_classification,
-        street_building,
-        barangay,
-        province,
-        city_municipality,
-        number_of_units,
-        number_of_floors,
-        number_of_rooms,
-        other_property_details,
         status: "active",
       })
       .select()
       .single();
 
     if (error) {
-      // Cleanup: delete the auth user if client record fails
+      // Cleanup: delete the auth user if owner record fails
       await supabaseAdmin.auth.admin.deleteUser(inviteData.user.id);
       sendError(res, error.message, 500);
       return;
@@ -276,7 +261,7 @@ export async function createClient(
     sendSuccess(
       res,
       { ...data, requiresEmailVerification: true },
-      "Client created successfully. Verification email sent.",
+      "Owner created successfully. Verification email sent.",
       201
     );
   } catch (err: any) {
@@ -285,10 +270,10 @@ export async function createClient(
 }
 
 /**
- * PUT /api/clients/:id
- * Update a client
+ * PUT /api/owners/:id
+ * Update an owner
  */
-export async function updateClient(
+export async function updateOwner(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -308,17 +293,17 @@ export async function updateClient(
       return;
     }
 
-    sendSuccess(res, data, "Client updated successfully");
+    sendSuccess(res, data, "Owner updated successfully");
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
 }
 
 /**
- * DELETE /api/clients/:id
- * Delete a client
+ * DELETE /api/owners/:id
+ * Delete an owner
  */
-export async function deleteClient(
+export async function deleteOwner(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -335,17 +320,17 @@ export async function deleteClient(
       return;
     }
 
-    sendSuccess(res, null, "Client deleted successfully");
+    sendSuccess(res, null, "Owner deleted successfully");
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
 }
 
 /**
- * GET /api/clients/count
- * Get total client count
+ * GET /api/owners/count
+ * Get total owner count
  */
-export async function getClientCount(
+export async function getOwnerCount(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {

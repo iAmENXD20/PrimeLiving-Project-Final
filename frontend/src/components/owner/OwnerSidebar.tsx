@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, Wrench, PhilippinePeso, FileText, Settings, LogOut, X } from 'lucide-react'
+import { LayoutDashboard, Building2, Wrench, PhilippinePeso, FileText, Settings, LogOut, X, ClipboardList, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { supabase } from '../../lib/supabase'
@@ -8,20 +8,27 @@ interface OwnerSidebarProps {
   onTabChange: (tab: string) => void
   isOpen: boolean
   onClose: () => void
+  ownerName?: string
 }
 
 const navItems = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'manage-apartment', label: 'Manage Apartment', icon: Building2 },
+  { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'manage-apartment', label: 'User Management', icon: Users },
+  { id: 'units', label: 'Manage My Apartment', icon: Building2 },
   { id: 'maintenance', label: 'Maintenance', icon: Wrench },
-  { id: 'payments', label: 'Payments', icon: PhilippinePeso },
+  { id: 'payments', label: 'Payment', icon: PhilippinePeso },
   { id: 'documents', label: 'Documents', icon: FileText },
+  { id: 'audit-reports', label: 'Audit Reports', icon: ClipboardList },
   { id: 'account', label: 'Account Settings', icon: Settings },
 ]
 
-export default function OwnerSidebar({ activeTab, onTabChange, isOpen, onClose }: OwnerSidebarProps) {
+export default function OwnerSidebar({ activeTab, onTabChange, isOpen, onClose, ownerName }: OwnerSidebarProps) {
   const { isDark } = useTheme()
   const navigate = useNavigate()
+
+  const initials = ownerName
+    ? ownerName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : ''
 
   const handleLogout = async () => {
     await supabase.auth.signOut({ scope: 'local' })
@@ -30,7 +37,7 @@ export default function OwnerSidebar({ activeTab, onTabChange, isOpen, onClose }
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen w-64 lg:w-60 flex flex-col z-30 border-r transition-transform duration-300 ${
+      className={`fixed left-0 top-0 h-screen w-72 lg:w-64 flex flex-col z-30 border-r transition-transform duration-300 ${
         isDark
           ? 'bg-[#0A1628] border-[#1E293B]'
           : 'bg-white border-gray-200'
@@ -39,13 +46,14 @@ export default function OwnerSidebar({ activeTab, onTabChange, isOpen, onClose }
       {/* Logo + Close button */}
       <div className="flex items-center justify-between px-5 py-5">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-            <Building2 className="w-5 h-5 text-white" />
+          <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center">
+            <span className="text-sm font-bold text-white leading-none">{initials}</span>
           </div>
-          <span className="text-lg font-bold">
-            <span className="text-primary">Prime</span>
-            <span className={isDark ? 'text-white' : 'text-gray-900'}>Living</span>
-          </span>
+          {ownerName && (
+            <span className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {ownerName}
+            </span>
+          )}
         </div>
         <button
           onClick={onClose}

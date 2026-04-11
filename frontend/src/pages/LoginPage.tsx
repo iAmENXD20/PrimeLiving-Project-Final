@@ -19,16 +19,15 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>
 
-function normalizeRole(rawRole: unknown): 'admin' | 'owner' | 'manager' | 'tenant' {
-  if (typeof rawRole !== 'string') return 'admin'
+function normalizeRole(rawRole: unknown): 'owner' | 'manager' | 'tenant' {
+  if (typeof rawRole !== 'string') return 'owner'
 
   const normalized = rawRole.toLowerCase().trim()
-  if (normalized === 'client') return 'owner'
-  if (normalized === 'owner' || normalized === 'manager' || normalized === 'tenant' || normalized === 'admin') {
-    return normalized
-  }
+  if (normalized === 'client' || normalized === 'owner') return 'owner'
+  if (normalized === 'manager') return 'manager'
+  if (normalized === 'tenant') return 'tenant'
 
-  return 'admin'
+  return 'owner'
 }
 
 export default function LoginPage() {
@@ -60,10 +59,8 @@ export default function LoginPage() {
       return
     }
 
-    toast.success('Login successful!')
-
-    localStorage.removeItem('primeliving-remember')
-    sessionStorage.setItem('primeliving-session-active', 'true')
+    localStorage.removeItem('app-remember')
+    sessionStorage.setItem('app-session-active', 'true')
 
     // Route based on normalized role from backend (with metadata fallback)
     let role = normalizeRole(
@@ -75,18 +72,25 @@ export default function LoginPage() {
     try {
       const me = await api.get<{ user: { role: string } }>('/auth/me')
       role = normalizeRole(me.user?.role)
-    } catch {
+    } catch (err: any) {
+      // If 403, account is not active — sign out and show message
+      if (err?.response?.status === 403) {
+        await supabase.auth.signOut()
+        const msg = err?.response?.data?.error || 'Account is not active yet'
+        toast.error(msg)
+        return
+      }
       // Keep metadata-derived fallback role
     }
 
-    if (role === 'owner') {
-      navigate('/owner')
-    } else if (role === 'manager') {
+    toast.success('Login successful!')
+
+    if (role === 'manager') {
       navigate('/manager')
     } else if (role === 'tenant') {
       navigate('/tenant')
     } else {
-      navigate('/admin')
+      navigate('/owner')
     }
   }
 
@@ -125,33 +129,12 @@ export default function LoginPage() {
 
         <div className="relative z-10 flex flex-col items-center justify-center px-12 lg:px-16 xl:px-20 w-full">
           <div className="max-w-lg w-full">
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-3 mb-14 opacity-0 animate-fade-up">
-              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-                <Building2 className="w-7 h-7 text-white" />
-              </div>
-              <span className="text-3xl font-bold">
-                <span className="text-white">Prime</span>
-                <span className="text-primary">Living</span>
-              </span>
-            </Link>
-
             <h1 className="text-5xl xl:text-6xl font-extrabold text-white leading-[1.15] tracking-tight opacity-0 animate-fade-up-delay-1">
               Manage Your Apartment With Ease
             </h1>
             <p className="mt-6 text-lg xl:text-xl text-gray-300 leading-relaxed opacity-0 animate-fade-up-delay-2">
               A centralized platform for apartment management, real-time notifications, and seamless task handling.
             </p>
-
-            {/* Testimonial card */}
-            <div className="mt-12 bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl px-6 py-6 opacity-0 animate-fade-up-delay-3">
-              <p className="text-white/90 text-base italic leading-relaxed">
-                "PrimeLiving transformed how we manage our apartment building. Communication is instant and payments are tracked effortlessly."
-              </p>
-              <p className="mt-4 text-primary font-semibold text-sm">
-                - Jenny Ramos, Apartment Manager
-              </p>
-            </div>
           </div>
         </div>
       </div>
@@ -188,10 +171,6 @@ export default function LoginPage() {
             <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">
               <Building2 className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold">
-              <span className={isDark ? 'text-white' : 'text-gray-900'}>Prime</span>
-              <span className="text-primary">Living</span>
-            </span>
           </div>
 
           {/* Form header */}

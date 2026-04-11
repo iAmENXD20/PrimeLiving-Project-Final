@@ -30,5 +30,8 @@ export default defineConfig({
     },
     target: 'esnext',
     minify: 'esbuild',
+    cssCodeSplit: true,
+    reportCompressedSize: false,
+    chunkSizeWarningLimit: 600,
   },
 })

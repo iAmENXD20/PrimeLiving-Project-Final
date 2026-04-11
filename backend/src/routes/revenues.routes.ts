@@ -11,8 +11,8 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get("/by-month", authorize("admin", "owner"), getRevenueByMonth);
-router.get("/", authorize("admin", "owner"), getRevenues);
-router.post("/", authorize("admin", "owner"), createRevenue);
+router.get("/by-month", authorize("owner"), getRevenueByMonth);
+router.get("/", authorize("owner"), getRevenues);
+router.post("/", authorize("owner"), createRevenue);
 
 export default router;

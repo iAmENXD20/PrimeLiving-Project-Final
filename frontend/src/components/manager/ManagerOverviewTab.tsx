@@ -2,17 +2,15 @@ import { useEffect, useState } from 'react'
 import { Users, AlertTriangle, MapPin, CheckCircle, XCircle } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { getManagerDashboardStats, getManagerMaintenanceRequests, getManagedApartments, type MaintenanceRequest } from '../../lib/managerApi'
-import { getClientApartmentName, getOwnerApartmentAddress } from '../../lib/ownerApi'
 import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
 interface ManagerOverviewTabProps {
   managerId: string
-  clientId: string
   managerName?: string
 }
 
-export default function ManagerOverviewTab({ managerId, clientId, managerName }: ManagerOverviewTabProps) {
+export default function ManagerOverviewTab({ managerId, managerName }: ManagerOverviewTabProps) {
   const { isDark } = useTheme()
   const [stats, setStats] = useState({ managedApartments: 0, activeTenants: 0, pendingMaintenance: 0, totalMaintenance: 0, paidTenants: 0, unpaidTenants: 0 })
   const [recentRequests, setRecentRequests] = useState<MaintenanceRequest[]>([])
@@ -25,20 +23,13 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
     async function load() {
       try {
         const [s, requests, apartments] = await Promise.all([
-          getManagerDashboardStats(managerId, clientId),
-          getManagerMaintenanceRequests(clientId),
+          getManagerDashboardStats(managerId),
+          getManagerMaintenanceRequests(managerId),
           getManagedApartments(managerId),
         ])
-        const resolvedClientId = clientId || apartments?.[0]?.apartmentowner_id || ''
-        const [ownerAddress, ownerApartmentName] = resolvedClientId
-          ? await Promise.all([
-              getOwnerApartmentAddress(resolvedClientId),
-              getClientApartmentName(resolvedClientId),
-            ])
-          : [null, null]
         setStats(s)
         setRecentRequests(requests)
-        setApartmentAddress(ownerAddress || apartments?.[0]?.address || apartments?.[0]?.name || ownerApartmentName || null)
+        setApartmentAddress(apartments?.[0]?.address || apartments?.[0]?.name || null)
       } catch (err) {
         console.error('Failed to load manager overview:', err)
       } finally {
@@ -46,7 +37,7 @@ export default function ManagerOverviewTab({ managerId, clientId, managerName }:
       }
     }
     load()
-  }, [managerId, clientId])
+  }, [managerId])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'

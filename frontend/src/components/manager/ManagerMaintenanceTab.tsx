@@ -41,10 +41,10 @@ const priorityColor: Record<string, string> = {
 }
 
 interface ManagerMaintenanceTabProps {
-  clientId: string
+  managerId: string
 }
 
-export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTabProps) {
+export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceTabProps) {
   const { isDark } = useTheme()
   const [requests, setRequests] = useState<MaintenanceRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,7 +95,7 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
 
   async function loadRequests() {
     try {
-      const data = await getManagerMaintenanceRequests(clientId)
+      const data = await getManagerMaintenanceRequests(managerId)
       setRequests(data)
     } catch (err) {
       console.error('Failed to load maintenance requests:', err)
@@ -106,7 +106,7 @@ export default function ManagerMaintenanceTab({ clientId }: ManagerMaintenanceTa
 
   useEffect(() => {
     loadRequests()
-  }, [clientId])
+  }, [managerId])
 
   async function performStatusChange(requestId: string, nextStatus: 'in_progress' | 'resolved' | 'closed') {
     try {

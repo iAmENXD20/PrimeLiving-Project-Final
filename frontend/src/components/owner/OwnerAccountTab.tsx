@@ -53,10 +53,10 @@ const passwordSchema = z
 type PasswordForm = z.infer<typeof passwordSchema>
 
 interface OwnerAccountTabProps {
-  clientId: string
+  ownerId: string
 }
 
-export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
+export default function OwnerAccountTab({ ownerId }: OwnerAccountTabProps) {
   const { isDark } = useTheme()
   const [showCurrent, setShowCurrent] = useState(false)
   const [showNew, setShowNew] = useState(false)
@@ -65,7 +65,6 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
   const [ownerName, setOwnerName] = useState<string | null>(null)
   const [ownerPhone, setOwnerPhone] = useState<string | null>(null)
   const [ownerStatus, setOwnerStatus] = useState<string>('active')
-  const [memberSince, setMemberSince] = useState<string | null>(null)
   const [phoneInput, setPhoneInput] = useState('')
   const [phoneSaving, setPhoneSaving] = useState(false)
   const [unitsCount, setUnitsCount] = useState(0)
@@ -79,25 +78,24 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? null)
     })
-    supabase.from('apartment_owners').select('name, phone, status, created_at').eq('id', clientId).single().then(({ data }) => {
-      setOwnerName(data?.name ?? null)
+    supabase.from('apartment_owners').select('first_name, last_name, phone, status').eq('id', ownerId).single().then(({ data }) => {
+      setOwnerName(data ? `${data.first_name} ${data.last_name}`.trim() : null)
       setOwnerPhone(data?.phone ?? null)
       setOwnerStatus(data?.status || 'active')
-      setMemberSince(data?.created_at || null)
       const d = (data?.phone || '').replace(/\D/g, '')
       setPhoneInput(d.startsWith('63') ? d.slice(2) : d.startsWith('0') ? d.slice(1) : d)
     })
 
     Promise.all([
-      supabase.from('units').select('id', { count: 'exact', head: true }).eq('apartmentowner_id', clientId),
-      supabase.from('apartment_managers').select('id', { count: 'exact', head: true }).eq('apartmentowner_id', clientId).eq('status', 'active'),
-      supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('apartmentowner_id', clientId).eq('status', 'active'),
+      supabase.from('units').select('id', { count: 'exact', head: true }).eq('apartmentowner_id', ownerId),
+      supabase.from('apartment_managers').select('id', { count: 'exact', head: true }).eq('apartmentowner_id', ownerId).eq('status', 'active'),
+      supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('apartmentowner_id', ownerId).eq('status', 'active'),
     ]).then(([unitsRes, managersRes, tenantsRes]) => {
       setUnitsCount(unitsRes.count || 0)
       setActiveManagersCount(managersRes.count || 0)
       setActiveTenantsCount(tenantsRes.count || 0)
     })
-    getOwnerApartmentAddress(clientId).then((addr) => {
+    getOwnerApartmentAddress(ownerId).then((addr) => {
       if (addr) {
         // Parse "street, barangay, city, province zip" back into fields
         const parts = addr.split(', ')
@@ -109,13 +107,13 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
         }
       }
     })
-  }, [clientId])
+  }, [ownerId])
 
   const handleSavePhone = async () => {
     if (phoneInput === ((ownerPhone || '').replace(/\D/g, '').replace(/^63/, '') || ownerPhone || '')) return
     setPhoneSaving(true)
     try {
-      const { error } = await supabase.from('apartment_owners').update({ phone: phoneInput }).eq('id', clientId)
+      const { error } = await supabase.from('apartment_owners').update({ phone: phoneInput }).eq('id', ownerId)
       if (error) throw error
       setOwnerPhone(phoneInput)
       toast.success('Contact number updated!')
@@ -222,10 +220,6 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
             <Input className={`mt-1 text-base capitalize ${inputClass}`} value={ownerStatus} disabled />
           </div>
           <div>
-            <Label className={`text-sm ${labelClass}`}>Date Joined</Label>
-            <Input className={`mt-1 text-base ${inputClass}`} value={memberSince ? new Date(memberSince).toLocaleDateString() : 'Not set'} disabled />
-          </div>
-          <div>
             <Label className={`text-sm ${labelClass}`}>Contact Number</Label>
             <div className="flex items-center gap-1 mt-1">
               <span className={`text-base font-medium whitespace-nowrap ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>+63</span>
@@ -287,7 +281,7 @@ export default function OwnerAccountTab({ clientId }: OwnerAccountTabProps) {
           </div>
         ) : (
           <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            No address set yet. The address will be populated from your inquiry submission.
+            No address set yet.
           </p>
         )}
       </div>

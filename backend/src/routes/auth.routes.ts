@@ -23,7 +23,7 @@ router.get("/me", authenticate, getMe);
 router.get(
   "/validate-email",
   authenticate,
-  authorize("admin", "owner", "manager"),
+  authorize("owner", "manager"),
   validateEmailForAccountCreation
 );
 

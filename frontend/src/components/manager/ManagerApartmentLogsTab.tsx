@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { ClipboardList, Filter, X, RefreshCcw, Search, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
-import * as XLSX from 'xlsx'
 import { useTheme } from '../../context/ThemeContext'
 import { Button } from '@/components/ui/button'
 import { TableSkeleton } from '@/components/ui/skeleton'
@@ -12,7 +11,6 @@ import {
 } from '../../lib/managerApi'
 
 interface ManagerApartmentLogsTabProps {
-  clientId: string
   managerId: string
   managerName: string
 }
@@ -46,7 +44,7 @@ function formatFieldChanges(log: ManagerApartmentLog): { field: string; from: st
     }))
 }
 
-export default function ManagerApartmentLogsTab({ clientId }: ManagerApartmentLogsTabProps) {
+export default function ManagerApartmentLogsTab({ managerId }: ManagerApartmentLogsTabProps) {
   const { isDark } = useTheme()
   const [logs, setLogs] = useState<ManagerApartmentLog[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,12 +64,12 @@ export default function ManagerApartmentLogsTab({ clientId }: ManagerApartmentLo
 
   useEffect(() => {
     loadLogs()
-  }, [clientId])
+  }, [managerId])
 
   async function loadLogs() {
     try {
       setLoading(true)
-      const data = await getManagerApartmentLogs(clientId)
+      const data = await getManagerApartmentLogs(managerId)
       setLogs(data)
     } catch (err) {
       console.error('Failed to load logs:', err)
@@ -80,7 +78,8 @@ export default function ManagerApartmentLogsTab({ clientId }: ManagerApartmentLo
     }
   }
 
-  function handleDownloadExcel() {
+  async function handleDownloadExcel() {
+    const XLSX = await import('xlsx')
     const sortedAll = [...filtered].sort((a, b) => {
       const numA = parseInt((a.arc_id || '').replace(/\D/g, '')) || 0
       const numB = parseInt((b.arc_id || '').replace(/\D/g, '')) || 0

@@ -2,11 +2,10 @@ import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { useTheme } from './context/ThemeContext'
-import LandingPage from './pages/LandingPage'
 import ProtectedRoute from './components/ProtectedRoute'
 
+const WelcomePage = lazy(() => import('./pages/WelcomePage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const OwnerDashboard = lazy(() => import('./pages/OwnerDashboard'))
 const ManagerDashboard = lazy(() => import('./pages/ManagerDashboard'))
 const TenantDashboard = lazy(() => import('./pages/TenantDashboard'))
@@ -41,12 +40,11 @@ function App() {
         }}
       />
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<WelcomePage />} />
         <Route path="/login" element={<Suspense fallback={<PageLoader />}><LoginPage /></Suspense>} />
         <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPasswordPage /></Suspense>} />
         <Route path="/invite/confirm" element={<Suspense fallback={<PageLoader />}><InviteConfirmPage /></Suspense>} />
         <Route path="/invite/confirm/invite/confirm" element={<Suspense fallback={<PageLoader />}><InviteConfirmPage /></Suspense>} />
-        <Route path="/admin" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense></ProtectedRoute>} />
         <Route path="/owner" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><OwnerDashboard /></Suspense></ProtectedRoute>} />
         <Route path="/manager" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><ManagerDashboard /></Suspense></ProtectedRoute>} />
         <Route path="/tenant" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><TenantDashboard /></Suspense></ProtectedRoute>} />

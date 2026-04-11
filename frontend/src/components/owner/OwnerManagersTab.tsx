@@ -19,11 +19,13 @@ interface OwnerManagersTabProps {
 
 interface Manager {
   id: string
-  name: string
+  first_name: string
+  last_name: string
   email: string
   phone: string | null
   status: string
   joined_date: string
+  apartments?: { id: string; name: string; address: string }[]
 }
 
 export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
@@ -34,7 +36,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingManager, setEditingManager] = useState<Manager | null>(null)
-  const [form, setForm] = useState({ name: '', email: '', phone: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
   const [saving, setSaving] = useState(false)
   const [phonePrefixError, setPhonePrefixError] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
@@ -64,20 +66,24 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
 
   function openAddModal() {
     setEditingManager(null)
-    setForm({ name: '', email: '', phone: '' })
+    setForm({ firstName: '', lastName: '', email: '', phone: '' })
     setShowModal(true)
   }
 
   function openEditModal(manager: Manager) {
     setEditingManager(manager)
-    setForm({ name: manager.name, email: manager.email, phone: (manager.phone || '').replace(/^\+63/, '') })
+    setForm({ firstName: manager.first_name || '', lastName: manager.last_name || '', email: manager.email, phone: (manager.phone || '').replace(/^\+63/, '') })
     setShowModal(true)
     setOpenMenu(null)
   }
 
+  function handleNameInput(value: string) {
+    return value.replace(/[^a-zA-Z\s'-]/g, '')
+  }
+
   async function handleSave() {
-    if (!form.name || !form.email) {
-      toast.error('Name and email are required')
+    if (!form.firstName || !form.email) {
+      toast.error('First name and email are required')
       return
     }
 
@@ -90,7 +96,8 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
       setSaving(true)
       if (editingManager) {
         const updated = await updateOwnerManager(editingManager.id, {
-          name: form.name,
+          first_name: form.firstName,
+          last_name: form.lastName,
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
         })
@@ -99,7 +106,8 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
         setShowModal(false)
       } else {
         const result = await createOwnerManager({
-          name: form.name,
+          firstName: form.firstName,
+          lastName: form.lastName,
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
           apartmentowner_id: clientId,
@@ -143,7 +151,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
 
   const filtered = managers.filter(
     (m) =>
-      m.name.toLowerCase().includes(search.toLowerCase()) ||
+      `${m.first_name} ${m.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
       m.email.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -208,7 +216,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
           <table className="w-full text-base">
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                {['Name', 'Email', 'Phone', 'Status', 'Joined', ''].map((h) => (
+                {['Name', 'Email', 'Phone', 'Status', 'Apartment', 'Location', 'Joined', ''].map((h) => (
                   <th key={h} className={`text-left py-3.5 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {h}
                   </th>
@@ -218,7 +226,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6} className="py-3 px-4">
+                  <td colSpan={8} className="py-3 px-4">
                     <TableSkeleton rows={5} />
                   </td>
                 </tr>
@@ -232,7 +240,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                     }`}
                   >
                     <td className={`py-3.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {manager.name}
+                      {manager.first_name} {manager.last_name}
                     </td>
                     <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                       {manager.email}
@@ -250,6 +258,12 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                       >
                         {manager.status}
                       </span>
+                    </td>
+                    <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {manager.apartments?.length ? manager.apartments.map(a => a.name).join(', ') : '—'}
+                    </td>
+                    <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {manager.apartments?.length ? manager.apartments.map(a => a.address).join(', ') : '—'}
                     </td>
                     <td className={`py-3.5 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {manager.joined_date ? new Date(manager.joined_date).toLocaleDateString() : '—'}
@@ -290,7 +304,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                 ))}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <td colSpan={8} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     No managers found
                   </td>
                 </tr>
@@ -333,13 +347,30 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
             <div className="px-6 py-5 space-y-4">
               <div>
                 <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Name <span className="text-red-500">*</span>
+                  First Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Manager name"
+                  value={form.firstName}
+                  onChange={(e) => setForm({ ...form, firstName: handleNameInput(e.target.value) })}
+                  placeholder="First name"
+                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  value={form.lastName}
+                  onChange={(e) => setForm({ ...form, lastName: handleNameInput(e.target.value) })}
+                  placeholder="Last name"
                   className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
                     isDark
                       ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
@@ -510,7 +541,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
         open={Boolean(managerToDelete)}
         isDark={isDark}
         title="Delete Manager?"
-        description={managerToDelete ? `This will deactivate ${managerToDelete.name}'s manager account.` : 'This action cannot be undone.'}
+        description={managerToDelete ? `This will deactivate ${managerToDelete.first_name} ${managerToDelete.last_name}'s manager account.` : 'This action cannot be undone.'}
         confirmText="Delete"
         loading={deleting}
         onCancel={() => setManagerToDelete(null)}

@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError } from "../utils/helpers";
+import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 
 /**
  * GET /api/analytics/overview
@@ -12,7 +12,7 @@ export async function getOverviewStats(
   res: Response
 ): Promise<void> {
   try {
-    const [clientsRes, managersRes, tenantsRes, apartmentsRes, inquiriesRes] =
+    const [ownersRes, managersRes, tenantsRes, apartmentsRes] =
       await Promise.all([
         supabaseAdmin
           .from("apartment_owners")
@@ -29,24 +29,19 @@ export async function getOverviewStats(
           .from("units")
           .select("*", { count: "exact", head: true })
           .eq("status", "active"),
-        supabaseAdmin
-          .from("inquiries")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "pending"),
       ]);
 
     const totalUsers =
-      (clientsRes.count ?? 0) +
+      (ownersRes.count ?? 0) +
       (managersRes.count ?? 0) +
       (tenantsRes.count ?? 0);
 
     sendSuccess(res, {
-      clients: clientsRes.count ?? 0,
+      owners: ownersRes.count ?? 0,
       managers: managersRes.count ?? 0,
       tenants: tenantsRes.count ?? 0,
       apartments: apartmentsRes.count ?? 0,
       totalUsers,
-      pendingInquiries: inquiriesRes.count ?? 0,
     });
   } catch (err: any) {
     sendError(res, err.message, 500);
@@ -72,7 +67,7 @@ export async function getOwnerStats(
       monthParam <= 12 &&
       yearParam >= 2000;
 
-    // Get apartment IDs for this client first
+    // Get apartment IDs for this owner first
     const { data: apartments } = await supabaseAdmin
       .from("units")
       .select("id")
@@ -108,7 +103,7 @@ export async function getOwnerStats(
       revenueQuery,
     ]);
 
-    // Count active tenants in the client's apartments
+    // Count active tenants in the owner's apartments
     let activeTenants = 0;
     if (aptIds.length > 0) {
       const { count } = await supabaseAdmin
@@ -148,16 +143,16 @@ export async function getOwnerStats(
 
 /**
  * GET /api/analytics/owner/:apartmentownerId/detail-stats
- * Get detailed breakdown of tenants/managers for admin client detail view
+ * Get detailed breakdown of tenants/managers for admin owner detail view
  */
-export async function getClientDetailStats(
+export async function getOwnerDetailStats(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
     const { apartmentownerId } = req.params;
 
-    // Get apartments for this client
+    // Get apartments for this owner
     const { data: apartments } = await supabaseAdmin
       .from("units")
       .select("id")
@@ -202,7 +197,7 @@ export async function getClientDetailStats(
 
 /**
  * GET /api/analytics/manager/:managerId
- * Get manager-specific dashboard stats
+ * Get manager-specific dashboard stats (scoped to manager's assigned apartment branch)
  */
 export async function getManagerStats(
   req: AuthenticatedRequest,
@@ -210,68 +205,40 @@ export async function getManagerStats(
 ): Promise<void> {
   try {
     const { managerId } = req.params;
-    const apartmentownerId = req.query.apartmentowner_id as string;
 
-    if (!apartmentownerId) {
-      sendError(res, "apartmentowner_id query parameter is required", 400);
+    // Scope everything to this manager's assigned apartments/units
+    const { apartmentIds, unitIds } = await getManagerScope(managerId);
+
+    if (unitIds.length === 0) {
+      sendSuccess(res, {
+        managedApartments: 0,
+        activeTenants: 0,
+        pendingMaintenance: 0,
+        totalMaintenance: 0,
+        paidTenants: 0,
+        unpaidTenants: 0,
+      });
       return;
     }
 
-    // Get apartments managed by this manager
-    const { data: managedApartments } = await supabaseAdmin
-      .from("units")
-      .select("id")
-      .eq("manager_id", managerId)
-      .eq("status", "active");
-
-    let apartmentIds = (managedApartments || []).map((a: any) => a.id);
-
-    // Fallback: if manager_id links are missing, use active apartments under the same client
-    if (apartmentIds.length === 0) {
-      const { data: clientApartments } = await supabaseAdmin
-        .from("units")
-        .select("id")
-        .eq("apartmentowner_id", apartmentownerId)
-        .eq("status", "active");
-
-      apartmentIds = (clientApartments || []).map((a: any) => a.id);
-    }
-
-    // Query active tenants - try by unit_id first, fallback to apartmentowner_id
-    let tenantsQuery = supabaseAdmin
-      .from("tenants")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "active");
-
-    if (apartmentIds.length > 0) {
-      tenantsQuery = tenantsQuery.in("unit_id", apartmentIds);
-    } else {
-      tenantsQuery = tenantsQuery.eq("apartmentowner_id", apartmentownerId);
-    }
-
     const [tenants, pendingMaintenance, allMaintenance] = await Promise.all([
-      tenantsQuery,
       supabaseAdmin
-        .from("maintenance")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "pending")
-        .eq("apartmentowner_id", apartmentownerId),
-      supabaseAdmin
-        .from("maintenance")
-        .select("*", { count: "exact", head: true })
-        .eq("apartmentowner_id", apartmentownerId),
-    ]);
-
-    // If unit-based query returned 0 but we have apartmentIds, try direct apartmentowner_id
-    let totalActiveTenants = tenants.count ?? 0;
-    if (totalActiveTenants === 0 && apartmentIds.length > 0) {
-      const { count: directCount } = await supabaseAdmin
         .from("tenants")
         .select("*", { count: "exact", head: true })
-        .eq("status", "active")
-        .eq("apartmentowner_id", apartmentownerId);
-      totalActiveTenants = directCount ?? 0;
-    }
+        .in("unit_id", unitIds)
+        .eq("status", "active"),
+      supabaseAdmin
+        .from("maintenance")
+        .select("*", { count: "exact", head: true })
+        .in("unit_id", unitIds)
+        .eq("status", "pending"),
+      supabaseAdmin
+        .from("maintenance")
+        .select("*", { count: "exact", head: true })
+        .in("unit_id", unitIds),
+    ]);
+
+    const totalActiveTenants = tenants.count ?? 0;
 
     // Get paid/unpaid tenants for current month
     const now = new Date();
@@ -292,7 +259,7 @@ export async function getManagerStats(
     const { data: paidPayments } = await supabaseAdmin
       .from("payments")
       .select("tenant_id")
-      .eq("apartmentowner_id", apartmentownerId)
+      .in("unit_id", unitIds)
       .eq("status", "paid")
       .gte("payment_date", startOfMonth)
       .lte("payment_date", endOfMonth);
@@ -306,7 +273,7 @@ export async function getManagerStats(
     const unpaidTenants = Math.max(0, totalActiveTenants - paidTenants);
 
     sendSuccess(res, {
-      managedApartments: apartmentIds.length,
+      managedApartments: unitIds.length,
       activeTenants: totalActiveTenants,
       pendingMaintenance: pendingMaintenance.count ?? 0,
       totalMaintenance: allMaintenance.count ?? 0,
@@ -376,7 +343,7 @@ export async function getUserDistribution(
   res: Response
 ): Promise<void> {
   try {
-    const [clientsRes, managersRes, tenantsRes] = await Promise.all([
+    const [ownersRes, managersRes, tenantsRes] = await Promise.all([
       supabaseAdmin
         .from("apartment_owners")
         .select("*", { count: "exact", head: true }),
@@ -389,7 +356,7 @@ export async function getUserDistribution(
     ]);
 
     sendSuccess(res, [
-      { name: "Apartment Owners", value: clientsRes.count ?? 0 },
+      { name: "Apartment Owners", value: ownersRes.count ?? 0 },
       { name: "Tenants", value: tenantsRes.count ?? 0 },
       { name: "Apartment Managers", value: managersRes.count ?? 0 },
     ]);
@@ -400,7 +367,7 @@ export async function getUserDistribution(
 
 /**
  * GET /api/analytics/tenants-per-apartment
- * Get aggregated per-client stats for admin chart (matching frontend getTenantsPerApartment)
+ * Get aggregated per-owner stats for admin chart (matching frontend getTenantsPerApartment)
  */
 export async function getTenantsPerApartment(
   req: AuthenticatedRequest,
@@ -442,7 +409,7 @@ export async function getTenantsPerApartment(
       tenant_count: countMap[apt.id] || 0,
     }));
 
-    // Get client names
+    // Get owner names
     const apartmentownerIds = [
       ...new Set(
         apartmentsWithCounts
@@ -451,18 +418,18 @@ export async function getTenantsPerApartment(
       ),
     ] as string[];
 
-    let clientMap: Record<string, string> = {};
+    let ownerMap: Record<string, string> = {};
     if (apartmentownerIds.length > 0) {
-      const { data: clients } = await supabaseAdmin
+      const { data: owners } = await supabaseAdmin
         .from("apartment_owners")
-        .select("id, name")
+        .select("id, first_name, last_name")
         .in("id", apartmentownerIds);
-      (clients || []).forEach((c: any) => {
-        clientMap[c.id] = c.name;
+      (owners || []).forEach((c: any) => {
+        ownerMap[c.id] = `${c.first_name} ${c.last_name}`.trim();
       });
     }
 
-    // Get manager counts per client
+    // Get manager counts per owner
     let managerCountMap: Record<string, number> = {};
     if (apartmentownerIds.length > 0) {
       const { data: managers } = await supabaseAdmin
@@ -478,8 +445,8 @@ export async function getTenantsPerApartment(
       });
     }
 
-    // Aggregate per client
-    const clientAggMap: Record<
+    // Aggregate per owner
+    const ownerAggMap: Record<
       string,
       {
         owner: string;
@@ -495,12 +462,12 @@ export async function getTenantsPerApartment(
     for (const apt of apartmentsWithCounts) {
       const cid = apt.apartmentowner_id || "__unassigned";
       const ownerName =
-        apt.apartmentowner_id && clientMap[apt.apartmentowner_id]
-          ? clientMap[apt.apartmentowner_id]
+        apt.apartmentowner_id && ownerMap[apt.apartmentowner_id]
+          ? ownerMap[apt.apartmentowner_id]
           : "Unassigned";
 
-      if (!clientAggMap[cid]) {
-        clientAggMap[cid] = {
+      if (!ownerAggMap[cid]) {
+        ownerAggMap[cid] = {
           owner: ownerName,
           tenants: 0,
           units: 0,
@@ -513,19 +480,19 @@ export async function getTenantsPerApartment(
         };
       }
 
-      clientAggMap[cid].tenants += apt.tenant_count;
-      clientAggMap[cid].units += apt.total_units || 0;
-      clientAggMap[cid].apartments += 1;
-      if (apt.tenant_count > 0) clientAggMap[cid].activeUnits += 1;
+      ownerAggMap[cid].tenants += apt.tenant_count;
+      ownerAggMap[cid].units += apt.total_units || 0;
+      ownerAggMap[cid].apartments += 1;
+      if (apt.tenant_count > 0) ownerAggMap[cid].activeUnits += 1;
       if (
         apt.address &&
-        !clientAggMap[cid].addresses.includes(apt.address)
+        !ownerAggMap[cid].addresses.includes(apt.address)
       ) {
-        clientAggMap[cid].addresses.push(apt.address);
+        ownerAggMap[cid].addresses.push(apt.address);
       }
     }
 
-    const results = Object.entries(clientAggMap).map(([id, c]) => ({
+    const results = Object.entries(ownerAggMap).map(([id, c]) => ({
       id,
       name: c.owner.length > 12 ? c.owner.slice(0, 12) : c.owner,
       fullName: c.owner,
@@ -546,39 +513,40 @@ export async function getTenantsPerApartment(
 
 /**
  * GET /api/analytics/all-users
- * Get all users (clients, managers, tenants) combined for admin user list
+ * Get all users (owners, managers, tenants) combined for admin user list
  */
 export async function getAllUsers(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
-    const [clientsRes, managersRes, tenantsRes] = await Promise.all([
+    const [ownersRes, managersRes, tenantsRes] = await Promise.all([
       supabaseAdmin
         .from("apartment_owners")
-        .select("*")
+        .select("*, apartments(address)")
         .order("created_at", { ascending: false }),
       supabaseAdmin
         .from("apartment_managers")
-        .select("*, clients(apartment_address)")
+        .select("*, apartments(address)")
         .order("created_at", { ascending: false }),
       supabaseAdmin
         .from("tenants")
-        .select("*, clients(apartment_address)")
+        .select("*, apartments(address)")
         .order("created_at", { ascending: false }),
     ]);
 
     const users: any[] = [];
 
-    (clientsRes.data || []).forEach((c: any) => {
+    (ownersRes.data || []).forEach((c: any) => {
+      const addr = Array.isArray(c.apartments) ? c.apartments[0]?.address : c.apartments?.address;
       users.push({
         id: c.id,
-        name: c.name,
+        name: `${c.first_name} ${c.last_name}`.trim(),
         email: c.email,
         phone: c.phone,
         role: "owner",
         status: c.status || "active",
-        address: c.apartment_address || null,
+        address: addr || null,
         created_at: c.created_at,
       });
     });
@@ -586,12 +554,12 @@ export async function getAllUsers(
     (managersRes.data || []).forEach((m: any) => {
       users.push({
         id: m.id,
-        name: m.name,
+        name: `${m.first_name} ${m.last_name}`.trim(),
         email: m.email,
         phone: m.phone,
         role: "manager",
         status: m.status || "active",
-        address: m.clients?.apartment_address || null,
+        address: m.apartments?.address || null,
         created_at: m.created_at,
       });
     });
@@ -599,12 +567,12 @@ export async function getAllUsers(
     (tenantsRes.data || []).forEach((t: any) => {
       users.push({
         id: t.id,
-        name: t.name,
+        name: `${t.first_name} ${t.last_name}`.trim(),
         email: t.email || "",
         phone: t.phone,
         role: "tenant",
         status: t.status || "active",
-        address: t.clients?.apartment_address || null,
+        address: t.apartments?.address || null,
         created_at: t.created_at,
       });
     });
@@ -623,7 +591,7 @@ export async function getAllUsers(
 
 /**
  * GET /api/analytics/maintenance-by-month
- * Get maintenance requests aggregated by month for a client
+ * Get maintenance requests aggregated by month for an owner
  */
 export async function getMaintenanceByMonth(
   req: AuthenticatedRequest,

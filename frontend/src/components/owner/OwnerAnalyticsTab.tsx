@@ -24,12 +24,12 @@ import {
 import { CardsSkeleton } from '@/components/ui/skeleton'
 
 interface OwnerAnalyticsTabProps {
-  clientId: string
+  ownerId: string
 }
 
 const PIE_COLORS = ['#059669', '#EF4444', '#22C55E']
 
-export default function OwnerAnalyticsTab({ clientId }: OwnerAnalyticsTabProps) {
+export default function OwnerAnalyticsTab({ ownerId }: OwnerAnalyticsTabProps) {
   const { isDark } = useTheme()
   const [revenueData, setRevenueData] = useState<{ month: string; revenue: number }[]>([])
   const [maintenanceData, setMaintenanceData] = useState<{ month: string; pending: number; resolved: number }[]>([])
@@ -40,10 +40,10 @@ export default function OwnerAnalyticsTab({ clientId }: OwnerAnalyticsTabProps) 
     async function load() {
       try {
         const [rev, maint, units, mgrs] = await Promise.all([
-          getRevenueByMonth(clientId),
-          getMaintenanceRequestsByMonth(clientId),
-          getOwnerUnits(clientId),
-          getOwnerManagers(clientId),
+          getRevenueByMonth(ownerId),
+          getMaintenanceRequestsByMonth(ownerId),
+          getOwnerUnits(ownerId),
+          getOwnerManagers(ownerId),
         ])
         setRevenueData(rev)
         setMaintenanceData(maint)
@@ -63,7 +63,7 @@ export default function OwnerAnalyticsTab({ clientId }: OwnerAnalyticsTabProps) 
       }
     }
     load()
-  }, [clientId])
+  }, [ownerId])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'

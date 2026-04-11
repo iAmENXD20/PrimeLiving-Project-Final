@@ -6,9 +6,8 @@ function normalizeRole(rawRole: unknown): UserRole | null {
   if (typeof rawRole !== "string") return null;
 
   const normalized = rawRole.toLowerCase().trim();
-  if (normalized === "client") return "owner";
+  if (normalized === "client" || normalized === "admin") return "owner";
   if (
-    normalized === "admin" ||
     normalized === "owner" ||
     normalized === "manager" ||
     normalized === "tenant"
@@ -47,16 +46,12 @@ async function resolveUserRole(userId: string, user: any): Promise<UserRole> {
     normalizeRole(user?.app_metadata?.role) ||
     normalizeRole(user?.app_metadata?.user_role);
 
-  if (metadataRole === "admin") return "admin";
+  if (metadataRole === "admin") return "owner";
 
   return "tenant";
 }
 
-async function ensureRoleIsActive(role: UserRole, userId: string): Promise<boolean> {
-  if (role === "admin") {
-    return true;
-  }
-
+async function ensureRoleIsActive(role: UserRole, userId: string): Promise<{ active: boolean; status?: string }> {
   if (role === "owner") {
     const { data } = await supabaseAdmin
       .from("apartment_owners")
@@ -64,7 +59,8 @@ async function ensureRoleIsActive(role: UserRole, userId: string): Promise<boole
       .eq("auth_user_id", userId)
       .maybeSingle();
 
-    return Boolean(data && (data.status || "active") === "active");
+    const s = data?.status || "active";
+    return { active: Boolean(data && s === "active"), status: s };
   }
 
   if (role === "manager") {
@@ -75,18 +71,11 @@ async function ensureRoleIsActive(role: UserRole, userId: string): Promise<boole
       .maybeSingle();
 
     if (!data) {
-      return false;
+      return { active: false };
     }
 
-    if (data.status === "pending") {
-      await supabaseAdmin
-        .from("apartment_managers")
-        .update({ status: "active", updated_at: new Date().toISOString() })
-        .eq("id", data.id);
-      return true;
-    }
-
-    return (data.status || "active") === "active";
+    const s = data.status || "active";
+    return { active: s === "active", status: s };
   }
 
   const { data } = await supabaseAdmin
@@ -96,18 +85,11 @@ async function ensureRoleIsActive(role: UserRole, userId: string): Promise<boole
     .maybeSingle();
 
   if (!data) {
-    return false;
+    return { active: false };
   }
 
-  if (data.status === "pending") {
-    await supabaseAdmin
-      .from("tenants")
-      .update({ status: "active", updated_at: new Date().toISOString() })
-      .eq("id", data.id);
-    return true;
-  }
-
-  return (data.status || "active") === "active";
+  const s = data.status || "active";
+  return { active: s === "active", status: s };
 }
 
 /**
@@ -151,10 +133,14 @@ export async function authenticate(
     const role = await resolveUserRole(user.id, user);
 
     const isActive = await ensureRoleIsActive(role, user.id);
-    if (!isActive) {
+    if (!isActive.active) {
+      const msg = isActive.status === "pending_verification"
+        ? "Your account is awaiting approval from the apartment owner"
+        : "Account is not active yet";
       res.status(403).json({
         success: false,
-        error: "Account is not active yet",
+        error: msg,
+        status: isActive.status,
       });
       return;
     }

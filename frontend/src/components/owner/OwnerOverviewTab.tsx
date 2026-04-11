@@ -1,14 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
-import { Users, PhilippinePeso, Wrench, Building2, MapPin, ChevronDown } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Users, PhilippinePeso, Wrench, Building2, MapPin, UserCog, CreditCard, Clock } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import {
   getOwnerDashboardStats,
   getOwnerMaintenanceRequests,
   getOwnerApartmentAddress,
+  getOwnerUnits,
+  getOwnerManagers,
+  getOwnerPayments,
   type MaintenanceRequest,
+  type UnitWithTenant,
+  type OwnerPayment,
 } from '../../lib/ownerApi'
 import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
+import CalendarWidget from './CalendarWidget'
 
 interface OwnerOverviewTabProps {
   clientId: string
@@ -19,17 +25,17 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
   const { isDark } = useTheme()
   const [stats, setStats] = useState({ apartments: 0, activeTenants: 0, pendingMaintenance: 0, totalRevenue: 0 })
   const [recentMaintenance, setRecentMaintenance] = useState<MaintenanceRequest[]>([])
+  const [units, setUnits] = useState<UnitWithTenant[]>([])
+  const [managerCount, setManagerCount] = useState(0)
+  const [paidTenantCount, setPaidTenantCount] = useState(0)
+  const [allPayments, setAllPayments] = useState<OwnerPayment[]>([])
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const pageSize = 10
   const today = new Date()
-  const [selectedMonth, setSelectedMonth] = useState<number>(0)
-  const [selectedYear, setSelectedYear] = useState(today.getFullYear())
-  const [isMonthOpen, setIsMonthOpen] = useState(false)
-  const [isYearOpen, setIsYearOpen] = useState(false)
-  const monthRef = useRef<HTMLDivElement>(null)
-  const yearRef = useRef<HTMLDivElement>(null)
+  const [selectedMonth] = useState<number>(today.getMonth() + 1)
+  const [selectedYear] = useState(today.getFullYear())
 
   const monthOptions = [
     { value: 0, label: 'All Time' },
@@ -46,21 +52,45 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
     { value: 11, label: 'November' },
     { value: 12, label: 'December' },
   ]
-  const yearOptions = Array.from({ length: 6 }, (_, index) => today.getFullYear() - 4 + index)
 
   useEffect(() => {
     async function load() {
       try {
-        const [s, requests, addr] = await Promise.all([
+        const [s, requests, addr, unitList, managers, payments] = await Promise.all([
           selectedMonth === 0
             ? getOwnerDashboardStats(clientId)
             : getOwnerDashboardStats(clientId, { month: selectedMonth, year: selectedYear }),
           getOwnerMaintenanceRequests(clientId),
           getOwnerApartmentAddress(clientId),
+          getOwnerUnits(clientId),
+          getOwnerManagers(clientId),
+          getOwnerPayments(clientId),
         ])
         setStats(s)
         setRecentMaintenance(requests)
         setApartmentAddress(addr)
+        setUnits(unitList)
+        setManagerCount((managers || []).length)
+        setAllPayments(payments || [])
+
+        // Count unique tenants who have paid this month
+        const now = new Date()
+        const currentMonth = now.getMonth()
+        const currentYear = now.getFullYear()
+        const paidTenantIds = new Set(
+          (payments || [])
+            .filter((p) => {
+              const payDate = new Date(p.payment_date)
+              return (
+                p.status === 'paid' &&
+                payDate.getMonth() === currentMonth &&
+                payDate.getFullYear() === currentYear &&
+                p.tenant_id
+              )
+            })
+            .map((p) => p.tenant_id)
+        )
+        setPaidTenantCount(paidTenantIds.size)
       } catch (err) {
         console.error('Failed to load owner overview:', err)
       } finally {
@@ -70,55 +100,64 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
     load()
   }, [clientId, selectedMonth, selectedYear])
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (monthRef.current && !monthRef.current.contains(event.target as Node)) {
-        setIsMonthOpen(false)
-      }
-      if (yearRef.current && !yearRef.current.contains(event.target as Node)) {
-        setIsYearOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
   const cardClass = `rounded-xl p-6 border ${
-    isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
+    isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-300'
   }`
-
-  const headingClass = `text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`
 
   const selectedPeriodLabel = selectedMonth === 0
     ? 'All Time'
     : `${monthOptions.find((m) => m.value === selectedMonth)?.label} ${selectedYear}`
 
   const statCards = [
-    { label: 'Active Tenants', value: stats.activeTenants, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
-    { label: 'Total Revenue', value: `₱${stats.totalRevenue.toLocaleString()}`, icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: selectedPeriodLabel },
-    { label: 'Units', value: stats.apartments, icon: Building2, color: 'text-blue-400', bg: 'bg-blue-500/15' },
+    { label: 'Total Revenue', value: stats.totalRevenue.toLocaleString(), icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: selectedPeriodLabel },
+    { label: 'Paid Tenants', value: `${paidTenantCount}/${stats.activeTenants}`, icon: CreditCard, color: 'text-cyan-400', bg: 'bg-cyan-500/15', subtitle: monthOptions.find((m) => m.value === today.getMonth() + 1)?.label },
     { label: 'Pending Maintenance', value: stats.pendingMaintenance, icon: Wrench, color: 'text-red-400', bg: 'bg-red-500/15' },
+    { label: 'Active Tenants', value: stats.activeTenants, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
+    { label: 'Units', value: stats.apartments, icon: Building2, color: 'text-blue-400', bg: 'bg-blue-500/15' },
+    { label: 'Apartment Managers', value: managerCount, icon: UserCog, color: 'text-violet-400', bg: 'bg-violet-500/15' },
   ]
-  const totalPages = Math.max(1, Math.ceil(recentMaintenance.length / pageSize))
-  const paginatedMaintenance = recentMaintenance.slice((page - 1) * pageSize, page * pageSize)
+
+  // Build unified history from maintenance requests + payments
+  type HistoryItem = { id: string; type: 'maintenance' | 'payment'; description: string; detail: string; date: string; badge: string; badgeColor: string }
+  const historyItems: HistoryItem[] = [
+    ...recentMaintenance.map((m) => ({
+      id: `m-${m.id}`,
+      type: 'maintenance' as const,
+      description: m.tenant_name ? `${m.tenant_name} submitted a request` : 'Maintenance request submitted',
+      detail: m.title,
+      date: m.created_at,
+      badge: m.status.replace('_', ' '),
+      badgeColor: m.status === 'resolved' || m.status === 'closed'
+        ? 'bg-emerald-500/15 text-emerald-400'
+        : m.status === 'in_progress'
+        ? 'bg-blue-500/15 text-blue-400'
+        : 'bg-yellow-500/15 text-yellow-400',
+    })),
+    ...allPayments.map((p) => ({
+      id: `p-${p.id}`,
+      type: 'payment' as const,
+      description: p.tenant_name && p.tenant_name !== '\u2014' ? `${p.tenant_name} rent payment` : 'Rent payment',
+      detail: `₱${p.amount.toLocaleString()}`,
+      date: p.payment_date || p.created_at,
+      badge: p.status,
+      badgeColor: p.status === 'paid'
+        ? 'bg-emerald-500/15 text-emerald-400'
+        : p.status === 'overdue'
+        ? 'bg-red-500/15 text-red-400'
+        : 'bg-yellow-500/15 text-yellow-400',
+    })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  const totalPages = Math.max(1, Math.ceil(historyItems.length / pageSize))
+  const paginatedHistory = historyItems.slice((page - 1) * pageSize, page * pageSize)
 
   useEffect(() => {
     setPage(1)
-  }, [recentMaintenance.length])
+  }, [recentMaintenance.length, allPayments.length])
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages)
   }, [page, totalPages])
-
-  const priorityColor = (p: string) => {
-    switch (p) {
-      case 'urgent': return 'bg-red-500/15 text-red-400'
-      case 'high': return 'bg-orange-500/15 text-orange-400'
-      case 'medium': return 'bg-yellow-500/15 text-yellow-400'
-      default: return 'bg-green-500/15 text-green-400'
-    }
-  }
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -139,93 +178,8 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Revenue period:</p>
-        <div ref={monthRef} className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              setIsMonthOpen((prev) => !prev)
-              setIsYearOpen(false)
-            }}
-            className={`h-10 min-w-[128px] rounded-lg border px-3 pr-9 text-sm text-left transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-              isDark
-                ? 'bg-[#111D32] border-[#1E293B] text-white'
-                : 'bg-white border-gray-200 text-gray-700'
-            }`}
-          >
-            {monthOptions.find((month) => month.value === selectedMonth)?.label || 'All Time'}
-          </button>
-          <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${isMonthOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-
-          {isMonthOpen && (
-            <div className={`absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${
-              isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
-            }`}>
-              {monthOptions.map((month) => (
-                <button
-                  key={month.value}
-                  type="button"
-                  onClick={() => {
-                    setSelectedMonth(month.value)
-                    setIsMonthOpen(false)
-                  }}
-                  className={`w-full px-3 py-2.5 text-left text-sm transition-colors ${
-                    isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
-                  } ${selectedMonth === month.value ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
-                >
-                  {month.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div ref={yearRef} className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              if (selectedMonth === 0) return
-              setIsYearOpen((prev) => !prev)
-              setIsMonthOpen(false)
-            }}
-            disabled={selectedMonth === 0}
-            className={`h-10 min-w-[84px] rounded-lg border px-3 pr-9 text-sm text-left transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-              isDark
-                ? 'bg-[#111D32] border-[#1E293B] text-white'
-                : 'bg-white border-gray-200 text-gray-700'
-            } ${selectedMonth === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
-          >
-            {selectedYear}
-          </button>
-          <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${isYearOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-
-          {isYearOpen && selectedMonth !== 0 && (
-            <div className={`absolute z-50 mt-1 w-full rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${
-              isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
-            }`}>
-              {yearOptions.map((year) => (
-                <button
-                  key={year}
-                  type="button"
-                  onClick={() => {
-                    setSelectedYear(year)
-                    setIsYearOpen(false)
-                  }}
-                  className={`w-full px-3 py-2.5 text-left text-sm transition-colors ${
-                    isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
-                  } ${selectedYear === year ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
-                >
-                  {year}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stat Cards — full width */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {statCards.map((s) => {
           const Icon = s.icon
           return (
@@ -234,88 +188,91 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
                 <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center`}>
                   <Icon className={`w-5 h-5 ${s.color}`} />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.label}</p>
                   <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{s.value}</p>
-                  {s.subtitle && (
-                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{s.subtitle}</p>
-                  )}
                 </div>
+                {s.subtitle && (
+                  <p className={`text-xs self-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{s.subtitle}</p>
+                )}
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* Recent Maintenance Inquiries */}
-      <div className={`${cardClass} min-h-[calc(100vh-280px)]`}>
-        <h3 className={headingClass}>Recent Maintenance Inquiries</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-base">
-            <thead>
-              <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                {['Subject', 'Priority', 'Status', 'Date'].map((h) => (
-                  <th key={h} className={`text-left py-3.5 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {recentMaintenance.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={4} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    No maintenance inquiries yet
-                  </td>
-                </tr>
-              )}
-              {paginatedMaintenance.map((req) => (
-                <tr
-                  key={req.id}
-                  className={`border-b last:border-0 transition-colors ${
-                    isDark ? 'border-[#1E293B] hover:bg-white/[0.02]' : 'border-gray-100 hover:bg-gray-50'
-                  }`}
-                >
-                  <td className={`py-3.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {req.title}
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${priorityColor(req.priority)}`}>
-                      {req.priority}
+      {/* History + Calendar — equal halves */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 min-h-[500px]">
+        {/* Left: History */}
+        <div className={`${cardClass} flex flex-col`}>
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+            <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>History</h3>
+          </div>
+
+          {historyItems.length === 0 && !loading && (
+            <p className={`py-8 text-center text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              No activity yet
+            </p>
+          )}
+
+          <div className="space-y-3">
+            {paginatedHistory.map((item) => (
+              <div
+                key={item.id}
+                className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${
+                  isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-gray-50'
+                }`}
+              >
+                <div className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                  item.type === 'payment' ? 'bg-emerald-500/15' : 'bg-orange-500/15'
+                }`}>
+                  {item.type === 'payment'
+                    ? <PhilippinePeso className="w-4 h-4 text-emerald-400" />
+                    : <Wrench className="w-4 h-4 text-orange-400" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {item.description}
+                  </p>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {item.detail}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded-full ${item.badgeColor}`}>
+                      {item.badge}
                     </span>
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
-                        req.status === 'resolved' || req.status === 'closed'
-                          ? 'bg-emerald-500/15 text-emerald-400'
-                          : req.status === 'in_progress'
-                          ? 'bg-blue-500/15 text-blue-400'
-                          : 'bg-yellow-500/15 text-yellow-400'
-                      }`}
-                    >
-                      {req.status.replace('_', ' ')}
+                    <span className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {new Date(item.date).toLocaleDateString()}
                     </span>
-                  </td>
-                  <td className={`py-3.5 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {new Date(req.created_at).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {!loading && historyItems.length > 0 && (
+            <div className="mt-auto pt-4">
+              <TablePagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={historyItems.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                isDark={isDark}
+              />
+            </div>
+          )}
         </div>
 
-        {!loading && (
-          <TablePagination
-            currentPage={page}
-            totalPages={totalPages}
-            totalItems={recentMaintenance.length}
-            pageSize={pageSize}
-            onPageChange={setPage}
-            isDark={isDark}
-          />
-        )}
+        {/* Right: Calendar */}
+        <CalendarWidget
+          className="h-full"
+          deadlines={units
+            .filter((u) => u.tenant_id && u.payment_due_day)
+            .map((u) => ({ unitName: u.name, dueDay: u.payment_due_day! }))}
+        />
       </div>
     </div>
   )

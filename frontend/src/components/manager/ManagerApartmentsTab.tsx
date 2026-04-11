@@ -20,10 +20,10 @@ import {
 } from '../../lib/managerApi'
 
 interface ManagerApartmentsTabProps {
-  clientId: string
+  managerId: string
 }
 
-export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabProps) {
+export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTabProps) {
   const { isDark } = useTheme()
   const todayDate = new Date().toISOString().split('T')[0]
   const [units, setUnits] = useState<UnitWithTenant[]>([])
@@ -41,7 +41,7 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
 
   useEffect(() => {
     loadUnits()
-  }, [clientId])
+  }, [managerId])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -61,8 +61,8 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
     try {
       setLoading(true)
       const [unitData, tenantData] = await Promise.all([
-        getManagerUnits(clientId),
-        getManagerTenants(clientId),
+        getManagerUnits(managerId),
+        getManagerTenants(managerId),
       ])
       setUnits(unitData)
       setTenants(tenantData.filter((t) => Boolean(t.email)))
@@ -365,7 +365,7 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
                   >
                     <span className={!editForm.tenantId ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
                       {editForm.tenantId
-                        ? tenants.find((t) => t.id === editForm.tenantId)?.name || '— No tenant assigned —'
+                        ? (() => { const t = tenants.find((t) => t.id === editForm.tenantId); return t ? `${t.first_name} ${t.last_name}` : '— No tenant assigned —'; })()
                         : '— No tenant assigned —'}
                     </span>
                     <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isTenantDropdownOpen ? 'rotate-180' : ''}`} />
@@ -396,7 +396,7 @@ export default function ManagerApartmentsTab({ clientId }: ManagerApartmentsTabP
                               : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       >
-                        {tenant.name}
+                        {tenant.first_name} {tenant.last_name}
                       </button>
                     ))}
                   </div>

@@ -109,7 +109,7 @@ export default function OwnerDocumentsTab({ clientId, ownerName }: OwnerDocument
       )
 
       // Notify tenant via announcement
-      if (tenant?.name) {
+      if (tenant?.first_name) {
         try {
           await createOwnerAnnouncement(
             clientId,
@@ -120,7 +120,7 @@ export default function OwnerDocumentsTab({ clientId, ownerName }: OwnerDocument
         } catch (announcementError) {
           console.warn('Announcement notification skipped:', announcementError)
         }
-        toast.success(`Uploaded successfully — ${tenant.name} has received the document`)
+        toast.success(`Uploaded successfully — ${tenant.first_name} ${tenant.last_name} has received the document`)
       } else {
         toast.success('Uploaded successfully')
       }
@@ -179,7 +179,8 @@ export default function OwnerDocumentsTab({ clientId, ownerName }: OwnerDocument
   const getTenantLabel = (t: OwnerTenant) => {
     const unit = units.find((u) => u.tenant_id === t.id)
     const unitName = unit?.name
-    return unitName ? `${t.name} — ${unitName}` : t.name
+    const tName = `${t.first_name} ${t.last_name}`.trim()
+    return unitName ? `${tName} — ${unitName}` : tName
   }
 
   const selectedTenantLabel = tenants.find((t) => t.id === selectedTenant)

@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError } from "../utils/helpers";
+import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 
 const DOCUMENTS_BUCKET = "documents-private";
@@ -65,7 +65,7 @@ export async function getDocuments(
 
     let query = supabaseAdmin
       .from("documents")
-      .select("*, tenants(name), apartments:unit_id(name)")
+      .select("*, tenants(first_name, last_name), apartments:unit_id(name)")
       .order("created_at", { ascending: false });
 
     if (requesterRole === "tenant") {
@@ -90,6 +90,14 @@ export async function getDocuments(
 
     if (req.query.apartmentowner_id) {
       query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
+    }
+    if (req.query.manager_id) {
+      const { apartmentIds } = await getManagerScope(req.query.manager_id as string);
+      if (apartmentIds.length === 0) {
+        sendSuccess(res, []);
+        return;
+      }
+      query = query.in("apartment_id", apartmentIds);
     }
     if (req.query.unit_id) {
       query = query.eq("unit_id", req.query.unit_id as string);
@@ -142,7 +150,7 @@ export async function getDocumentById(
 
     const { data, error } = await supabaseAdmin
       .from("documents")
-      .select("*, tenants(name), apartments:unit_id(name)")
+      .select("*, tenants(first_name, last_name), apartments:unit_id(name)")
       .eq("id", id)
       .single();
 

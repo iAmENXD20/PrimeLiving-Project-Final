@@ -7,8 +7,8 @@ import { AuthenticatedRequest, UserRole } from "../types";
  * is not in the list, a 403 Forbidden response is returned.
  *
  * Usage:
- *   router.get("/admin-only", authenticate, authorize("admin"), handler);
- *   router.get("/owner-or-admin", authenticate, authorize("admin", "owner"), handler);
+ *   router.get("/owner-only", authenticate, authorize("owner"), handler);
+ *   router.get("/owner-or-manager", authenticate, authorize("owner", "manager"), handler);
  */
 export function authorize(...allowedRoles: UserRole[]) {
   return (

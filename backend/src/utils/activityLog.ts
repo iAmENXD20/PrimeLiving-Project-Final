@@ -78,9 +78,10 @@ export async function resolveActorName(
 
   const { data } = await supabaseAdmin
     .from(table)
-    .select("name")
+    .select("first_name, last_name")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
-  return data?.name || fallbackEmail;
+  if (!data) return fallbackEmail;
+  return `${data.first_name} ${data.last_name}`.trim() || fallbackEmail;
 }

@@ -2,7 +2,7 @@ import { Request } from "express";
 import { SupabaseClient } from "@supabase/supabase-js";
 
 // ── User Roles ──
-export type UserRole = "admin" | "owner" | "manager" | "tenant";
+export type UserRole = "owner" | "manager" | "tenant";
 
 // ── Authenticated Request ──
 // Extends Express Request with user info after auth middleware
@@ -18,15 +18,14 @@ export interface AuthenticatedRequest extends Request {
 
 // ── Database Table Types ──
 
-export interface Client {
+export interface Owner {
   id: string;
   auth_user_id: string;
-  name: string;
+  first_name: string;
+  last_name: string;
   email: string;
   phone: string;
-  apartment_address: string;
   status: string;
-  created_at: string;
 }
 
 export interface Manager {
@@ -56,24 +55,14 @@ export interface Apartment {
 export interface Tenant {
   id: string;
   auth_user_id: string | null;
-  name: string;
+  first_name: string;
+  last_name: string;
   email: string;
   phone: string;
   unit_id: string;
   apartmentowner_id: string;
   status: string;
   move_in_date: string;
-  created_at: string;
-}
-
-export interface Inquiry {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  apartment_name: string;
-  message: string;
-  status: "pending" | "responded" | "approved" | "cancelled" | "closed";
   created_at: string;
 }
 

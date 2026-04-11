@@ -21,10 +21,12 @@ export default function TenantDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [tenant, setTenant] = useState<{
     id: string
-    name: string
+    first_name: string
+    last_name: string
     phone: string | null
     apartmentId: string | null
     clientId: string | null
+    status: string
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [notificationCount, setNotificationCount] = useState(0)
@@ -41,10 +43,12 @@ export default function TenantDashboard() {
           }
           setTenant({
             id: data.id,
-            name: data.name,
+            first_name: data.first_name,
+            last_name: data.last_name,
             phone: data.phone,
             apartmentId: data.unit_id,
             clientId,
+            status: data.status,
           })
 
           // Load unread notification count
@@ -102,7 +106,7 @@ export default function TenantDashboard() {
 
   useBrowserNotifications({
     enabled: Boolean(tenant?.id),
-    storageKey: `primeliving_browser_notifs_tenant_${tenant?.id || 'unknown'}`,
+    storageKey: `browser_notifs_tenant_${tenant?.id || 'unknown'}`,
     fetchNotifications: fetchTenantNotifications,
     pollMs: 30000,
   })
@@ -131,9 +135,30 @@ export default function TenantDashboard() {
       )
     }
 
+    if (tenant.status === 'pending_verification') {
+      return (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className={`text-center max-w-md mx-auto p-8 rounded-2xl border ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+            <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-amber-500/15 flex items-center justify-center">
+              <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Account Under Review</h2>
+            <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              You're all set! Your account is currently under review by management for verification.
+            </p>
+            <p className={`text-xs mt-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              You will be able to access your dashboard once your account has been approved.
+            </p>
+          </div>
+        </div>
+      )
+    }
+
     switch (activeTab) {
       case 'overview':
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={tenant.name} clientId={tenant.clientId} />
+        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} clientId={tenant.clientId} />
       case 'maintenance':
         return <TenantMaintenanceTab tenantId={tenant.id} apartmentId={tenant.apartmentId} clientId={tenant.clientId} />
       case 'payments':
@@ -143,9 +168,9 @@ export default function TenantDashboard() {
       case 'notifications':
         return <TenantNotificationsTab tenantId={tenant.id} clientId={tenant.clientId} onRead={refreshNotificationCount} />
       case 'account':
-        return <TenantAccountTab tenantId={tenant.id} tenantName={tenant.name} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} clientId={tenant.clientId} />
+        return <TenantAccountTab tenantId={tenant.id} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} clientId={tenant.clientId} />
       default:
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={tenant.name} clientId={tenant.clientId} />
+        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} clientId={tenant.clientId} />
     }
   }
 
@@ -176,7 +201,7 @@ export default function TenantDashboard() {
       <div className="lg:ml-60 flex flex-col min-h-screen">
         <TenantTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-          tenantName={tenant?.name}
+          tenantName={tenant ? `${tenant.first_name} ${tenant.last_name}`.trim() : undefined}
         />
 
         {/* Page content */}

@@ -21,7 +21,8 @@ export interface MaintenanceRequest {
 export interface ManagerProfile {
   id: string
   auth_user_id: string | null
-  name: string
+  first_name: string
+  last_name: string
   email: string
   phone: string | null
   apartmentowner_id: string | null
@@ -41,10 +42,10 @@ export async function getCurrentManager(): Promise<ManagerProfile | null> {
 
     if (manager && !manager.apartmentowner_id) {
       const apartments = await api.get<any[]>(`/apartments?manager_id=${manager.id}`).catch(() => [])
-      const fallbackClientId = apartments?.[0]?.apartmentowner_id || null
+      const fallbackOwnerId = apartments?.[0]?.apartmentowner_id || null
       return {
         ...manager,
-        apartmentowner_id: fallbackClientId,
+        apartmentowner_id: fallbackOwnerId,
       }
     }
 
@@ -66,8 +67,8 @@ export interface ManagerNotification {
   created_at: string
 }
 
-export async function getManagerNotifications(managerId: string, clientId: string): Promise<ManagerNotification[]> {
-  return api.get<ManagerNotification[]>(`/notifications?recipient_role=manager&recipient_id=${managerId}&apartmentowner_id=${clientId}`, { skipCache: true })
+export async function getManagerNotifications(managerId: string, ownerId: string): Promise<ManagerNotification[]> {
+  return api.get<ManagerNotification[]>(`/notifications?recipient_role=manager&recipient_id=${managerId}&apartmentowner_id=${ownerId}`, { skipCache: true })
 }
 
 export async function markManagerNotificationRead(id: string): Promise<void> {
@@ -85,16 +86,16 @@ export async function deleteManagerNotification(id: string): Promise<void> {
   await api.delete(`/notifications/${id}`)
 }
 
-export async function deleteAllManagerNotifications(managerId: string, clientId?: string | null): Promise<void> {
+export async function deleteAllManagerNotifications(managerId: string, ownerId?: string | null): Promise<void> {
   await api.delete('/notifications/all', {
     recipient_role: 'manager',
     recipient_id: managerId,
-    apartmentowner_id: clientId || undefined,
+    apartmentowner_id: ownerId || undefined,
   })
 }
 
-// ── Manager Dashboard Stats ────────────────────────────────
-export async function getManagerDashboardStats(managerId: string, clientId: string) {
+// ── Manager Dashboard Stats ────────────────────────────
+export async function getManagerDashboardStats(managerId: string) {
   return api.get<{
     managedApartments: number
     activeTenants: number
@@ -102,21 +103,21 @@ export async function getManagerDashboardStats(managerId: string, clientId: stri
     totalMaintenance: number
     paidTenants: number
     unpaidTenants: number
-  }>(`/analytics/manager/${managerId}?apartmentowner_id=${clientId}`)
+  }>(`/analytics/manager/${managerId}`)
 }
 
-// ── Get Maintenance Requests ───────────────────────────────
-export async function getManagerMaintenanceRequests(clientId: string): Promise<MaintenanceRequest[]> {
-  // Fetch maintenance requests + tenants + apartments for this client in parallel
-  const [requests, allTenants, allApts] = await Promise.all([
-    api.get<any[]>(`/maintenance?apartmentowner_id=${clientId}`).catch(() => [] as any[]),
-    api.get<any[]>(`/tenants?apartmentowner_id=${clientId}`).catch(() => [] as any[]),
-    api.get<any[]>(`/apartments?apartmentowner_id=${clientId}`).catch(() => [] as any[]),
+// ── Maintenance Requests ───────────────────────────────
+export async function getManagerMaintenanceRequests(managerId: string): Promise<MaintenanceRequest[]> {
+  // Fetch maintenance requests + tenants + apartments scoped to this manager's branch
+  const [data, allTenants, allApts] = await Promise.all([
+    api.get<any[]>(`/maintenance?manager_id=${managerId}`).catch(() => [] as any[]),
+    api.get<any[]>(`/tenants?manager_id=${managerId}`).catch(() => [] as any[]),
+    api.get<any[]>(`/apartments?manager_id=${managerId}`).catch(() => [] as any[]),
   ])
 
   if (!requests || requests.length === 0) return []
 
-  const tenantMap = new Map((allTenants || []).map((t: any) => [t.id, t.name]))
+  const tenantMap = new Map((allTenants || []).map((t: any) => [t.id, `${t.first_name} ${t.last_name}`.trim()]))
   const apartmentMap = new Map((allApts || []).map((a: any) => [a.id, a.name]))
 
   return requests.map(r => ({
@@ -145,9 +146,9 @@ export interface UnitWithTenant {
   tenant_id: string | null
 }
 
-export async function getManagerUnits(clientId: string): Promise<UnitWithTenant[]> {
-  // The backend /apartments/with-tenants does the join
-  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?apartmentowner_id=${clientId}`, { skipCache: true })
+export async function getManagerUnits(managerId: string): Promise<UnitWithTenant[]> {
+  // The backend /apartments/with-tenants does the join, scoped to manager's branch
+  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?manager_id=${managerId}`, { skipCache: true })
 }
 
 export async function getManagerUnitsByManager(managerId: string): Promise<UnitWithTenant[]> {
@@ -169,13 +170,14 @@ export async function updateManagerUnit(
 // ── Assign or update tenant on a unit ──────────────────────
 export async function assignTenantToUnit(
   unitId: string,
-  tenant: { name: string; phone?: string },
+  tenant: { first_name: string; last_name: string; phone?: string },
   monthlyRent?: number,
   startAt?: string,
 ) {
   await api.post('/tenants/assign-unit', {
     unit_id: unitId,
-    name: tenant.name,
+    first_name: tenant.first_name,
+    last_name: tenant.last_name,
     phone: tenant.phone || null,
     monthly_rent: monthlyRent,
     start_at: startAt,
@@ -215,19 +217,19 @@ export interface Announcement {
   created_at: string
 }
 
-export async function getAnnouncements(clientId: string): Promise<Announcement[]> {
-  return api.get<Announcement[]>(`/announcements?apartmentowner_id=${clientId}`)
+export async function getAnnouncements(managerId: string): Promise<Announcement[]> {
+  return api.get<Announcement[]>(`/announcements?manager_id=${managerId}`)
 }
 
 export async function createAnnouncement(
-  clientId: string,
+  ownerId: string,
   title: string,
   message: string,
   createdBy: string,
   recipientTenantIds?: string[],
 ): Promise<Announcement> {
   return api.post<Announcement>('/announcements', {
-    apartmentowner_id: clientId,
+    apartmentowner_id: ownerId,
     title,
     message,
     created_by: createdBy,
@@ -259,12 +261,12 @@ export interface Payment {
   apartment_name?: string
 }
 
-export async function getPayments(clientId: string): Promise<Payment[]> {
-  const data = await api.get<any[]>(`/payments?apartmentowner_id=${clientId}`)
+export async function getPayments(managerId: string): Promise<Payment[]> {
+  const data = await api.get<any[]>(`/payments?manager_id=${managerId}`)
   // Backend joins tenants(name, email) and apartments(name) as nested objects
   return (data || []).map((p: any) => ({
     ...p,
-    tenant_name: p.tenants?.name || '\u2014',
+    tenant_name: p.tenants ? `${p.tenants.first_name} ${p.tenants.last_name}`.trim() || '\u2014' : '\u2014',
     apartment_name: p.apartments?.name || '\u2014',
   }))
 }
@@ -286,8 +288,8 @@ export async function updatePaymentStatus(id: string, status: 'paid' | 'pending'
 }
 
 // ── Cash Payment Verification ──────────────────────────────
-export async function getPendingCashVerifications(clientId: string): Promise<Payment[]> {
-  const data = await api.get<any[]>(`/payments/pending-verifications?apartmentowner_id=${clientId}`)
+export async function getPendingCashVerifications(managerId: string): Promise<Payment[]> {
+  const data = await api.get<any[]>(`/payments/pending-verifications?manager_id=${managerId}`)
   // Backend already flattens tenant_name and apartment_name
   return (data || []).map((p: any) => ({
     ...p,
@@ -307,28 +309,26 @@ export async function rejectCashPayment(id: string) {
 // ── Payment Due Day Configuration ──────────────────────────
 
 /** Get the payment_due_day for the manager's apartment */
-export async function getPaymentDueDay(clientId: string): Promise<number | null> {
+export async function getPaymentDueDay(managerId: string): Promise<number | null> {
   try {
-    const data = await api.get<any[]>(`/apartments?apartmentowner_id=${clientId}`)
+    const data = await api.get<any[]>(`/apartments?manager_id=${managerId}`)
     return data?.[0]?.payment_due_day ?? null
   } catch {
     return null
   }
 }
 
-/** Set the payment_due_day for all apartments under a client */
-export async function setPaymentDueDay(clientId: string, day: number): Promise<void> {
-  // Use the special endpoint that sets payment_due_day for all apartments under a client
-  // The endpoint is PUT /apartments/:id/payment-due-day with apartmentowner_id in body to update all
-  await api.put('/apartments/_/payment-due-day', { day, apartmentowner_id: clientId })
+/** Set the payment_due_day for all apartments under an owner */
+export async function setPaymentDueDay(managerId: string, day: number): Promise<void> {
+  await api.put('/apartments/_/payment-due-day', { day, manager_id: managerId })
 }
 
 /**
  * Generate pending billings for the current month.
  * The backend handles the full billing generation logic.
  */
-export async function generateMonthlyBillings(clientId: string): Promise<void> {
-  await api.post('/payments/generate-monthly', { apartmentowner_id: clientId })
+export async function generateMonthlyBillings(managerId: string): Promise<void> {
+  await api.post('/payments/generate-monthly', { manager_id: managerId })
 }
 
 // ── Record Cash Payment (Manager records after tenant pays) ──
@@ -369,43 +369,24 @@ export async function settleCashBilling(paymentId: string, description?: string,
 
 // ── Get Active Tenants (for SMS notifications) ─────────────
 export async function getActiveTenants(
-  clientId: string,
-  managerId?: string,
+  managerId: string,
 ): Promise<{ id: string; name: string; phone: string | null; unit_name?: string | null }[]> {
-  let effectiveClientId = clientId
+  const units = await api
+    .get<any[]>(`/apartments/with-tenants?manager_id=${managerId}`)
+    .catch(() => [] as any[])
 
-  if (managerId) {
-    const units = await api
-      .get<any[]>(`/apartments/with-tenants?manager_id=${managerId}`)
-      .catch(() => [] as any[])
+  const managerTenants = (units || [])
+    .filter((u: any) => u.tenant_id)
+    .map((u: any) => ({
+      id: u.tenant_id,
+      name: u.tenant_name || 'Unknown',
+      phone: u.tenant_phone || null,
+      unit_name: u.name || null,
+    }))
 
-    const managerTenants = (units || [])
-      .filter((u: any) => u.tenant_id)
-      .map((u: any) => ({
-        id: u.tenant_id,
-        name: u.tenant_name || 'Unknown',
-        phone: u.tenant_phone || null,
-        unit_name: u.name || null,
-      }))
-
-    if (managerTenants.length > 0) {
-      const deduped = new Map<string, { id: string; name: string; phone: string | null; unit_name?: string | null }>()
-      managerTenants.forEach((t) => deduped.set(t.id, t))
-      return Array.from(deduped.values())
-    }
-
-    if (!effectiveClientId) {
-      const manager = await api.get<any>(`/managers/${managerId}`).catch(() => null)
-      effectiveClientId = manager?.apartmentowner_id || ''
-    }
-  }
-
-  if (!effectiveClientId) {
-    return []
-  }
-
-  const data = await api.get<any[]>(`/tenants?apartmentowner_id=${effectiveClientId}`)
-  return (data || []).map((t: any) => ({ id: t.id, name: t.name, phone: t.phone, unit_name: null }))
+  const deduped = new Map<string, { id: string; name: string; phone: string | null; unit_name?: string | null }>()
+  managerTenants.forEach((t) => deduped.set(t.id, t))
+  return Array.from(deduped.values())
 }
 
 // ── Documents ──────────────────────────────────────────────
@@ -425,12 +406,12 @@ export interface Document {
   unit_name?: string
 }
 
-export async function getDocuments(clientId: string): Promise<Document[]> {
-  const data = await api.get<any[]>(`/documents?apartmentowner_id=${clientId}`)
+export async function getDocuments(managerId: string): Promise<Document[]> {
+  const data = await api.get<any[]>(`/documents?manager_id=${managerId}`)
   // Backend joins tenants(name) and apartments(name) as nested objects
   return (data || []).map((d: any) => ({
     ...d,
-    tenant_name: d.tenants?.name ?? null,
+    tenant_name: d.tenants ? `${d.tenants.first_name} ${d.tenants.last_name}`.trim() || null : null,
     unit_name: d.apartments?.name ?? null,
     tenants: undefined,
     apartments: undefined,
@@ -439,7 +420,7 @@ export async function getDocuments(clientId: string): Promise<Document[]> {
 
 export async function uploadDocument(
   file: File,
-  clientId: string,
+  ownerId: string,
   managerId: string,
   apartmentId: string | null,
   tenantId: string | null,
@@ -453,7 +434,7 @@ export async function uploadDocument(
   })
 
   return api.post<any>('/documents/upload', {
-    apartmentowner_id: clientId,
+    apartmentowner_id: ownerId,
     unit_id: apartmentId || null,
     tenant_id: tenantId || null,
     uploaded_by: managerId,
@@ -474,7 +455,8 @@ export async function deleteDocument(id: string, _fileUrl: string) {
 export interface TenantAccount {
   id: string
   auth_user_id: string | null
-  name: string
+  first_name: string
+  last_name: string
   email: string | null
   phone: string | null
   unit_id: string | null
@@ -485,11 +467,11 @@ export interface TenantAccount {
   apartment_name?: string
 }
 
-export async function getManagerTenants(clientId: string): Promise<TenantAccount[]> {
-  // Get apartments for name mapping, and all tenants for this client
+export async function getManagerTenants(managerId: string): Promise<TenantAccount[]> {
+  // Get apartments and tenants scoped to this manager's branch
   const [apartments, tenants] = await Promise.all([
-    api.get<any[]>(`/apartments?apartmentowner_id=${clientId}`, { skipCache: true }).catch(() => [] as any[]),
-    api.get<any[]>(`/tenants?apartmentowner_id=${clientId}`, { skipCache: true }).catch(() => [] as any[]),
+    api.get<any[]>(`/apartments?manager_id=${managerId}`, { skipCache: true }).catch(() => [] as any[]),
+    api.get<any[]>(`/tenants?manager_id=${managerId}`, { skipCache: true }).catch(() => [] as any[]),
   ])
 
   const aptMap = new Map((apartments || []).map((a: any) => [a.id, a.name]))
@@ -501,7 +483,8 @@ export async function getManagerTenants(clientId: string): Promise<TenantAccount
 }
 
 export async function createTenantAccount(tenant: {
-  name: string
+  first_name: string
+  last_name: string
   email: string
   phone?: string
   sex?: string
@@ -510,7 +493,8 @@ export async function createTenantAccount(tenant: {
   apartmentowner_id: string
 }) {
   const result = await api.post<any>('/tenants', {
-    name: tenant.name,
+    first_name: tenant.first_name,
+    last_name: tenant.last_name,
     email: tenant.email,
     phone: tenant.phone || null,
     sex: tenant.sex || null,
@@ -526,7 +510,8 @@ export async function createTenantAccount(tenant: {
 }
 
 export async function updateTenantAccount(id: string, updates: {
-  name?: string
+  first_name?: string
+  last_name?: string
   email?: string
   phone?: string
   unit_id?: string | null
@@ -556,8 +541,8 @@ export interface ManagerApartmentLog {
   created_at: string
 }
 
-export async function getManagerApartmentLogs(clientId: string): Promise<ManagerApartmentLog[]> {
-  return api.get<ManagerApartmentLog[]>(`/apartment-logs?apartmentowner_id=${clientId}`)
+export async function getManagerApartmentLogs(managerId: string): Promise<ManagerApartmentLog[]> {
+  return api.get<ManagerApartmentLog[]>(`/apartment-logs?manager_id=${managerId}`)
 }
 
 export async function createManagerApartmentLog(log: {

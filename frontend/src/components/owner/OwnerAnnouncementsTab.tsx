@@ -12,11 +12,11 @@ import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface OwnerAnnouncementsTabProps {
-  clientId: string
+  ownerId: string
   ownerName: string
 }
 
-export default function OwnerAnnouncementsTab({ clientId, ownerName }: OwnerAnnouncementsTabProps) {
+export default function OwnerAnnouncementsTab({ ownerId, ownerName }: OwnerAnnouncementsTabProps) {
   const { isDark } = useTheme()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,7 +29,7 @@ export default function OwnerAnnouncementsTab({ clientId, ownerName }: OwnerAnno
 
   async function load() {
     try {
-      const data = await getOwnerAnnouncements(clientId)
+      const data = await getOwnerAnnouncements(ownerId)
       setAnnouncements(data)
     } catch (err) {
       console.error('Failed to load announcements:', err)
@@ -38,13 +38,13 @@ export default function OwnerAnnouncementsTab({ clientId, ownerName }: OwnerAnno
     }
   }
 
-  useEffect(() => { load() }, [clientId])
+  useEffect(() => { load() }, [ownerId])
 
   const handleCreate = async () => {
     if (!title.trim() || !message.trim()) return
     setSubmitting(true)
     try {
-      const createdAnnouncement = await createOwnerAnnouncement(clientId, title.trim(), message.trim(), ownerName)
+      const createdAnnouncement = await createOwnerAnnouncement(ownerId, title.trim(), message.trim(), ownerName)
       toast.success('Announcement created')
       setAnnouncements((prev) => [
         {
@@ -126,7 +126,7 @@ export default function OwnerAnnouncementsTab({ clientId, ownerName }: OwnerAnno
             } focus:outline-none focus:border-primary`}
           />
           {(title.trim() || message.trim()) && (() => {
-            const smsLength = `[PrimeLiving] ${title}\n\n${message}`.length
+            const smsLength = `${title}\n\n${message}`.length
             const isOver = smsLength > 160
             return (
               <p className={`text-xs mt-1 ${isOver ? 'text-amber-500' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>

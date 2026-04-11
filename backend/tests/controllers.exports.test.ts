@@ -6,7 +6,6 @@ import * as apartmentsController from "../src/controllers/apartments.controller"
 import * as authController from "../src/controllers/auth.controller";
 import * as clientsController from "../src/controllers/clients.controller";
 import * as documentsController from "../src/controllers/documents.controller";
-import * as inquiriesController from "../src/controllers/inquiries.controller";
 import * as maintenanceController from "../src/controllers/maintenance.controller";
 import * as managersController from "../src/controllers/managers.controller";
 import * as notificationsController from "../src/controllers/notifications.controller";
@@ -21,7 +20,6 @@ const controllerModules = [
   { name: "auth", mod: authController },
   { name: "apartment_owners", mod: clientsController },
   { name: "documents", mod: documentsController },
-  { name: "inquiries", mod: inquiriesController },
   { name: "maintenance", mod: maintenanceController },
   { name: "apartment_managers", mod: managersController },
   { name: "notifications", mod: notificationsController },

@@ -23,7 +23,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
   const [showQrModal, setShowQrModal] = useState(false)
 
   // Receipt upload state
-  const RECEIPT_KEY = `primeliving_receipt_${tenantId}`
+  const RECEIPT_KEY = `receipt_${tenantId}`
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null)
   const [receiptUploading, setReceiptUploading] = useState(false)
   const [showReceiptModal, setShowReceiptModal] = useState(false)
@@ -99,12 +99,12 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
           setQrUrl(null)
         }
 
-        if (tenantResult.status === 'fulfilled' && tenantResult.value?.name) {
-          setTenantName(tenantResult.value.name)
+        if (tenantResult.status === 'fulfilled' && tenantResult.value?.first_name) {
+          setTenantName(`${tenantResult.value.first_name} ${tenantResult.value.last_name}`.trim())
         }
 
         // Load saved receipt
-        const savedReceipt = localStorage.getItem(`primeliving_receipt_${tenantId}`)
+        const savedReceipt = localStorage.getItem(`receipt_${tenantId}`)
         if (savedReceipt) setReceiptUrl(savedReceipt)
       } finally {
         setLoading(false)
@@ -900,8 +900,8 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
             {/* Receipt Content */}
             <div className={`rounded-xl p-5 space-y-4 border ${isDark ? 'bg-[#0A1628] border-[#1E293B]' : 'bg-gray-50 border-gray-200'}`}>
               <div className="text-center pb-4 border-b border-dashed ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}">
-                <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>PrimeLiving</p>
-                <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Payment Confirmation</p>
+                <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Confirmation</p>
+                <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}></p>
               </div>
 
               <div className="grid grid-cols-2 gap-y-3 gap-x-4">

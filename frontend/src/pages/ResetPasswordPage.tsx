@@ -91,14 +91,10 @@ export default function ResetPasswordPage() {
         />
         <div className="absolute inset-0 bg-dark/70" />
         <div className="relative z-10 flex flex-col items-center justify-center px-12 w-full">
-          <Link to="/" className="flex items-center gap-3 mb-10">
+          <Link to="/login" className="flex items-center gap-3 mb-10">
             <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
               <Building2 className="w-7 h-7 text-white" />
             </div>
-            <span className="text-3xl font-bold">
-              <span className="text-white">Prime</span>
-              <span className="text-primary">Living</span>
-            </span>
           </Link>
           <h1 className="text-5xl font-extrabold text-white leading-tight">Set a new password</h1>
         </div>

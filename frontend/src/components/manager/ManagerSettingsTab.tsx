@@ -63,7 +63,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
         managerId
           ? supabase
               .from('apartment_managers')
-              .select('status, joined_date, apartmentowner_id')
+              .select('status, joined_date, apartmentowner_id, apartment_id')
               .eq('id', managerId)
               .maybeSingle()
           : Promise.resolve({ data: null } as any),
@@ -72,6 +72,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
       setUserEmail(userData.user?.email ?? null)
 
       const resolvedClientId = (managerRes?.data?.apartmentowner_id as string | null) || clientId || null
+      const resolvedApartmentId = managerRes?.data?.apartment_id as string | null
 
       if (managerRes?.data?.status) setManagerStatus(managerRes.data.status)
       if (managerRes?.data?.joined_date) setJoinedDate(managerRes.data.joined_date)
@@ -79,12 +80,21 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
       if (resolvedClientId) {
         const { data: clientData } = await supabase
           .from('apartment_owners')
-          .select('name, apartment_address')
+          .select('first_name, last_name')
           .eq('id', resolvedClientId)
           .maybeSingle()
 
-        setOwnerName(clientData?.name || null)
-        setPropertyAddress(clientData?.apartment_address || null)
+        setOwnerName(clientData ? `${clientData.first_name} ${clientData.last_name}`.trim() : null)
+      }
+
+      if (resolvedApartmentId) {
+        const { data: aptData } = await supabase
+          .from('apartments')
+          .select('address')
+          .eq('id', resolvedApartmentId)
+          .maybeSingle()
+
+        setPropertyAddress(aptData?.address || null)
       }
     }
 

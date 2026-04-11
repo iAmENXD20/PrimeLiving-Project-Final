@@ -5,7 +5,8 @@ import { supabase } from './supabase'
 export interface TenantProfile {
   id: string
   auth_user_id: string | null
-  name: string
+  first_name: string
+  last_name: string
   email: string | null
   phone: string | null
   unit_id: string | null
@@ -227,8 +228,8 @@ export async function submitCashPaymentVerification(params: {
 }
 
 // ── Announcements / Notifications ──────────────────────────
-export async function getTenantAnnouncements(clientId: string, tenantId?: string): Promise<TenantAnnouncement[]> {
-  const params = new URLSearchParams({ apartmentowner_id: clientId })
+export async function getTenantAnnouncements(ownerId: string, tenantId?: string): Promise<TenantAnnouncement[]> {
+  const params = new URLSearchParams({ apartmentowner_id: ownerId })
   if (tenantId) {
     params.set('tenant_id', tenantId)
   }
@@ -236,9 +237,9 @@ export async function getTenantAnnouncements(clientId: string, tenantId?: string
   return api.get<TenantAnnouncement[]>(`/announcements?${params.toString()}`)
 }
 
-export async function getTenantDocuments(tenantId: string, clientId?: string | null): Promise<TenantDocument[]> {
+export async function getTenantDocuments(tenantId: string, ownerId?: string | null): Promise<TenantDocument[]> {
   const params = new URLSearchParams({ tenant_id: tenantId })
-  if (clientId) params.set('apartmentowner_id', clientId)
+  if (ownerId) params.set('apartmentowner_id', ownerId)
 
   const data = await api.get<any[]>(`/documents?${params.toString()}`)
   return (data || []).map((doc: any) => ({
@@ -249,12 +250,12 @@ export async function getTenantDocuments(tenantId: string, clientId?: string | n
   }))
 }
 
-export async function getTenantNotifications(tenantId: string, clientId?: string | null): Promise<TenantNotification[]> {
+export async function getTenantNotifications(tenantId: string, ownerId?: string | null): Promise<TenantNotification[]> {
   const params = new URLSearchParams({
     recipient_role: 'tenant',
     recipient_id: tenantId,
   })
-  if (clientId) params.set('apartmentowner_id', clientId)
+  if (ownerId) params.set('apartmentowner_id', ownerId)
   return api.get<TenantNotification[]>(`/notifications?${params.toString()}`, { skipCache: true })
 }
 
@@ -273,24 +274,24 @@ export async function deleteTenantNotification(id: string): Promise<void> {
   await api.delete(`/notifications/${id}`)
 }
 
-export async function deleteAllTenantNotifications(tenantId: string, clientId?: string | null): Promise<void> {
+export async function deleteAllTenantNotifications(tenantId: string, ownerId?: string | null): Promise<void> {
   await api.delete('/notifications/all', {
     recipient_role: 'tenant',
     recipient_id: tenantId,
-    apartmentowner_id: clientId || undefined,
+    apartmentowner_id: ownerId || undefined,
   })
 }
 
-export async function getUnreadNotificationCount(tenantId: string, clientId?: string | null): Promise<number> {
-  const notifications = await getTenantNotifications(tenantId, clientId)
+export async function getUnreadNotificationCount(tenantId: string, ownerId?: string | null): Promise<number> {
+  const notifications = await getTenantNotifications(tenantId, ownerId)
   return notifications.filter((notification) => !notification.is_read).length
 }
 
-// ── Payment QR Code (fetch from owner/client) ──────────
-const QR_CACHE_KEY = 'primeliving_payment_qr_cache'
+// ── Payment QR Code (fetch from owner) ──────────
+const QR_CACHE_KEY = 'payment_qr_cache'
 
-export async function getClientPaymentQrUrl(clientId?: string | null, apartmentId?: string | null, tenantId?: string | null): Promise<string | null> {
-  const cacheKey = tenantId || clientId || apartmentId || 'unknown'
+export async function getOwnerPaymentQrUrl(ownerId?: string | null, apartmentId?: string | null, tenantId?: string | null): Promise<string | null> {
+  const cacheKey = tenantId || ownerId || apartmentId || 'unknown'
 
   if (tenantId) {
     try {
@@ -306,9 +307,9 @@ export async function getClientPaymentQrUrl(clientId?: string | null, apartmentI
     }
   }
 
-  if (clientId) {
+  if (ownerId) {
     try {
-      const result = await api.get<{ qr_url: string }>(`/payments/qr/${clientId}`)
+      const result = await api.get<{ qr_url: string }>(`/payments/qr/${ownerId}`)
       if (result.qr_url) {
         localStorage.setItem(`${QR_CACHE_KEY}_${cacheKey}`, result.qr_url)
         return result.qr_url

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { ClipboardList, Filter, Trash2, X, RefreshCcw, Search, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
-import * as XLSX from 'xlsx'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { Button } from '@/components/ui/button'
@@ -15,7 +14,7 @@ import {
 } from '../../lib/ownerApi'
 
 interface OwnerApartmentLogsTabProps {
-  clientId: string
+  ownerId: string
 }
 
 function formatTimestamp(dateStr: string) {
@@ -49,7 +48,7 @@ function formatFieldChanges(log: ApartmentLog): { field: string; from: string; t
     }))
 }
 
-export default function OwnerApartmentLogsTab({ clientId }: OwnerApartmentLogsTabProps) {
+export default function OwnerApartmentLogsTab({ ownerId }: OwnerApartmentLogsTabProps) {
   const { isDark } = useTheme()
   const [logs, setLogs] = useState<ApartmentLog[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,12 +72,12 @@ export default function OwnerApartmentLogsTab({ clientId }: OwnerApartmentLogsTa
 
   useEffect(() => {
     loadLogs()
-  }, [clientId])
+  }, [ownerId])
 
   async function loadLogs() {
     try {
       setLoading(true)
-      const data = await getOwnerApartmentLogs(clientId)
+      const data = await getOwnerApartmentLogs(ownerId)
       setLogs(data)
     } catch (err) {
       console.error('Failed to load logs:', err)
@@ -87,7 +86,8 @@ export default function OwnerApartmentLogsTab({ clientId }: OwnerApartmentLogsTa
     }
   }
 
-  function handleDownloadExcel() {
+  async function handleDownloadExcel() {
+    const XLSX = await import('xlsx')
     const sortedAll = [...filtered].sort((a, b) => {
       const numA = parseInt((a.arc_id || '').replace(/\D/g, '')) || 0
       const numB = parseInt((b.arc_id || '').replace(/\D/g, '')) || 0
@@ -118,7 +118,7 @@ export default function OwnerApartmentLogsTab({ clientId }: OwnerApartmentLogsTa
   async function handleClearAll() {
     setClearing(true)
     try {
-      await clearOwnerApartmentLogs(clientId)
+      await clearOwnerApartmentLogs(ownerId)
       setLogs([])
       toast.success('All logs cleared')
     } catch {

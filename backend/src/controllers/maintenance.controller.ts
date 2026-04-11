@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError } from "../utils/helpers";
+import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 import { sendSmsToMany } from "../utils/sms";
 import { createNotification, createNotifications } from "../utils/notifications";
 import { logActivity, resolveActorName } from "../utils/activityLog";
@@ -58,6 +58,14 @@ export async function getMaintenanceRequests(
 
     if (req.query.apartmentowner_id) {
       query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
+    }
+    if (req.query.manager_id) {
+      const { unitIds } = await getManagerScope(req.query.manager_id as string);
+      if (unitIds.length === 0) {
+        sendSuccess(res, []);
+        return;
+      }
+      query = query.in("unit_id", unitIds);
     }
     if (req.query.tenant_id) {
       query = query.eq("tenant_id", req.query.tenant_id as string);
@@ -139,7 +147,7 @@ export async function createMaintenanceRequest(
       return;
     }
 
-    const [{ data: managersByClient }, { data: tenant }] = await Promise.all([
+    const [{ data: managersByOwner }, { data: tenant }] = await Promise.all([
       supabaseAdmin
         .from("apartment_managers")
         .select("id, phone")
@@ -147,12 +155,14 @@ export async function createMaintenanceRequest(
         .eq("status", "active"),
       supabaseAdmin
         .from("tenants")
-        .select("name")
+        .select("first_name, last_name")
         .eq("id", tenant_id)
         .maybeSingle(),
     ]);
 
-    let managers = managersByClient || [];
+    const tenantName = tenant ? `${tenant.first_name} ${tenant.last_name}`.trim() || "tenant" : "tenant";
+
+    let managers = managersByOwner || [];
 
     if (managers.length === 0 && unit_id) {
       const { data: apartment } = await supabaseAdmin
@@ -177,7 +187,7 @@ export async function createMaintenanceRequest(
 
     await sendSmsToMany(
       (managers || []).map((manager: any) => manager.phone),
-      `[PrimeLiving] New maintenance request from ${tenant?.name || "tenant"}: ${title} (${priority})`,
+      `[PrimeLiving] New maintenance request from ${tenantName}: ${title} (${priority})`,
       { unit_id, apartmentowner_id }
     );
 
@@ -189,7 +199,7 @@ export async function createMaintenanceRequest(
         recipient_id: manager.id,
         type: "maintenance_request_created",
         title: "New Maintenance Request",
-        message: `${tenant?.name || "A tenant"} submitted: ${title}`,
+        message: `${tenantName} submitted: ${title}`,
       }))
     );
 

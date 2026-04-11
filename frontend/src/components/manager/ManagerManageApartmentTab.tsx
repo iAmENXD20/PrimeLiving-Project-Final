@@ -7,12 +7,11 @@ import ManagerAnnouncementsTab from './ManagerAnnouncementsTab'
 import ManagerApartmentLogsTab from './ManagerApartmentLogsTab'
 
 interface ManagerManageApartmentTabProps {
-  clientId: string
-  managerName: string
   managerId: string
+  managerName: string
 }
 
-export default function ManagerManageApartmentTab({ clientId, managerName, managerId }: ManagerManageApartmentTabProps) {
+export default function ManagerManageApartmentTab({ managerId, managerName }: ManagerManageApartmentTabProps) {
   const { isDark } = useTheme()
   const [activeSubTab, setActiveSubTab] = useState<'units' | 'tenants' | 'announcements' | 'logs'>('units')
 
@@ -60,10 +59,10 @@ export default function ManagerManageApartmentTab({ clientId, managerName, manag
       </div>
 
       {/* Sub-Tab Content */}
-      {activeSubTab === 'units' && <ManagerApartmentsTab clientId={clientId} />}
-      {activeSubTab === 'tenants' && <ManagerTenantsTab clientId={clientId} />}
-      {activeSubTab === 'announcements' && <ManagerAnnouncementsTab clientId={clientId} managerId={managerId} managerName={managerName} />}
-      {activeSubTab === 'logs' && <ManagerApartmentLogsTab clientId={clientId} managerId={managerId} managerName={managerName} />}
+      {activeSubTab === 'units' && <ManagerApartmentsTab managerId={managerId} />}
+      {activeSubTab === 'tenants' && <ManagerTenantsTab managerId={managerId} />}
+      {activeSubTab === 'announcements' && <ManagerAnnouncementsTab managerId={managerId} managerName={managerName} />}
+      {activeSubTab === 'logs' && <ManagerApartmentLogsTab managerId={managerId} managerName={managerName} />}
     </div>
   )
 }

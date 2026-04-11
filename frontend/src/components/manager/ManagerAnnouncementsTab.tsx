@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Plus, Trash2, Megaphone, Send } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import {
@@ -6,6 +6,7 @@ import {
   createAnnouncement,
   deleteAnnouncement,
   getActiveTenants,
+  getManagedApartments,
   type Announcement,
 } from '../../lib/managerApi'
 import { toast } from 'sonner'
@@ -13,12 +14,11 @@ import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface ManagerAnnouncementsTabProps {
-  clientId: string
   managerId: string
   managerName: string
 }
 
-export default function ManagerAnnouncementsTab({ clientId, managerId, managerName }: ManagerAnnouncementsTabProps) {
+export default function ManagerAnnouncementsTab({ managerId, managerName }: ManagerAnnouncementsTabProps) {
   const { isDark } = useTheme()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,12 +32,14 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
   const [selectedTenantIds, setSelectedTenantIds] = useState<string[]>([])
   const [announcementToDelete, setAnnouncementToDelete] = useState<Announcement | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const ownerIdRef = useRef<string | null>(null)
 
   async function load() {
     try {
-      const [announcementsResult, tenantsResult] = await Promise.allSettled([
-        getAnnouncements(clientId),
-        getActiveTenants(clientId, managerId),
+      const [announcementsResult, tenantsResult, apartments] = await Promise.allSettled([
+        getAnnouncements(managerId),
+        getActiveTenants(managerId),
+        getManagedApartments(managerId),
       ])
 
       if (announcementsResult.status === 'fulfilled') {
@@ -47,6 +49,10 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
       if (tenantsResult.status === 'fulfilled') {
         setTenants(tenantsResult.value)
       }
+
+      if (apartments.status === 'fulfilled' && apartments.value?.[0]?.apartmentowner_id) {
+        ownerIdRef.current = apartments.value[0].apartmentowner_id
+      }
     } catch (err) {
       console.error('Failed to load announcements:', err)
     } finally {
@@ -54,7 +60,7 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
     }
   }
 
-  useEffect(() => { load() }, [clientId])
+  useEffect(() => { load() }, [managerId])
 
   const handleCreate = async () => {
     if (!title.trim() || !message.trim()) return
@@ -74,7 +80,7 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
     try {
       const recipientTenantIds = recipientMode === 'all' ? [] : selectedTenantIds
       const createdAnnouncement = await createAnnouncement(
-        clientId,
+        ownerIdRef.current || '',
         title.trim(),
         message.trim(),
         managerName,
@@ -135,7 +141,7 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
       .filter(Boolean)
       .map((tenant) => {
         const unitName = tenant?.unit_name?.trim()
-        return unitName ? `${tenant?.name} (${unitName})` : `${tenant?.name}`
+        return unitName ? `${tenant?.first_name} ${tenant?.last_name} (${unitName})` : `${tenant?.first_name} ${tenant?.last_name}`
       })
 
     if (recipientDetails.length === 0) {
@@ -189,7 +195,7 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
             } focus:outline-none focus:border-primary`}
           />
           {(title.trim() || message.trim()) && (() => {
-            const smsLength = `[PrimeLiving] ${title}\n\n${message}`.length
+            const smsLength = `${title}\n\n${message}`.length
             const isOver = smsLength > 160
             return (
               <p className={`text-xs mt-1 ${isOver ? 'text-amber-500' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -247,7 +253,7 @@ export default function ManagerAnnouncementsTab({ clientId, managerId, managerNa
                           }
                         }}
                       />
-                      <span className={isDark ? 'text-gray-200' : 'text-gray-700'}>{tenant.name}</span>
+                      <span className={isDark ? 'text-gray-200' : 'text-gray-700'}>{tenant.first_name} {tenant.last_name}</span>
                       {tenant.unit_name && (
                         <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                           ({tenant.unit_name})

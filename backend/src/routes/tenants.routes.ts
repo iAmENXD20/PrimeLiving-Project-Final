@@ -12,20 +12,26 @@ import {
   getTenantCount,
   assignTenantToUnit,
   removeTenantFromUnit,
+  confirmActivation,
+  approveTenant,
+  getTenantIdPhotos,
 } from "../controllers/tenants.controller";
 
 const router = Router();
 
 router.use(authenticate);
 
-router.get("/count", authorize("admin", "owner", "manager"), cacheResponse({ namespace: "tenants", ttlSeconds: 20 }), getTenantCount);
-router.get("/by-auth/:authUserId", authorize("admin", "owner", "manager", "tenant"), cacheResponse({ namespace: "tenants", ttlSeconds: 10 }), getTenantByAuthId);
-router.get("/", authorize("admin", "owner", "manager"), cacheResponse({ namespace: "tenants", ttlSeconds: 20 }), getTenants);
-router.get("/:id", authorize("admin", "owner", "manager", "tenant"), cacheResponse({ namespace: "tenants", ttlSeconds: 20 }), getTenantById);
+router.get("/count", authorize("owner", "manager"), cacheResponse({ namespace: "tenants", ttlSeconds: 20 }), getTenantCount);
+router.get("/by-auth/:authUserId", authorize("owner", "manager", "tenant"), cacheResponse({ namespace: "tenants", ttlSeconds: 10 }), getTenantByAuthId);
+router.get("/", authorize("owner", "manager"), cacheResponse({ namespace: "tenants", ttlSeconds: 20 }), getTenants);
+router.get("/:id", authorize("owner", "manager", "tenant"), cacheResponse({ namespace: "tenants", ttlSeconds: 20 }), getTenantById);
 router.post("/assign-unit", authorize("owner", "manager"), invalidateCache(["tenants", "apartments", "analytics", "payments"]), assignTenantToUnit);
 router.post("/remove-from-unit", authorize("owner", "manager"), invalidateCache(["tenants", "apartments", "analytics"]), removeTenantFromUnit);
-router.post("/", authorize("admin", "owner", "manager"), invalidateCache(["tenants", "analytics"]), createTenant);
-router.put("/:id", authorize("admin", "owner", "manager", "tenant"), invalidateCache(["tenants", "analytics"]), updateTenant);
-router.delete("/:id", authorize("admin", "owner", "manager"), invalidateCache(["tenants", "apartments", "analytics"]), deleteTenant);
+router.put("/confirm-activation", authorize("tenant"), invalidateCache(["tenants"]), confirmActivation);
+router.get("/:id/id-photos", authorize("owner", "manager"), getTenantIdPhotos);
+router.put("/:id/approve", authorize("owner", "manager"), invalidateCache(["tenants", "analytics"]), approveTenant);
+router.post("/", authorize("owner", "manager"), invalidateCache(["tenants", "analytics"]), createTenant);
+router.put("/:id", authorize("owner", "manager", "tenant"), invalidateCache(["tenants", "analytics"]), updateTenant);
+router.delete("/:id", authorize("owner", "manager"), invalidateCache(["tenants", "apartments", "analytics"]), deleteTenant);
 
 export default router;

@@ -44,7 +44,7 @@ export async function getRevenues(
 
 /**
  * GET /api/revenues/by-month
- * Get revenue aggregated by month for a client
+ * Get revenue aggregated by month for an owner
  */
 export async function getRevenueByMonth(
   req: AuthenticatedRequest,

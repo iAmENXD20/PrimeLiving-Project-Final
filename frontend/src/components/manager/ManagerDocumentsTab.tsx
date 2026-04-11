@@ -8,6 +8,7 @@ import {
   getManagerUnits,
   getManagerTenants,
   createAnnouncement,
+  getManagedApartments,
   type Document,
   type UnitWithTenant,
   type TenantAccount,
@@ -18,11 +19,10 @@ import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
 interface ManagerDocumentsTabProps {
-  clientId: string
   managerId: string
 }
 
-export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocumentsTabProps) {
+export default function ManagerDocumentsTab({ managerId }: ManagerDocumentsTabProps) {
   const { isDark } = useTheme()
   const [documents, setDocuments] = useState<Document[]>([])
   const [units, setUnits] = useState<UnitWithTenant[]>([])
@@ -32,6 +32,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 10
+  const ownerIdRef = useRef<string | null>(null)
 
   // Upload form state
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -45,15 +46,20 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
 
   async function load() {
     try {
-      const [docsResult, unitsResult, tenantsResult] = await Promise.allSettled([
-        getDocuments(clientId),
-        getManagerUnits(clientId),
-        getManagerTenants(clientId),
+      const [docsResult, unitsResult, tenantsResult, apartments] = await Promise.allSettled([
+        getDocuments(managerId),
+        getManagerUnits(managerId),
+        getManagerTenants(managerId),
+        getManagedApartments(managerId),
       ])
 
       const docs = docsResult.status === 'fulfilled' ? docsResult.value : []
       const unitsData = unitsResult.status === 'fulfilled' ? unitsResult.value : []
       const tenantsData = tenantsResult.status === 'fulfilled' ? tenantsResult.value : []
+
+      if (apartments.status === 'fulfilled' && apartments.value?.[0]?.apartmentowner_id) {
+        ownerIdRef.current = apartments.value[0].apartmentowner_id
+      }
 
       const tenantFallbackFromUnits: TenantAccount[] = (unitsData || [])
         .filter((unit) => unit.tenant_id)
@@ -85,7 +91,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
     }
   }
 
-  useEffect(() => { load() }, [clientId])
+  useEffect(() => { load() }, [managerId])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -122,7 +128,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
       const unit = units.find((u) => u.tenant_id === tenant.id)
       await uploadDocument(
         selectedFile,
-        clientId,
+        ownerIdRef.current || '',
         managerId,
         unit?.id || tenant.unit_id || null,
         tenant.id,
@@ -130,10 +136,10 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
       )
 
       // Notify tenant if document is assigned to a unit with a tenant
-      if (tenant?.name) {
+      if (tenant?.first_name) {
         try {
           await createAnnouncement(
-            clientId,
+            ownerIdRef.current || '',
             '📄 New Document Received',
             `A new document "${selectedFile.name}" has been shared with you${description ? `: ${description}` : '.'}`,
             'Property Manager',
@@ -141,7 +147,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
         } catch (announcementError) {
           console.warn('Announcement notification skipped:', announcementError)
         }
-        toast.success(`Uploaded successfully — ${tenant.name} has received the document`)
+        toast.success(`Uploaded successfully — ${tenant.first_name} ${tenant.last_name} has received the document`)
       } else {
         toast.success('Uploaded successfully')
       }
@@ -195,7 +201,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
   }, [page, totalPages])
 
   const cardClass = `rounded-xl border ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'}`
-  const selectedTenantLabel = tenants.find((t) => t.id === selectedTenant)?.name || 'Select tenant *'
+  const selectedTenantLabel = (() => { const t = tenants.find((t) => t.id === selectedTenant); return t ? `${t.first_name} ${t.last_name}` : 'Select tenant *'; })()
 
   return (
     <div className="flex flex-1 min-h-0 gap-5">
@@ -259,7 +265,7 @@ export default function ManagerDocumentsTab({ clientId, managerId }: ManagerDocu
                         : isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
                     }`}
                   >
-                    {tenant.name} {tenant.apartment_name && tenant.apartment_name !== '—' ? `— ${tenant.apartment_name}` : ''}
+                    {tenant.first_name} {tenant.last_name} {tenant.apartment_name && tenant.apartment_name !== '—' ? `— ${tenant.apartment_name}` : ''}
                   </button>
                 ))}
                 {tenants.length === 0 && (

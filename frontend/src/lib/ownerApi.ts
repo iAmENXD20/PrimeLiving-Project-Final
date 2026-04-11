@@ -29,33 +29,33 @@ export interface Revenue {
   apartment_name?: string
 }
 
-// ── Get current owner (client) from auth user ─────────────
+// ── Get current owner from auth user ───────────────────
 export async function getCurrentOwner() {
   const { data: { session } } = await supabase.auth.getSession()
   const userId = session?.user?.id
   if (!userId) return null
 
   try {
-    return await api.get<any>(`/clients/by-auth/${userId}`)
+    return await api.get<any>(`/owners/by-auth/${userId}`)
   } catch {
     return null
   }
 }
 
 // ── Get Owner Apartment Address ─────────────────────────────
-export async function getOwnerApartmentAddress(clientId: string): Promise<string | null> {
+export async function getOwnerApartmentAddress(ownerId: string): Promise<string | null> {
   try {
-    const data = await api.get<any>(`/clients/${clientId}/location`)
-    return data?.apartment_address || null
+    const data = await api.get<any[]>(`/apartments?apartmentowner_id=${ownerId}`)
+    return data?.[0]?.address || null
   } catch {
     return null
   }
 }
 
-// ── Get Client Apartment Name ──────────────────────────────
-export async function getClientApartmentName(clientId: string): Promise<string | null> {
+// ── Get Owner Apartment Name ──────────────────────────
+export async function getOwnerApartmentName(ownerId: string): Promise<string | null> {
   try {
-    const data = await api.get<any[]>(`/apartments?apartmentowner_id=${clientId}`)
+    const data = await api.get<any[]>(`/apartments?apartmentowner_id=${ownerId}`)
     return data?.[0]?.name || null
   } catch {
     return null
@@ -63,12 +63,16 @@ export async function getClientApartmentName(clientId: string): Promise<string |
 }
 
 // ── Update Owner Apartment Address ──────────────────────────
-export async function updateOwnerApartmentAddress(clientId: string, address: string) {
-  await api.put(`/clients/${clientId}`, { apartment_address: address, updated_at: new Date().toISOString() })
+// Now updates the apartment record's address, not the owner record
+export async function updateOwnerApartmentAddress(ownerId: string, address: string) {
+  const apartments = await api.get<any[]>(`/apartments?apartmentowner_id=${ownerId}`)
+  if (apartments?.[0]?.id) {
+    await api.put(`/apartments/${apartments[0].id}`, { address, updated_at: new Date().toISOString() })
+  }
 }
 
-// ── Owner Dashboard Stats ──────────────────────────────────
-export async function getOwnerDashboardStats(clientId: string, options?: { month?: number; year?: number }) {
+// ── Owner Dashboard Stats ──────────────────────────────
+export async function getOwnerDashboardStats(ownerId: string, options?: { month?: number; year?: number }) {
   const params = new URLSearchParams()
   if (options?.month) params.set('month', String(options.month))
   if (options?.year) params.set('year', String(options.year))
@@ -78,21 +82,21 @@ export async function getOwnerDashboardStats(clientId: string, options?: { month
     activeTenants: number
     pendingMaintenance: number
     totalRevenue: number
-  }>(`/analytics/owner/${clientId}${query}`)
+  }>(`/analytics/owner/${ownerId}${query}`)
 }
 
-// ── Maintenance Requests ───────────────────────────────────
-export async function getOwnerMaintenanceRequests(clientId: string) {
-  // Fetch maintenance requests + tenants + apartments for this client in parallel
+// ── Maintenance Requests ───────────────────────────────
+export async function getOwnerMaintenanceRequests(ownerId: string) {
+  // Fetch maintenance requests + tenants + apartments for this owner in parallel
   const [data, allTenants, allApts] = await Promise.all([
-    api.get<any[]>(`/maintenance?apartmentowner_id=${clientId}`),
-    api.get<any[]>(`/tenants?apartmentowner_id=${clientId}`).catch(() => [] as any[]),
-    api.get<any[]>(`/apartments?apartmentowner_id=${clientId}`).catch(() => [] as any[]),
+    api.get<any[]>(`/maintenance?apartmentowner_id=${ownerId}`),
+    api.get<any[]>(`/tenants?apartmentowner_id=${ownerId}`).catch(() => [] as any[]),
+    api.get<any[]>(`/apartments?apartmentowner_id=${ownerId}`).catch(() => [] as any[]),
   ])
 
   // Build lookup maps for name enrichment
   const tenantMap: Record<string, string> = {}
-  ;(allTenants || []).forEach((t: any) => { tenantMap[t.id] = t.name })
+  ;(allTenants || []).forEach((t: any) => { tenantMap[t.id] = `${t.first_name} ${t.last_name}`.trim() })
 
   const aptMap: Record<string, string> = {}
   ;(allApts || []).forEach((a: any) => { aptMap[a.id] = a.name })
@@ -109,18 +113,18 @@ export async function updateOwnerMaintenanceStatus(id: string, status: Maintenan
 }
 
 // ── Maintenance Requests per Month (for chart) ─────────────
-export async function getMaintenanceRequestsByMonth(clientId: string) {
+export async function getMaintenanceRequestsByMonth(ownerId: string) {
   return api.get<{ month: string; pending: number; resolved: number }[]>(
-    `/analytics/maintenance-by-month?apartmentowner_id=${clientId}`
+    `/analytics/maintenance-by-month?apartmentowner_id=${ownerId}`
   )
 }
 
 // ── Owner Managers CRUD ────────────────────────────────────
-export async function getOwnerManagers(clientId: string) {
-  return api.get<any[]>(`/managers?apartmentowner_id=${clientId}`)
+export async function getOwnerManagers(ownerId: string) {
+  return api.get<any[]>(`/managers?apartmentowner_id=${ownerId}`)
 }
 
-export async function createOwnerManager(manager: { name: string; email: string; phone?: string; sex?: string; age?: string; apartmentowner_id: string }) {
+export async function createOwnerManager(manager: { firstName: string; lastName: string; email: string; phone?: string; sex?: string; age?: string; apartmentowner_id: string; apartment_id?: string }) {
   const result = await api.post<Record<string, any>>('/managers', manager)
   // The backend createManager returns { ...managerData, generatedPassword }
   // Re-shape to match original interface: { manager, generatedPassword }
@@ -137,12 +141,24 @@ export async function createOwnerManager(manager: { name: string; email: string;
   return { manager: managerData, generatedPassword }
 }
 
-export async function updateOwnerManager(id: string, updates: { name?: string; email?: string; phone?: string; status?: string }) {
+export async function updateOwnerManager(id: string, updates: { first_name?: string; last_name?: string; email?: string; phone?: string; status?: string; apartment_id?: string | null }) {
   return api.put<any>(`/managers/${id}`, { ...updates, updated_at: new Date().toISOString() })
 }
 
 export async function deleteOwnerManager(id: string) {
   await api.delete(`/managers/${id}`)
+}
+
+export async function resendManagerInvite(id: string) {
+  return api.post<{ invitationEmailSent: boolean }>(`/managers/${id}/resend-invite`, {})
+}
+
+export async function getManagerIdPhotos(id: string) {
+  return api.get<{ id_type: string; id_type_other: string | null; front_url: string | null; back_url: string | null }>(`/managers/${id}/id-photos`)
+}
+
+export async function approveManager(id: string) {
+  return api.post(`/managers/${id}/approve`, {})
 }
 
 // ── Owner Units (Apartments) CRUD ──────────────────────────
@@ -151,6 +167,7 @@ export interface UnitWithTenant {
   name: string
   monthly_rent: number
   apartmentowner_id: string | null
+  apartment_id: string | null
   manager_id: string | null
   status: string
   created_at: string
@@ -158,29 +175,68 @@ export interface UnitWithTenant {
   tenant_phone: string | null
   tenant_id: string | null
   max_occupancy: number | null
+  payment_due_day: number | null
 }
 
 export interface OwnerTenant {
   id: string
-  name: string
+  first_name: string
+  last_name: string
   phone: string | null
   unit_id: string | null
-  status: 'active' | 'inactive'
+  status: 'active' | 'inactive' | 'pending_verification'
   monthly_rent?: number
 }
 
-export async function getOwnerUnits(clientId: string): Promise<UnitWithTenant[]> {
+export async function getOwnerUnits(ownerId: string): Promise<UnitWithTenant[]> {
   // The backend /apartments/with-tenants endpoint does the join for us
-  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?apartmentowner_id=${clientId}`)
+  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?apartmentowner_id=${ownerId}`)
 }
 
-export async function getOwnerTenants(clientId: string, includeInactive = false): Promise<OwnerTenant[]> {
+export async function getOwnerTenants(ownerId: string, includeInactive = false): Promise<OwnerTenant[]> {
   const query = includeInactive ? '&include_inactive=true' : ''
-  return api.get<OwnerTenant[]>(`/tenants?apartmentowner_id=${clientId}${query}`)
+  return api.get<OwnerTenant[]>(`/tenants?apartmentowner_id=${ownerId}${query}`)
 }
 
-export async function getOwnerApartments(clientId: string) {
-  return api.get<any[]>(`/apartments?apartmentowner_id=${clientId}`)
+export async function approveTenant(tenantId: string): Promise<void> {
+  await api.put(`/tenants/${tenantId}/approve`, {})
+}
+
+export async function getTenantIdPhotos(id: string) {
+  return api.get<{ id_type: string; id_type_other: string | null; front_url: string | null; back_url: string | null }>(`/tenants/${id}/id-photos`)
+}
+
+// ── Property-level apartments (buildings/locations) ────────
+export interface Property {
+  id: string
+  apartmentowner_id: string
+  name: string
+  address: string | null
+  manager_id: string | null
+  status: string
+  unit_count: number
+  created_at: string
+  updated_at: string
+}
+
+export async function getOwnerProperties(ownerId: string) {
+  return api.get<Property[]>(`/apartments/properties?apartmentowner_id=${ownerId}`)
+}
+
+export async function createOwnerProperty(property: { name: string; address?: string; apartmentowner_id: string; manager_id?: string }) {
+  return api.post<Property>('/apartments/properties', property)
+}
+
+export async function updateOwnerProperty(id: string, updates: { name?: string; address?: string; status?: string; manager_id?: string | null }) {
+  return api.put<Property>(`/apartments/properties/${id}`, updates)
+}
+
+export async function deleteOwnerProperty(id: string) {
+  await api.delete(`/apartments/properties/${id}`)
+}
+
+export async function getOwnerApartments(ownerId: string) {
+  return api.get<any[]>(`/apartments?apartmentowner_id=${ownerId}`)
 }
 
 export async function createOwnerApartment(apartment: {
@@ -189,6 +245,7 @@ export async function createOwnerApartment(apartment: {
   monthly_rent?: number
   total_units?: number
   apartmentowner_id: string
+  apartment_id?: string
   manager_id?: string
 }) {
   return api.post<any>('/apartments', apartment)
@@ -211,14 +268,15 @@ export async function deleteOwnerApartment(id: string) {
 }
 
 // ── Create multiple units at once ──────────────────────────
-export async function createBulkUnits(clientId: string, count: number, startNumber: number, monthlyRent: number) {
+export async function createBulkUnits(ownerId: string, count: number, startNumber: number, monthlyRent: number, apartmentId?: string) {
   const units = []
   for (let i = 0; i < count; i++) {
     units.push({
       name: `Unit ${startNumber + i}`,
       address: '-',
       monthly_rent: monthlyRent,
-      apartmentowner_id: clientId,
+      apartmentowner_id: ownerId,
+      apartment_id: apartmentId || undefined,
       status: 'active',
     })
   }
@@ -227,10 +285,11 @@ export async function createBulkUnits(clientId: string, count: number, startNumb
 }
 
 // ── Assign tenant to a unit ────────────────────────────────
-export async function assignTenantToUnit(unitId: string, tenant: { name: string; phone?: string }, monthlyRent?: number) {
+export async function assignTenantToUnit(unitId: string, tenant: { first_name: string; last_name: string; phone?: string }, monthlyRent?: number) {
   return api.post<any>('/tenants/assign-unit', {
     unit_id: unitId,
-    name: tenant.name,
+    first_name: tenant.first_name,
+    last_name: tenant.last_name,
     phone: tenant.phone || null,
     monthly_rent: monthlyRent,
   })
@@ -242,18 +301,18 @@ export async function removeTenantFromUnit(unitId: string) {
 }
 
 // ── Update unit details ────────────────────────────────────
-export async function updateUnit(unitId: string, updates: { name?: string; monthly_rent?: number; max_occupancy?: number | null }) {
+export async function updateUnit(unitId: string, updates: { name?: string; monthly_rent?: number; max_occupancy?: number | null; status?: string }) {
   return api.put<any>(`/apartments/${unitId}`, { ...updates, updated_at: new Date().toISOString() })
 }
 
 // ── Revenue ────────────────────────────────────────────────
-export async function getOwnerRevenues(clientId: string) {
-  return api.get<Revenue[]>(`/revenues?apartmentowner_id=${clientId}`)
+export async function getOwnerRevenues(ownerId: string) {
+  return api.get<Revenue[]>(`/revenues?apartmentowner_id=${ownerId}`)
 }
 
-export async function getRevenueByMonth(clientId: string) {
+export async function getRevenueByMonth(ownerId: string) {
   return api.get<{ month: string; revenue: number }[]>(
-    `/revenues/by-month?apartmentowner_id=${clientId}`
+    `/revenues/by-month?apartmentowner_id=${ownerId}`
   )
 }
 
@@ -267,12 +326,12 @@ export interface Announcement {
   created_at: string
 }
 
-export async function getOwnerAnnouncements(clientId: string): Promise<Announcement[]> {
-  return api.get<Announcement[]>(`/announcements?apartmentowner_id=${clientId}`)
+export async function getOwnerAnnouncements(ownerId: string): Promise<Announcement[]> {
+  return api.get<Announcement[]>(`/announcements?apartmentowner_id=${ownerId}`)
 }
 
-export async function createOwnerAnnouncement(clientId: string, title: string, message: string, createdBy: string): Promise<Announcement> {
-  return api.post<Announcement>('/announcements', { apartmentowner_id: clientId, title, message, created_by: createdBy })
+export async function createOwnerAnnouncement(ownerId: string, title: string, message: string, createdBy: string): Promise<Announcement> {
+  return api.post<Announcement>('/announcements', { apartmentowner_id: ownerId, title, message, created_by: createdBy })
 }
 
 export async function deleteOwnerAnnouncement(id: string) {
@@ -295,11 +354,11 @@ export interface OwnerDocument {
   unit_name?: string | null
 }
 
-export async function getOwnerDocuments(clientId: string): Promise<OwnerDocument[]> {
-  const data = await api.get<any[]>(`/documents?apartmentowner_id=${clientId}`)
+export async function getOwnerDocuments(ownerId: string): Promise<OwnerDocument[]> {
+  const data = await api.get<any[]>(`/documents?apartmentowner_id=${ownerId}`)
   return (data || []).map((d: any) => ({
     ...d,
-    tenant_name: d.tenants?.name ?? null,
+    tenant_name: d.tenants ? `${d.tenants.first_name} ${d.tenants.last_name}`.trim() || null : null,
     unit_name: d.apartments?.name ?? null,
     tenants: undefined,
     apartments: undefined,
@@ -308,7 +367,7 @@ export async function getOwnerDocuments(clientId: string): Promise<OwnerDocument
 
 export async function uploadOwnerDocument(
   file: File,
-  clientId: string,
+  ownerId: string,
   unitId: string | null,
   tenantId: string | null,
   description: string,
@@ -321,10 +380,10 @@ export async function uploadOwnerDocument(
   })
 
   return api.post<any>('/documents/upload', {
-    apartmentowner_id: clientId,
+    apartmentowner_id: ownerId,
     unit_id: unitId || null,
     tenant_id: tenantId || null,
-    uploaded_by: clientId,
+    uploaded_by: ownerId,
     file_name: file.name,
     file_type: file.type,
     description: description || null,
@@ -356,12 +415,12 @@ export interface OwnerPayment {
   apartment_name?: string
 }
 
-export async function getOwnerPayments(clientId: string): Promise<OwnerPayment[]> {
-  const data = await api.get<any[]>(`/payments?apartmentowner_id=${clientId}`)
+export async function getOwnerPayments(ownerId: string): Promise<OwnerPayment[]> {
+  const data = await api.get<any[]>(`/payments?apartmentowner_id=${ownerId}`)
   // The backend getPayments joins tenants(name, email) and apartments(name)
   return (data || []).map((p: any) => ({
     ...p,
-    tenant_name: p.tenants?.name || '\u2014',
+    tenant_name: p.tenants ? `${p.tenants.first_name} ${p.tenants.last_name}`.trim() || '\u2014' : '\u2014',
     apartment_name: p.apartments?.name || '\u2014',
   }))
 }
@@ -383,8 +442,8 @@ export async function updateOwnerPaymentStatus(id: string, status: 'paid' | 'pen
 }
 
 // ── Payment Approval (Owner approves manager-verified payments) ──
-export async function getVerifiedPayments(clientId: string): Promise<OwnerPayment[]> {
-  const data = await api.get<any[]>(`/payments/verified-pending-approval?apartmentowner_id=${clientId}`)
+export async function getVerifiedPayments(ownerId: string): Promise<OwnerPayment[]> {
+  const data = await api.get<any[]>(`/payments/verified-pending-approval?apartmentowner_id=${ownerId}`)
   return (data || []).map((p: any) => ({
     ...p,
     tenant_name: p.tenant_name || '\u2014',
@@ -401,18 +460,18 @@ export async function rejectVerifiedPayment(id: string) {
 }
 
 // ── Payment QR Code ────────────────────────────────────────
-const QR_CACHE_KEY = 'primeliving_payment_qr_cache'
+const QR_CACHE_KEY = 'payment_qr_cache'
 
-function getQrCache(clientId: string): string | null {
-  return localStorage.getItem(`${QR_CACHE_KEY}_${clientId}`)
+function getQrCache(ownerId: string): string | null {
+  return localStorage.getItem(`${QR_CACHE_KEY}_${ownerId}`)
 }
 
-function setQrCache(clientId: string, url: string): void {
-  localStorage.setItem(`${QR_CACHE_KEY}_${clientId}`, url)
+function setQrCache(ownerId: string, url: string): void {
+  localStorage.setItem(`${QR_CACHE_KEY}_${ownerId}`, url)
 }
 
-function clearQrCache(clientId: string): void {
-  localStorage.removeItem(`${QR_CACHE_KEY}_${clientId}`)
+function clearQrCache(ownerId: string): void {
+  localStorage.removeItem(`${QR_CACHE_KEY}_${ownerId}`)
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -424,29 +483,29 @@ function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
-export async function uploadPaymentQr(clientId: string, file: File): Promise<string> {
+export async function uploadPaymentQr(ownerId: string, file: File): Promise<string> {
   const dataUrl = await fileToDataUrl(file)
-  setQrCache(clientId, dataUrl)
+  setQrCache(ownerId, dataUrl)
   const result = await api.post<{ qr_url: string }>('/payments/qr', {
-    apartmentowner_id: clientId,
+    apartmentowner_id: ownerId,
     data_url: dataUrl,
   })
   return result.qr_url || dataUrl
 }
 
-export async function getPaymentQrUrl(clientId: string): Promise<string | null> {
+export async function getPaymentQrUrl(ownerId: string): Promise<string | null> {
   try {
-    const result = await api.get<{ qr_url: string }>(`/payments/qr/${clientId}`)
-    if (result.qr_url) setQrCache(clientId, result.qr_url)
+    const result = await api.get<{ qr_url: string }>(`/payments/qr/${ownerId}`)
+    if (result.qr_url) setQrCache(ownerId, result.qr_url)
     return result.qr_url || null
   } catch {
-    return getQrCache(clientId)
+    return getQrCache(ownerId)
   }
 }
 
-export async function deletePaymentQr(clientId: string): Promise<void> {
-  await api.delete(`/payments/qr/${clientId}`)
-  clearQrCache(clientId)
+export async function deletePaymentQr(ownerId: string): Promise<void> {
+  await api.delete(`/payments/qr/${ownerId}`)
+  clearQrCache(ownerId)
 }
 
 // ── Apartment Logs ─────────────────────────────────────────
@@ -466,8 +525,8 @@ export interface ApartmentLog {
   created_at: string
 }
 
-export async function getOwnerApartmentLogs(clientId: string): Promise<ApartmentLog[]> {
-  return api.get<ApartmentLog[]>(`/apartment-logs?apartmentowner_id=${clientId}`)
+export async function getOwnerApartmentLogs(ownerId: string): Promise<ApartmentLog[]> {
+  return api.get<ApartmentLog[]>(`/apartment-logs?apartmentowner_id=${ownerId}`)
 }
 
 export async function createOwnerApartmentLog(log: {
@@ -483,6 +542,6 @@ export async function createOwnerApartmentLog(log: {
   return api.post<ApartmentLog>('/apartment-logs', log)
 }
 
-export async function clearOwnerApartmentLogs(clientId: string): Promise<void> {
-  await api.delete(`/apartment-logs?apartmentowner_id=${clientId}`)
+export async function clearOwnerApartmentLogs(ownerId: string): Promise<void> {
+  await api.delete(`/apartment-logs?apartmentowner_id=${ownerId}`)
 }

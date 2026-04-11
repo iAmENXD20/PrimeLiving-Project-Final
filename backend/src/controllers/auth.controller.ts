@@ -165,7 +165,7 @@ export async function validateEmailForAccountCreation(
       return;
     }
 
-    const [existingClientLookup, existingManagerLookup, existingTenantLookup] =
+    const [existingOwnerLookup, existingManagerLookup, existingTenantLookup] =
       await Promise.all([
         supabaseAdmin
           .from("apartment_owners")
@@ -185,13 +185,13 @@ export async function validateEmailForAccountCreation(
       ]);
 
     if (
-      existingClientLookup.error ||
+      existingOwnerLookup.error ||
       existingManagerLookup.error ||
       existingTenantLookup.error
     ) {
       sendError(
         res,
-        existingClientLookup.error?.message ||
+        existingOwnerLookup.error?.message ||
           existingManagerLookup.error?.message ||
           existingTenantLookup.error?.message ||
           "Failed to validate email",
@@ -201,7 +201,7 @@ export async function validateEmailForAccountCreation(
     }
 
     if (
-      existingClientLookup.data ||
+      existingOwnerLookup.data ||
       existingManagerLookup.data ||
       existingTenantLookup.data
     ) {

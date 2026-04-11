@@ -13,15 +13,15 @@ const router = Router();
 router.use(authenticate);
 
 // Read logs — owners, managers can view
-router.get("/", authorize("admin", "owner", "manager"), getApartmentLogs);
+router.get("/", authorize("owner", "manager"), getApartmentLogs);
 
 // Create a log entry — owners, managers, system
-router.post("/", authorize("admin", "owner", "manager"), createApartmentLog);
+router.post("/", authorize("owner", "manager"), createApartmentLog);
 
 // Delete a single log entry — owners only
-router.delete("/:id", authorize("admin", "owner"), deleteApartmentLog);
+router.delete("/:id", authorize("owner"), deleteApartmentLog);
 
 // Clear all logs for an owner — owners only
-router.delete("/", authorize("admin", "owner"), clearApartmentLogs);
+router.delete("/", authorize("owner"), clearApartmentLogs);
 
 export default router;

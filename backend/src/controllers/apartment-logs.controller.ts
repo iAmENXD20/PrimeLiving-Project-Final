@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError } from "../utils/helpers";
+import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 
 /**
  * GET /api/apartment-logs
@@ -22,6 +22,15 @@ export async function getApartmentLogs(
         "apartmentowner_id",
         req.query.apartmentowner_id as string
       );
+    }
+
+    if (req.query.manager_id) {
+      const { apartmentIds } = await getManagerScope(req.query.manager_id as string);
+      if (apartmentIds.length === 0) {
+        sendSuccess(res, []);
+        return;
+      }
+      query = query.in("apartment_id", apartmentIds);
     }
 
     if (req.query.apartment_id) {

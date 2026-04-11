@@ -15,7 +15,6 @@ This folder documents backend system behavior by feature.
 - [Notifications & SMS](./features/notifications-sms.md)
 - [Documents](./features/documents.md)
 - [Analytics](./features/analytics.md)
-- [Inquiries](./features/inquiries.md)
 - [Testing](./features/testing.md)
 
 ## Notes

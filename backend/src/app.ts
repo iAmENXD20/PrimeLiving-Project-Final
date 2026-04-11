@@ -8,11 +8,10 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
 // Import routes
 import authRoutes from "./routes/auth.routes";
-import clientsRoutes from "./routes/clients.routes";
+import ownersRoutes from "./routes/owners.routes";
 import managersRoutes from "./routes/managers.routes";
 import apartmentsRoutes from "./routes/apartments.routes";
 import tenantsRoutes from "./routes/tenants.routes";
-import inquiriesRoutes from "./routes/inquiries.routes";
 import maintenanceRoutes from "./routes/maintenance.routes";
 import paymentsRoutes from "./routes/payments.routes";
 import documentsRoutes from "./routes/documents.routes";
@@ -49,11 +48,10 @@ app.get("/api/health", (_req, res) => {
 
 // ── API Routes ──
 app.use("/api/auth", authRoutes);
-app.use("/api/clients", clientsRoutes);
+app.use("/api/owners", ownersRoutes);
 app.use("/api/managers", managersRoutes);
 app.use("/api/apartments", apartmentsRoutes);
 app.use("/api/tenants", tenantsRoutes);
-app.use("/api/inquiries", inquiriesRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
 app.use("/api/payments", paymentsRoutes);
 app.use("/api/documents", documentsRoutes);

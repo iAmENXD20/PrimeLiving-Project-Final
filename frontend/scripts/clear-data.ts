@@ -23,7 +23,6 @@ async function clearAllData() {
     'tenants',
     'apartments',
     'apartment_managers',
-    'inquiries',
     'apartment_owners',
   ]
 

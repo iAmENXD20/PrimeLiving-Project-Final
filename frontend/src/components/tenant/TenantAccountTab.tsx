@@ -65,7 +65,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
         tenantId
           ? supabase
               .from('tenants')
-              .select('status, move_in_date, unit_id, apartmentowner_id')
+              .select('status, move_in_date, unit_id, apartmentowner_id, apartment_id')
               .eq('id', tenantId)
               .maybeSingle()
           : Promise.resolve({ data: null } as any),
@@ -91,11 +91,21 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
       if (resolvedClientId) {
         const { data: owner } = await supabase
           .from('apartment_owners')
-          .select('name, apartment_address')
+          .select('first_name, last_name')
           .eq('id', resolvedClientId)
           .maybeSingle()
-        setOwnerName(owner?.name || null)
-        setPropertyAddress(owner?.apartment_address || null)
+        setOwnerName(owner ? `${owner.first_name} ${owner.last_name}`.trim() : null)
+      }
+
+      // Get property address from the apartment record
+      const resolvedAptId = tenantRes?.data?.apartment_id as string | null
+      if (resolvedAptId) {
+        const { data: aptData } = await supabase
+          .from('apartments')
+          .select('address')
+          .eq('id', resolvedAptId)
+          .maybeSingle()
+        setPropertyAddress(aptData?.address || null)
       }
     }
 

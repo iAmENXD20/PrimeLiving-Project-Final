@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
 import ManagerSidebar from '../components/manager/ManagerSidebar'
 import ManagerTopBar from '../components/manager/ManagerTopBar'
-import { getCurrentManager, getManagerNotifications } from '../lib/managerApi'
+import { getCurrentManager, getManagerNotifications, getManagerDashboardStats } from '../lib/managerApi'
 import { supabase } from '../lib/supabase'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
 import { CardsSkeleton } from '../components/ui/skeleton'
@@ -30,7 +30,7 @@ export default function ManagerDashboard() {
       try {
         const data = await getCurrentManager()
         if (data) {
-          setManager({ id: data.id, name: data.name, clientId: data.apartmentowner_id, phone: data.phone })
+          setManager({ id: data.id, name: `${data.first_name} ${data.last_name}`.trim(), clientId: data.apartmentowner_id, phone: data.phone })
         } else {
           await supabase.auth.signOut()
           navigate('/login', { replace: true })
@@ -46,21 +46,21 @@ export default function ManagerDashboard() {
     loadManager()
   }, [navigate])
 
-  // Fetch pending maintenance count
+  // Fetch pending maintenance count using backend API (scoped to manager)
   useEffect(() => {
-    if (!manager?.clientId) return
+    if (!manager?.id) return
     async function fetchPendingCount() {
-      const { count } = await supabase
-        .from('maintenance')
-        .select('id', { count: 'exact', head: true })
-        .eq('apartmentowner_id', manager!.clientId!)
-        .eq('status', 'pending')
-      setPendingMaintenanceCount(count ?? 0)
+      try {
+        const stats = await getManagerDashboardStats(manager!.id)
+        setPendingMaintenanceCount(stats.pendingMaintenance ?? 0)
+      } catch {
+        // silent
+      }
     }
     fetchPendingCount()
     const interval = setInterval(fetchPendingCount, 30000)
     return () => clearInterval(interval)
-  }, [manager?.clientId])
+  }, [manager?.id])
 
   const fetchManagerNotifications = useCallback(async () => {
     if (!manager?.id || !manager.clientId) return []
@@ -91,7 +91,7 @@ export default function ManagerDashboard() {
 
   useBrowserNotifications({
     enabled: Boolean(manager?.id && manager?.clientId),
-    storageKey: `primeliving_browser_notifs_manager_${manager?.id || 'unknown'}`,
+    storageKey: `browser_notifs_manager_${manager?.id || 'unknown'}`,
     fetchNotifications: fetchManagerNotifications,
     pollMs: 30000,
   })
@@ -122,19 +122,19 @@ export default function ManagerDashboard() {
 
     switch (activeTab) {
       case 'overview':
-        return <ManagerOverviewTab managerId={manager.id} clientId={manager.clientId || ''} managerName={manager.name} />
+        return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} />
       case 'maintenance':
-        return <ManagerMaintenanceTab clientId={manager.clientId || ''} />
+        return <ManagerMaintenanceTab managerId={manager.id} />
       case 'manage-apartment':
-        return <ManagerManageApartmentTab clientId={manager.clientId || ''} managerName={manager.name} managerId={manager.id} />
+        return <ManagerManageApartmentTab managerId={manager.id} managerName={manager.name} />
       case 'payments':
-        return <ManagerPaymentsTab clientId={manager.clientId || ''} />
+        return <ManagerPaymentsTab managerId={manager.id} />
       case 'notifications':
         return <ManagerNotificationsTab managerId={manager.id} clientId={manager.clientId || ''} onRead={refreshNotificationCount} />
       case 'settings':
         return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} clientId={manager.clientId} />
       default:
-        return <ManagerOverviewTab managerId={manager.id} clientId={manager.clientId || ''} managerName={manager.name} />
+        return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} />
     }
   }
 

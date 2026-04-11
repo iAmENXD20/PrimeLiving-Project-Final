@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError } from "../utils/helpers";
+import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 import { sendSmsToMany } from "../utils/sms";
 import { createNotification, createNotifications } from "../utils/notifications";
 import { logActivity, resolveActorName } from "../utils/activityLog";
@@ -41,11 +41,19 @@ export async function getPayments(
 
     let query = supabaseAdmin
       .from("payments")
-      .select("*, tenants(name, email), apartments:unit_id(name)")
+      .select("*, tenants(first_name, last_name, email), apartments:unit_id(name)")
       .order("created_at", { ascending: false });
 
     if (req.query.apartmentowner_id) {
       query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
+    }
+    if (req.query.manager_id) {
+      const { unitIds } = await getManagerScope(req.query.manager_id as string);
+      if (unitIds.length === 0) {
+        sendSuccess(res, []);
+        return;
+      }
+      query = query.in("unit_id", unitIds);
     }
     if (tenantId) {
       query = query.eq("tenant_id", tenantId);
@@ -223,7 +231,7 @@ export async function getPaymentById(
 
     const { data, error } = await supabaseAdmin
       .from("payments")
-      .select("*, tenants(name, email), apartments:unit_id(name)")
+      .select("*, tenants(first_name, last_name, email), apartments:unit_id(name)")
       .eq("id", id)
       .single();
 
@@ -344,14 +352,16 @@ export async function submitPaymentProof(
           .eq("status", "active"),
         supabaseAdmin
           .from("tenants")
-          .select("name")
+          .select("first_name, last_name")
           .eq("id", tenant_id)
           .maybeSingle(),
       ]);
 
+      const tenantName = tenant ? `${tenant.first_name} ${tenant.last_name}`.trim() || "A tenant" : "A tenant";
+
       await sendSmsToMany(
         (managers || []).map((manager: any) => manager.phone),
-        `[PrimeLiving] ${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
+        `[PrimeLiving] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
         { unit_id: unit_id || null, apartmentowner_id }
       );
 
@@ -363,7 +373,7 @@ export async function submitPaymentProof(
           recipient_id: manager.id,
           type: "payment_proof_submitted",
           title: "Payment Proof Submitted",
-          message: `${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}.`,
+          message: `${tenantName} submitted payment proof for ${period_from} to ${period_to}.`,
         }))
       );
 
@@ -404,14 +414,16 @@ export async function submitPaymentProof(
         .eq("status", "active"),
       supabaseAdmin
         .from("tenants")
-        .select("name")
+        .select("first_name, last_name")
         .eq("id", tenant_id)
         .maybeSingle(),
     ]);
 
+    const tenantName = tenant ? `${tenant.first_name} ${tenant.last_name}`.trim() || "A tenant" : "A tenant";
+
     await sendSmsToMany(
       (managers || []).map((manager: any) => manager.phone),
-      `[PrimeLiving] ${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
+      `[PrimeLiving] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
       { unit_id: unit_id || null, apartmentowner_id }
     );
 
@@ -423,7 +435,7 @@ export async function submitPaymentProof(
         recipient_id: manager.id,
         type: "payment_proof_submitted",
         title: "Payment Proof Submitted",
-        message: `${tenant?.name || "A tenant"} submitted payment proof for ${period_from} to ${period_to}.`,
+        message: `${tenantName} submitted payment proof for ${period_from} to ${period_to}.`,
       }))
     );
 
@@ -822,7 +834,7 @@ export async function getVerifiedPayments(
 
     const { data, error } = await supabaseAdmin
       .from("payments")
-      .select("*, tenants:tenant_id(name), apartments:unit_id(name)")
+      .select("*, tenants:tenant_id(first_name, last_name), apartments:unit_id(name)")
       .eq("apartmentowner_id", apartmentownerId)
       .eq("verification_status", "verified")
       .neq("status", "paid")
@@ -835,7 +847,7 @@ export async function getVerifiedPayments(
 
     const results = (data || []).map((p: any) => ({
       ...p,
-      tenant_name: p.tenants?.name || null,
+      tenant_name: p.tenants ? `${p.tenants.first_name} ${p.tenants.last_name}`.trim() || null : null,
       apartment_name: p.apartments?.name || null,
       tenants: undefined,
       apartments: undefined,
@@ -849,28 +861,45 @@ export async function getVerifiedPayments(
 
 /**
  * POST /api/payments/generate-monthly
- * Generate pending billings for the current month for a given client.
- * For each active tenant, if there's no payment for the current month, creates a pending payment.
- * Also marks past-due pending payments as overdue.
+ * Generate pending billings for the current month.
+ * Supports both apartmentowner_id (all owner units) and manager_id (scoped to manager's branch).
  */
 export async function generateMonthlyBillings(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
-    const { apartmentowner_id } = req.body;
+    const { apartmentowner_id, manager_id } = req.body;
 
-    if (!apartmentowner_id) {
-      sendError(res, "apartmentowner_id is required", 400);
+    if (!apartmentowner_id && !manager_id) {
+      sendError(res, "apartmentowner_id or manager_id is required", 400);
       return;
     }
 
-    // 1. Get all apartments for this client
-    const { data: apartments } = await supabaseAdmin
-      .from("units")
-      .select("id, payment_due_day, monthly_rent")
-      .eq("apartmentowner_id", apartmentowner_id)
-      .eq("status", "active");
+    let apartments: any[] = [];
+
+    if (manager_id) {
+      // Scope to manager's assigned apartments
+      const { unitIds } = await getManagerScope(manager_id);
+      if (unitIds.length === 0) {
+        sendSuccess(res, { created: 0 }, "No units found for this manager");
+        return;
+      }
+      const { data } = await supabaseAdmin
+        .from("units")
+        .select("id, payment_due_day, monthly_rent, apartmentowner_id")
+        .in("id", unitIds)
+        .eq("status", "active");
+      apartments = data || [];
+    } else {
+      // 1. Get all apartments for this owner
+      const { data } = await supabaseAdmin
+        .from("units")
+        .select("id, payment_due_day, monthly_rent")
+        .eq("apartmentowner_id", apartmentowner_id)
+        .eq("status", "active");
+      apartments = data || [];
+    }
 
     if (!apartments || apartments.length === 0) {
       sendSuccess(res, { created: 0 }, "No apartments found");
@@ -899,12 +928,19 @@ export async function generateMonthlyBillings(
     const monthEnd = new Date(year, month + 1, 0).toISOString().split("T")[0];
 
     // 3. Get existing payments for this month
-    const { data: existingPayments } = await supabaseAdmin
+    let existingPaymentsQuery = supabaseAdmin
       .from("payments")
       .select("tenant_id, status")
-      .eq("apartmentowner_id", apartmentowner_id)
       .gte("period_from", monthStart)
       .lte("period_from", monthEnd);
+
+    if (manager_id) {
+      existingPaymentsQuery = existingPaymentsQuery.in("unit_id", apartmentIds);
+    } else {
+      existingPaymentsQuery = existingPaymentsQuery.eq("apartmentowner_id", apartmentowner_id);
+    }
+
+    const { data: existingPayments } = await existingPaymentsQuery;
 
     const paidOrPendingTenants = new Set(
       (existingPayments || []).map((p: any) => p.tenant_id).filter(Boolean)
@@ -932,7 +968,7 @@ export async function generateMonthlyBillings(
       });
 
       newPayments.push({
-        apartmentowner_id,
+        apartmentowner_id: apartmentowner_id || apt.apartmentowner_id,
         tenant_id: tenant.id,
         unit_id: tenant.unit_id,
         amount: apt.monthly_rent || 0,
@@ -953,25 +989,32 @@ export async function generateMonthlyBillings(
       }
     }
 
-    // 5. Mark existing pending payments as overdue if past due date
-    for (const apt of apartments) {
-      if (!apt.payment_due_day) continue;
-      const dueDay = Math.min(
-        apt.payment_due_day,
-        new Date(year, month + 1, 0).getDate()
-      );
-      const dueDate = new Date(year, month, dueDay);
+    // 5. Mark existing pending payments as overdue if past due date (batched single query)
+    const overdueUnitIds = apartments
+      .filter((apt: any) => {
+        if (!apt.payment_due_day) return false;
+        const dueDay = Math.min(
+          apt.payment_due_day,
+          new Date(year, month + 1, 0).getDate()
+        );
+        return now > new Date(year, month, dueDay);
+      })
+      .map((apt: any) => apt.id);
 
-      if (now > dueDate) {
-        await supabaseAdmin
-          .from("payments")
-          .update({ status: "overdue" })
-          .eq("apartmentowner_id", apartmentowner_id)
-          .eq("unit_id", apt.id)
-          .eq("status", "pending")
-          .gte("period_from", monthStart)
-          .lte("period_from", monthEnd);
+    if (overdueUnitIds.length > 0) {
+      let overdueQuery = supabaseAdmin
+        .from("payments")
+        .update({ status: "overdue" })
+        .in("unit_id", overdueUnitIds)
+        .eq("status", "pending")
+        .gte("period_from", monthStart)
+        .lte("period_from", monthEnd);
+
+      if (!manager_id && apartmentowner_id) {
+        overdueQuery = overdueQuery.eq("apartmentowner_id", apartmentowner_id);
       }
+
+      await overdueQuery;
     }
 
     sendSuccess(
@@ -985,7 +1028,7 @@ export async function generateMonthlyBillings(
         ? await resolveActorName(req.user.id, req.user.role, req.user.email)
         : "System";
       logActivity({
-        apartmentowner_id,
+        apartmentowner_id: apartmentowner_id || (apartments[0] as any)?.apartmentowner_id || null,
         actor_id: req.user?.id || null,
         actor_name: actorName,
         actor_role: (req.user?.role as "owner" | "manager") || "owner",
@@ -1003,7 +1046,7 @@ export async function generateMonthlyBillings(
 
 /**
  * GET /api/payments/pending-verifications
- * Get cash payments pending verification for a client
+ * Get cash payments pending verification for an owner
  */
 export async function getPendingVerifications(
   req: AuthenticatedRequest,
@@ -1011,18 +1054,31 @@ export async function getPendingVerifications(
 ): Promise<void> {
   try {
     const apartmentownerId = req.query.apartmentowner_id as string;
+    const managerId = req.query.manager_id as string;
 
-    if (!apartmentownerId) {
-      sendError(res, "apartmentowner_id query parameter is required", 400);
+    if (!apartmentownerId && !managerId) {
+      sendError(res, "apartmentowner_id or manager_id query parameter is required", 400);
       return;
     }
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("payments")
-      .select("*, tenants:tenant_id(name), apartments:unit_id(name)")
-      .eq("apartmentowner_id", apartmentownerId)
+      .select("*, tenants:tenant_id(first_name, last_name), apartments:unit_id(name)")
       .eq("verification_status", "pending_verification")
       .order("created_at", { ascending: false });
+
+    if (managerId) {
+      const { unitIds } = await getManagerScope(managerId);
+      if (unitIds.length === 0) {
+        sendSuccess(res, []);
+        return;
+      }
+      query = query.in("unit_id", unitIds);
+    } else {
+      query = query.eq("apartmentowner_id", apartmentownerId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       sendError(res, error.message, 500);
@@ -1031,7 +1087,7 @@ export async function getPendingVerifications(
 
     const results = (data || []).map((p: any) => ({
       ...p,
-      tenant_name: p.tenants?.name || null,
+      tenant_name: p.tenants ? `${p.tenants.first_name} ${p.tenants.last_name}`.trim() || null : null,
       apartment_name: p.apartments?.name || null,
       tenants: undefined,
       apartments: undefined,

@@ -24,13 +24,6 @@ import {
 } from "../src/controllers/apartments.controller";
 import { createClient, getClientLocation } from "../src/controllers/clients.controller";
 import { uploadDocument } from "../src/controllers/documents.controller";
-import {
-  getInquiries,
-  getInquiryById,
-  createInquiry,
-  updateInquiryStatus,
-  getPendingInquiryCount,
-} from "../src/controllers/inquiries.controller";
 import { uploadMaintenancePhoto } from "../src/controllers/maintenance.controller";
 import {
   getManagers,
@@ -326,7 +319,7 @@ describe("controller unit tests", () => {
     );
   });
 
-  it("payments.getPaymentQr validates clientId", async () => {
+  it("payments.getPaymentQr validates ownerId", async () => {
     const req = { params: {} } as any;
     const res = makeRes();
 
@@ -512,99 +505,6 @@ describe("controller unit tests", () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true, data: { count: 7 } })
-    );
-  });
-
-  it("inquiries.getInquiries returns list", async () => {
-    mocks.fromMock.mockImplementation((table: string) => {
-      if (table !== "inquiries") throw new Error(`unexpected table: ${table}`);
-      return makeQueryResult({ data: [{ id: "i-1", status: "pending" }] });
-    });
-
-    const req = { query: {} } as any;
-    const res = makeRes();
-
-    await getInquiries(req, res as any);
-
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: true, data: [{ id: "i-1", status: "pending" }] })
-    );
-  });
-
-  it("inquiries.getInquiryById maps query error to 404", async () => {
-    mocks.fromMock.mockImplementation((table: string) => {
-      if (table !== "inquiries") throw new Error(`unexpected table: ${table}`);
-      return makeQueryResult({ data: null, error: { message: "missing inquiry" } });
-    });
-
-    const req = { params: { id: "bad-id" } } as any;
-    const res = makeRes();
-
-    await getInquiryById(req, res as any);
-
-    expect(res.status).toHaveBeenCalledWith(404);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: "missing inquiry" })
-    );
-  });
-
-  it("inquiries.createInquiry returns 201 on success", async () => {
-    mocks.fromMock.mockImplementation((table: string) => {
-      if (table !== "inquiries") throw new Error(`unexpected table: ${table}`);
-      return makeQueryResult({ data: { id: "i-2", status: "pending" } });
-    });
-
-    const req = {
-      body: {
-        name: "Test User",
-        email: "test@example.com",
-        phone: "09123456789",
-        apartment_name: "Unit A",
-        message: "Need details",
-      },
-    } as any;
-    const res = makeRes();
-
-    await createInquiry(req, res as any);
-
-    expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: true, message: "Inquiry submitted successfully" })
-    );
-  });
-
-  it("inquiries.updateInquiryStatus returns success", async () => {
-    mocks.fromMock.mockImplementation((table: string) => {
-      if (table !== "inquiries") throw new Error(`unexpected table: ${table}`);
-      return makeQueryResult({ data: { id: "i-3", status: "responded" } });
-    });
-
-    const req = { params: { id: "i-3" }, body: { status: "responded" } } as any;
-    const res = makeRes();
-
-    await updateInquiryStatus(req, res as any);
-
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: true, message: "Inquiry status updated successfully" })
-    );
-  });
-
-  it("inquiries.getPendingInquiryCount returns count", async () => {
-    mocks.fromMock.mockImplementation((table: string) => {
-      if (table !== "inquiries") throw new Error(`unexpected table: ${table}`);
-      return makeQueryResult({ count: 3 });
-    });
-
-    const req = {} as any;
-    const res = makeRes();
-
-    await getPendingInquiryCount(req, res as any);
-
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: true, data: { count: 3 } })
     );
   });
 

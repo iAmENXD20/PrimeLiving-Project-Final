@@ -12,8 +12,8 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get("/", authorize("admin", "owner", "manager", "tenant"), getAnnouncements);
-router.get("/:id", authorize("admin", "owner", "manager", "tenant"), getAnnouncementById);
+router.get("/", authorize("owner", "manager", "tenant"), getAnnouncements);
+router.get("/:id", authorize("owner", "manager", "tenant"), getAnnouncementById);
 router.post("/", authorize("owner", "manager"), createAnnouncement);
 router.delete("/:id", authorize("owner", "manager"), deleteAnnouncement);
 

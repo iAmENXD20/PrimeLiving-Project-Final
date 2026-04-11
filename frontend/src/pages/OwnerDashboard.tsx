@@ -11,12 +11,13 @@ const OwnerAccountTab = lazy(() => import('../components/owner/OwnerAccountTab')
 const OwnerMaintenanceTab = lazy(() => import('../components/owner/OwnerMaintenanceTab'))
 const OwnerPaymentsTab = lazy(() => import('../components/owner/OwnerPaymentsTab'))
 const OwnerDocumentsTab = lazy(() => import('../components/owner/OwnerDocumentsTab'))
+const OwnerApartmentLogsTab = lazy(() => import('../components/owner/OwnerApartmentLogsTab'))
 
 export default function OwnerDashboard() {
   const { isDark } = useTheme()
   const [activeTab, setActiveTab] = useState('overview')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [owner, setOwner] = useState<{ id: string; name: string } | null>(null)
+  const [owner, setOwner] = useState<{ id: string; first_name: string; last_name: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -24,7 +25,7 @@ export default function OwnerDashboard() {
       try {
         const data = await getCurrentOwner()
         if (data) {
-          setOwner({ id: data.id, name: data.name })
+          setOwner({ id: data.id, first_name: data.first_name, last_name: data.last_name })
         }
       } catch (err) {
         console.error('Failed to load owner:', err)
@@ -61,25 +62,29 @@ export default function OwnerDashboard() {
 
     switch (activeTab) {
       case 'overview':
-        return <OwnerOverviewTab clientId={owner.id} ownerName={owner.name} />
+        return <OwnerOverviewTab clientId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
+      case 'units':
+        return <OwnerManageApartmentTab key="units" clientId={owner.id} mode="units" />
       case 'manage-apartment':
-        return <OwnerManageApartmentTab clientId={owner.id} />
+        return <OwnerManageApartmentTab key="manage" clientId={owner.id} mode="manage" />
       case 'maintenance':
-        return <OwnerMaintenanceTab clientId={owner.id} ownerName={owner.name} />
+        return <OwnerMaintenanceTab clientId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
       case 'payments':
         return <OwnerPaymentsTab clientId={owner.id} />
       case 'documents':
-        return <OwnerDocumentsTab clientId={owner.id} ownerName={owner.name} />
+        return <OwnerDocumentsTab clientId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
+      case 'audit-reports':
+        return <OwnerApartmentLogsTab clientId={owner.id} />
       case 'account':
         return <OwnerAccountTab clientId={owner.id} />
       default:
-        return <OwnerOverviewTab clientId={owner.id} ownerName={owner.name} />
+        return <OwnerOverviewTab clientId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
     }
   }
 
   return (
     <div
-      className={`min-h-screen ${
+      className={`h-screen overflow-hidden ${
         isDark ? 'bg-[#0A1628] text-white' : 'bg-gray-50 text-gray-900'
       }`}
     >
@@ -97,13 +102,14 @@ export default function OwnerDashboard() {
         onTabChange={handleTabChange}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        ownerName={owner ? `${owner.first_name} ${owner.last_name}`.trim() : ''}
       />
 
       {/* Main content area */}
-      <div className="lg:ml-60 flex flex-col min-h-screen">
+      <div className="lg:ml-64 flex flex-col h-screen">
         <OwnerTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-          ownerName={owner?.name}
+          ownerName={owner ? `${owner.first_name} ${owner.last_name}`.trim() : undefined}
         />
 
         {/* Page content */}

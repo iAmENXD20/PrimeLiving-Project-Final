@@ -1,7 +1,13 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, PhilippinePeso, Upload, Trash2, QrCode, Image as ImageIcon, ChevronDown, CheckCircle2, XCircle, X, Receipt, Clock } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+const LazyBarChart = lazy(() => import('recharts').then(m => ({ default: m.BarChart })))
+const LazyBar = lazy(() => import('recharts').then(m => ({ default: m.Bar })))
+const LazyXAxis = lazy(() => import('recharts').then(m => ({ default: m.XAxis })))
+const LazyYAxis = lazy(() => import('recharts').then(m => ({ default: m.YAxis })))
+const LazyCartesianGrid = lazy(() => import('recharts').then(m => ({ default: m.CartesianGrid })))
+const LazyTooltip = lazy(() => import('recharts').then(m => ({ default: m.Tooltip })))
+const LazyResponsiveContainer = lazy(() => import('recharts').then(m => ({ default: m.ResponsiveContainer })))
 import { useTheme } from '../../context/ThemeContext'
 import { toast } from 'sonner'
 import {
@@ -171,7 +177,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
     }
   }
 
-  const filtered = payments.filter((p) => {
+  const filtered = useMemo(() => payments.filter((p) => {
     if (filter !== 'all' && p.status !== filter) return false
     if (search) {
       const q = search.toLowerCase()
@@ -182,7 +188,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
       )
     }
     return true
-  })
+  }), [payments, filter, search])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -241,17 +247,18 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
   const now = new Date()
   const currentMonth = now.getMonth()
   const currentYear = now.getFullYear()
-  const monthlyPayments = payments.filter((p) => {
-    const d = new Date(p.payment_date)
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear
-  })
-
-  const totalRevenue = monthlyPayments
-    .filter((p) => p.status === 'paid')
-    .reduce((sum, p) => sum + Number(p.amount), 0)
-
-  const paidCount = monthlyPayments.filter((p) => p.status === 'paid').length
-  const notPaidCount = monthlyPayments.filter((p) => p.status !== 'paid').length
+  const { totalRevenue, paidCount, notPaidCount } = useMemo(() => {
+    const monthlyPayments = payments.filter((p) => {
+      const d = new Date(p.payment_date)
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+    })
+    const totalRevenue = monthlyPayments
+      .filter((p) => p.status === 'paid')
+      .reduce((sum, p) => sum + Number(p.amount), 0)
+    const paidCount = monthlyPayments.filter((p) => p.status === 'paid').length
+    const notPaidCount = monthlyPayments.filter((p) => p.status !== 'paid').length
+    return { totalRevenue, paidCount, notPaidCount }
+  }, [payments, currentMonth, currentYear])
 
   const monthLabel = now.toLocaleString('default', { month: 'long', year: 'numeric' })
 
@@ -692,26 +699,27 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
             </div>
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={revenueTrend} barCategoryGap="20%">
-            <CartesianGrid
+        <Suspense fallback={<div className="w-full h-[280px] flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+        <LazyResponsiveContainer width="100%" height={280}>
+          <LazyBarChart data={revenueTrend} barCategoryGap="20%">
+            <LazyCartesianGrid
               strokeDasharray="3 3"
               stroke={isDark ? '#1E293B' : '#e5e7eb'}
               vertical={false}
             />
-            <XAxis
+            <LazyXAxis
               dataKey="month"
               tick={{ fill: isDark ? '#94a3b8' : '#6b7280', fontSize: 12 }}
               axisLine={false}
               tickLine={false}
             />
-            <YAxis
+            <LazyYAxis
               tick={{ fill: isDark ? '#94a3b8' : '#6b7280', fontSize: 12 }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v: number) => `₱${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
             />
-            <Tooltip
+            <LazyTooltip
               contentStyle={{
                 backgroundColor: isDark ? '#111D32' : '#fff',
                 border: `1px solid ${isDark ? '#1E293B' : '#e5e7eb'}`,
@@ -726,10 +734,11 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
               ]}
               labelStyle={{ color: isDark ? '#94a3b8' : '#6b7280' }}
             />
-            <Bar dataKey="paid" fill="#059669" radius={[4, 4, 0, 0]} name="paid" />
-            <Bar dataKey="unpaid" fill="#EF4444" radius={[4, 4, 0, 0]} name="unpaid" />
-          </BarChart>
-        </ResponsiveContainer>
+            <LazyBar dataKey="paid" fill="#059669" radius={[4, 4, 0, 0]} name="paid" />
+            <LazyBar dataKey="unpaid" fill="#EF4444" radius={[4, 4, 0, 0]} name="unpaid" />
+          </LazyBarChart>
+        </LazyResponsiveContainer>
+        </Suspense>
         <div className="flex justify-center gap-6 mt-3">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm bg-primary" />

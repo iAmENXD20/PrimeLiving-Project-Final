@@ -12,6 +12,7 @@ import {
   createTenantAccount,
   updateTenantAccount,
   deleteTenantAccount,
+  getManagedApartments,
   type TenantAccount,
 } from '../../lib/managerApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
@@ -19,10 +20,10 @@ import TablePagination from '@/components/ui/table-pagination'
 import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface ManagerTenantsTabProps {
-  clientId: string
+  managerId: string
 }
 
-export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) {
+export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps) {
   const { isDark } = useTheme()
   const [search, setSearch] = useState('')
   const [openMenu, setOpenMenu] = useState<string | null>(null)
@@ -49,10 +50,11 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
   const [page, setPage] = useState(1)
   const pageSize = 10
   const tenantEmailValidation = useEmailValidation(form.email)
+  const ownerIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     loadData()
-  }, [clientId])
+  }, [managerId])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -75,8 +77,15 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
   async function loadData() {
     try {
       setLoading(true)
-      const tenantData = await getManagerTenants(clientId)
+      const [tenantData, apartments] = await Promise.all([
+        getManagerTenants(managerId),
+        getManagedApartments(managerId),
+      ])
       setTenants(tenantData)
+      // Store apartmentowner_id from managed apartments for tenant creation
+      if (apartments?.[0]?.apartmentowner_id) {
+        ownerIdRef.current = apartments[0].apartmentowner_id
+      }
     } catch (err) {
       console.error('Failed to load tenants:', err)
     } finally {
@@ -92,12 +101,9 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
 
   function openEditModal(tenant: TenantAccount) {
     setEditingTenant(tenant)
-    const nameParts = (tenant.name || '').split(' ')
-    const firstName = nameParts[0] || ''
-    const lastName = nameParts.slice(1).join(' ') || ''
     setForm({
-      firstName,
-      lastName,
+      firstName: tenant.first_name || '',
+      lastName: tenant.last_name || '',
       email: tenant.email || '',
       phone: (tenant.phone || '').replace(/^\+63/, ''),
       sex: (tenant as any).sex || '',
@@ -107,9 +113,17 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
     setOpenMenu(null)
   }
 
+  function handleNameInput(value: string) {
+    return value.replace(/[^a-zA-Z\s'-]/g, '')
+  }
+
   async function handleSave() {
     if (!form.firstName || !form.email) {
       toast.error('First name and email are required')
+      return
+    }
+
+    if (form.age && (isNaN(Number(form.age)) || Number(form.age) < 18)) {
       return
     }
 
@@ -123,7 +137,8 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
       setSaving(true)
       if (editingTenant) {
         const updated = await updateTenantAccount(editingTenant.id, {
-          name: fullName,
+          first_name: form.firstName.trim(),
+          last_name: form.lastName.trim(),
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
         })
@@ -132,12 +147,13 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
         setShowModal(false)
       } else {
         const result = await createTenantAccount({
-          name: fullName,
+          first_name: form.firstName.trim(),
+          last_name: form.lastName.trim(),
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
           sex: form.sex || undefined,
           age: form.age || undefined,
-          apartmentowner_id: clientId,
+          apartmentowner_id: ownerIdRef.current || '',
         })
         setTenants((prev) => [result.tenant, ...prev])
         setShowModal(false)
@@ -178,7 +194,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
 
   const filtered = tenants.filter(
     (t) =>
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
+      `${t.first_name} ${t.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
       (t.email || '').toLowerCase().includes(search.toLowerCase())
   )
 
@@ -263,7 +279,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                       }`}
                     >
                       <td className={`py-3.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {tenant.name}
+                        {tenant.first_name} {tenant.last_name}
                       </td>
                       <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                         {tenant.email || '—'}
@@ -377,7 +393,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                     <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>First Name</Label>
                     <Input
                       value={form.firstName}
-                      onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                      onChange={(e) => setForm({ ...form, firstName: handleNameInput(e.target.value) })}
                       placeholder="First name"
                       className={inputClass}
                     />
@@ -386,7 +402,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                     <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Last Name</Label>
                     <Input
                       value={form.lastName}
-                      onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                      onChange={(e) => setForm({ ...form, lastName: handleNameInput(e.target.value) })}
                       placeholder="Last name"
                       className={inputClass}
                     />
@@ -424,13 +440,19 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
                     <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Age</Label>
                     <Input
                       type="number"
-                      min={1}
+                      min={18}
                       max={120}
                       value={form.age}
-                      onChange={(e) => setForm({ ...form, age: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^0-9]/g, '')
+                        setForm({ ...form, age: val })
+                      }}
                       placeholder="Age"
-                      className={inputClass}
+                      className={`${inputClass} ${form.age && Number(form.age) < 18 ? 'border-red-500 focus:ring-red-500/50' : ''}`}
                     />
+                    {form.age && Number(form.age) < 18 && (
+                      <p className="text-xs text-red-500 mt-1">Must be at least 18 years old</p>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -622,7 +644,7 @@ export default function ManagerTenantsTab({ clientId }: ManagerTenantsTabProps) 
         open={Boolean(tenantToDelete)}
         isDark={isDark}
         title="Delete Tenant?"
-        description={tenantToDelete ? `This will deactivate ${tenantToDelete.name}'s tenant account.` : 'This action cannot be undone.'}
+        description={tenantToDelete ? `This will deactivate ${tenantToDelete.first_name} ${tenantToDelete.last_name}'s tenant account.` : 'This action cannot be undone.'}
         confirmText="Delete"
         loading={deleting}
         onCancel={() => setTenantToDelete(null)}

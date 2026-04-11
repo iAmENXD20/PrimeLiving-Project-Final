@@ -2,7 +2,7 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError } from "../utils/helpers";
+import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 import { isValidEmailFormat } from "../utils/emailValidation";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 
@@ -25,7 +25,7 @@ export async function getTenants(
     const apartmentownerId = req.query.apartmentowner_id as string | undefined;
     const requesterRole = req.user?.role;
     const includeInactive =
-      req.query.include_inactive === "true" || requesterRole === "admin";
+      req.query.include_inactive === "true" || requesterRole === "owner";
     let query = supabaseAdmin
       .from("tenants")
       .select("*")
@@ -59,6 +59,15 @@ export async function getTenants(
       } else {
         query = query.eq("apartmentowner_id", apartmentownerId);
       }
+    }
+
+    if (req.query.manager_id) {
+      const { unitIds } = await getManagerScope(req.query.manager_id as string);
+      if (unitIds.length === 0) {
+        sendSuccess(res, []);
+        return;
+      }
+      query = query.in("unit_id", unitIds);
     }
 
     const { data, error } = await query;
@@ -117,7 +126,7 @@ export async function getTenantByAuthId(
       .from("tenants")
       .select("*")
       .eq("auth_user_id", authUserId)
-      .eq("status", "active")
+      .in("status", ["active", "pending_verification"])
       .single();
 
     if (error) {
@@ -140,7 +149,7 @@ export async function createTenant(
   res: Response
 ): Promise<void> {
   try {
-    const { name, email, phone, unit_id, apartmentowner_id, create_auth_account, sex, age } =
+    const { first_name, last_name, email, phone, unit_id, apartmentowner_id, create_auth_account, sex, age } =
       req.body;
     const normalizedEmail =
       typeof email === "string" ? email.trim().toLowerCase() : null;
@@ -187,7 +196,7 @@ export async function createTenant(
       const { data: inviteData, error: authError } =
         await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail, {
           redirectTo: getInviteRedirectUrl(),
-          data: { role: "tenant", name },
+          data: { role: "tenant", name: `${first_name} ${last_name}`.trim(), login_email: normalizedEmail },
         });
 
       if (authError) {
@@ -207,7 +216,8 @@ export async function createTenant(
       .from("tenants")
       .insert({
         auth_user_id: authUserId,
-        name,
+        first_name,
+        last_name: last_name || '',
         email: normalizedEmail,
         phone,
         sex: sex || null,
@@ -247,8 +257,8 @@ export async function createTenant(
       action: "tenant_added",
       entity_type: "tenant",
       entity_id: data.id,
-      description: `Added tenant ${name}${normalizedEmail ? ` (${normalizedEmail})` : ""}`,
-      metadata: { name, email: normalizedEmail || "", phone: phone || "" },
+      description: `Added tenant ${first_name} ${last_name}`.trim() + `${normalizedEmail ? ` (${normalizedEmail})` : ""}`,
+      metadata: { first_name, last_name, email: normalizedEmail || "", phone: phone || "" },
     });
   } catch (err: any) {
     sendError(res, err.message, 500);
@@ -307,7 +317,7 @@ export async function updateTenant(
           action: "tenant_updated",
           entity_type: "tenant",
           entity_id: id,
-          description: `Updated tenant ${data.name}`,
+          description: `Updated tenant ${data.first_name} ${data.last_name}`.trim(),
           metadata: { changes },
         });
       }
@@ -331,7 +341,7 @@ export async function deleteTenant(
     // Fetch record before soft-delete for logging
     const { data: tenant } = await supabaseAdmin
       .from("tenants")
-      .select("name, apartmentowner_id")
+      .select("first_name, last_name, apartmentowner_id")
       .eq("id", id)
       .single();
 
@@ -370,7 +380,7 @@ export async function deleteTenant(
         action: "tenant_removed",
         entity_type: "tenant",
         entity_id: id,
-        description: `Removed tenant ${tenant.name}`,
+        description: `Removed tenant ${tenant.first_name} ${tenant.last_name}`.trim(),
       });
     }
   } catch (err: any) {
@@ -387,7 +397,7 @@ export async function assignTenantToUnit(
   res: Response
 ): Promise<void> {
   try {
-    const { unit_id, tenant_id, name, phone, monthly_rent, start_at } = req.body;
+    const { unit_id, tenant_id, first_name, last_name, phone, monthly_rent, start_at } = req.body;
     const resolvedStartDate =
       typeof start_at === "string" && start_at.trim().length > 0
         ? start_at.trim()
@@ -463,12 +473,12 @@ export async function assignTenantToUnit(
         sendError(res, assignError.message, 500);
         return;
       }
-    } else if (name) {
+    } else if (first_name) {
       if (existing) {
         // Update existing tenant's info
         const { error } = await supabaseAdmin
           .from("tenants")
-          .update({ name, phone: phone || null, move_in_date: resolvedStartDate })
+          .update({ first_name, last_name: last_name || '', phone: phone || null, move_in_date: resolvedStartDate })
           .eq("id", existing.id);
         if (error) {
           sendError(res, error.message, 500);
@@ -477,7 +487,8 @@ export async function assignTenantToUnit(
       } else {
         // Create new tenant
         const { error } = await supabaseAdmin.from("tenants").insert({
-          name,
+          first_name,
+          last_name: last_name || '',
           phone: phone || null,
           unit_id: unit_id,
           apartmentowner_id: apt.apartmentowner_id,
@@ -516,8 +527,8 @@ export async function assignTenantToUnit(
         action: "tenant_assigned_to_unit",
         entity_type: "tenant",
         entity_id: tenant_id || null,
-        description: `Assigned tenant ${name || tenant_id} to unit`,
-        metadata: { unit_id, tenant_id, name, start_at: resolvedStartDate },
+        description: `Assigned tenant ${first_name ? `${first_name} ${last_name || ''}`.trim() : tenant_id} to unit`,
+        metadata: { unit_id, tenant_id, first_name, last_name, start_at: resolvedStartDate },
       });
     }
   } catch (err: any) {
@@ -648,6 +659,200 @@ export async function getTenantCount(
     }
 
     sendSuccess(res, { count });
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * PUT /api/tenants/confirm-activation
+ * After user sets password, change status from 'pending' to 'pending_verification'
+ * and save ID verification data. Works for both managers and tenants.
+ */
+export async function confirmActivation(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const authUserId = req.user?.id;
+    if (!authUserId) {
+      sendError(res, "Unauthorized", 401);
+      return;
+    }
+
+    const { id_type, id_type_other, id_front_photo_url, id_back_photo_url } = req.body;
+
+    // Try tenant first
+    const { data: tenant, error: tenantError } = await supabaseAdmin
+      .from("tenants")
+      .select("id, status, apartmentowner_id")
+      .eq("auth_user_id", authUserId)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (tenant) {
+      const { error: updateError } = await supabaseAdmin
+        .from("tenants")
+        .update({
+          status: "pending_verification",
+          id_type: id_type || null,
+          id_type_other: id_type_other || null,
+          id_front_photo_url: id_front_photo_url || null,
+          id_back_photo_url: id_back_photo_url || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", tenant.id);
+
+      if (updateError) {
+        sendError(res, updateError.message, 500);
+        return;
+      }
+
+      sendSuccess(res, null, "Account is now pending verification");
+      return;
+    }
+
+    // Try manager
+    const { data: manager, error: managerError } = await supabaseAdmin
+      .from("apartment_managers")
+      .select("id, status, apartmentowner_id")
+      .eq("auth_user_id", authUserId)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (manager) {
+      const { error: updateError } = await supabaseAdmin
+        .from("apartment_managers")
+        .update({
+          status: "pending_verification",
+          id_type: id_type || null,
+          id_type_other: id_type_other || null,
+          id_front_photo_url: id_front_photo_url || null,
+          id_back_photo_url: id_back_photo_url || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", manager.id);
+
+      if (updateError) {
+        sendError(res, updateError.message, 500);
+        return;
+      }
+
+      sendSuccess(res, null, "Account is now pending verification");
+      return;
+    }
+
+    sendError(res, "Account not found or already activated", 404);
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * PUT /api/tenants/:id/approve
+ * Owner approves tenant — changes status from 'pending_verification' to 'active'
+ */
+export async function approveTenant(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    const { data: tenant, error: findError } = await supabaseAdmin
+      .from("tenants")
+      .select("id, status, first_name, last_name, apartmentowner_id")
+      .eq("id", id)
+      .single();
+
+    if (findError || !tenant) {
+      sendError(res, "Tenant not found", 404);
+      return;
+    }
+
+    if (tenant.status !== "pending_verification") {
+      sendError(res, "Tenant is not pending verification", 400);
+      return;
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from("tenants")
+      .update({ status: "active", updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (updateError) {
+      sendError(res, updateError.message, 500);
+      return;
+    }
+
+    sendSuccess(res, null, "Tenant approved successfully");
+
+    if (tenant.apartmentowner_id) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "System";
+      logActivity({
+        apartmentowner_id: tenant.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: (req.user?.role as "owner" | "manager") || "owner",
+        action: "tenant_approved",
+        entity_type: "tenant",
+        entity_id: tenant.id,
+        description: `Approved tenant account: ${tenant.first_name} ${tenant.last_name}`.trim(),
+        metadata: { tenant_id: tenant.id },
+      });
+    }
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * GET /api/tenants/:id/id-photos
+ * Get signed URLs for a tenant's uploaded ID photos
+ */
+export async function getTenantIdPhotos(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    const { data: tenant, error } = await supabaseAdmin
+      .from("tenants")
+      .select("id_type, id_type_other, id_front_photo_url, id_back_photo_url")
+      .eq("id", id)
+      .single();
+
+    if (error || !tenant) {
+      sendError(res, "Tenant not found", 404);
+      return;
+    }
+
+    let frontUrl = null;
+    let backUrl = null;
+
+    if (tenant.id_front_photo_url) {
+      const { data } = await supabaseAdmin.storage
+        .from("verification-ids")
+        .createSignedUrl(tenant.id_front_photo_url, 300);
+      frontUrl = data?.signedUrl || null;
+    }
+
+    if (tenant.id_back_photo_url) {
+      const { data } = await supabaseAdmin.storage
+        .from("verification-ids")
+        .createSignedUrl(tenant.id_back_photo_url, 300);
+      backUrl = data?.signedUrl || null;
+    }
+
+    sendSuccess(res, {
+      id_type: tenant.id_type,
+      id_type_other: tenant.id_type_other,
+      front_url: frontUrl,
+      back_url: backUrl,
+    });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

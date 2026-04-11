@@ -18,7 +18,7 @@ import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
 interface ManagerPaymentsTabProps {
-  clientId: string
+  managerId: string
 }
 
 const STATUS_OPTIONS = ['all', 'paid', 'pending', 'overdue'] as const
@@ -36,7 +36,7 @@ const statusBadge: Record<Payment['status'], { bg: string; text: string }> = {
   overdue: { bg: 'bg-red-400/15', text: 'text-red-400' },
 }
 
-export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps) {
+export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProps) {
   const { isDark } = useTheme()
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,8 +75,8 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
   async function load() {
     try {
       // Generate billings first, then load payments
-      await generateMonthlyBillings(clientId)
-      const data = await getPayments(clientId)
+      await generateMonthlyBillings(managerId)
+      const data = await getPayments(managerId)
       setPayments(data)
     } catch (err) {
       console.error('Failed to load payments:', err)
@@ -87,7 +87,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
 
   async function loadVerifications() {
     try {
-      const data = await getPendingCashVerifications(clientId)
+      const data = await getPendingCashVerifications(managerId)
       setPendingVerifications(data)
     } catch (err) {
       console.error('Failed to load verifications:', err)
@@ -98,7 +98,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
 
   async function loadTenants() {
     try {
-      const data = await getManagerTenants(clientId)
+      const data = await getManagerTenants(managerId)
       setTenants(data.filter(t => t.status === 'active'))
     } catch (err) {
       console.error('Failed to load tenants:', err)
@@ -132,7 +132,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
     }
   }
 
-  useEffect(() => { load(); loadVerifications(); loadTenants() }, [clientId])
+  useEffect(() => { load(); loadVerifications(); loadTenants() }, [managerId])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -642,7 +642,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                       {recordForm.tenantId
                         ? (() => {
                             const t = tenants.find((tenant) => tenant.id === recordForm.tenantId)
-                            return t ? `${t.name} ${t.apartment_name ? `— ${t.apartment_name}` : ''}` : 'Select a tenant'
+                            return t ? `${t.first_name} ${t.last_name} ${t.apartment_name ? `— ${t.apartment_name}` : ''}` : 'Select a tenant'
                           })()
                         : 'Select a tenant'}
                     </span>
@@ -670,7 +670,7 @@ export default function ManagerPaymentsTab({ clientId }: ManagerPaymentsTabProps
                               : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       >
-                        {t.name} {t.apartment_name ? `— ${t.apartment_name}` : ''}
+                        {t.first_name} {t.last_name} {t.apartment_name ? `— ${t.apartment_name}` : ''}
                       </button>
                     ))}
                   </div>

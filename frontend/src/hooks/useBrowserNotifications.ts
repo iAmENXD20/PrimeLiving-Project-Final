@@ -64,7 +64,7 @@ export default function useBrowserNotifications({
     const showNotification = (item: BrowserNotificationItem) => {
       if (Notification.permission !== 'granted') return
 
-      const notification = new Notification(item.title || 'PrimeLiving Notification', {
+      const notification = new Notification(item.title || 'Notification', {
         body: item.message,
         tag: item.id,
         silent: false,
@@ -112,11 +112,23 @@ export default function useBrowserNotifications({
       syncNotifications()
     })
 
-    const interval = window.setInterval(syncNotifications, pollMs)
+    let interval = window.setInterval(syncNotifications, pollMs)
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        window.clearInterval(interval)
+      } else {
+        syncNotifications()
+        interval = window.setInterval(syncNotifications, pollMs)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       active = false
       window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [enabled, fetchNotifications, pollMs, storageKey])
 }

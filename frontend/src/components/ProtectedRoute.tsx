@@ -12,7 +12,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     // Get the current session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       // If session exists but "remember me" was not checked and browser was reopened, sign out
-      if (session && !localStorage.getItem('primeliving-remember') && !sessionStorage.getItem('primeliving-session-active')) {
+      if (session && !localStorage.getItem('app-remember') && !sessionStorage.getItem('app-session-active')) {
         await supabase.auth.signOut()
         setSession(null)
         setLoading(false)

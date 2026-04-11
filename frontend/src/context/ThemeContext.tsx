@@ -12,7 +12,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 function getInitialTheme(): Theme {
   if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('primeliving-theme') as Theme | null
+    const stored = localStorage.getItem('app-theme') as Theme | null
     if (stored === 'light' || stored === 'dark') return stored
     // Check system preference
     if (window.matchMedia('(prefers-color-scheme: light)').matches) return 'light'
@@ -33,7 +33,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       root.classList.add('light')
     }
 
-    localStorage.setItem('primeliving-theme', theme)
+    localStorage.setItem('app-theme', theme)
   }, [theme])
 
   const toggleTheme = () => {
