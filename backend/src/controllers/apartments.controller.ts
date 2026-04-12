@@ -431,7 +431,7 @@ export async function getApartmentsWithTenants(
     // Get active tenants for these apartments
     const { data: tenants, error: tenError } = await supabaseAdmin
       .from("tenants")
-      .select("id, name, phone, unit_id")
+      .select("id, first_name, last_name, phone, unit_id")
       .eq("status", "active")
       .in("unit_id", aptIds);
 

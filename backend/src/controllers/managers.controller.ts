@@ -7,10 +7,7 @@ import { isValidEmailFormat } from "../utils/emailValidation";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 
 function getInviteRedirectUrl(): string {
-  const normalizedBase = env.FRONTEND_URL.replace(/\/+$/, "");
-  return normalizedBase.endsWith("/invite/confirm")
-    ? normalizedBase
-    : `${normalizedBase}/invite/confirm`;
+  return env.FRONTEND_URL.replace(/\/+$/, "") + "/invite/confirm";
 }
 
 /**
@@ -474,7 +471,7 @@ export async function approveManager(
       return;
     }
 
-    if (manager.status !== "pending_verification") {
+    if (manager.status !== "pending_verification" && manager.status !== "pending") {
       sendError(res, "Manager is not awaiting approval", 400);
       return;
     }

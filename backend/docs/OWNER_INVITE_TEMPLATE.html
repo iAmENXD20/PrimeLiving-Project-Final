@@ -7,7 +7,7 @@
           <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
             <tr>
               <td style="background:#064E3B;padding:24px 28px;">
-                <h1 style="margin:0;font-size:24px;line-height:30px;color:#ffffff;">Welcome to PrimeLiving</h1>
+                <h1 style="margin:0;font-size:24px;line-height:30px;color:#ffffff;">Welcome to Geeb Apartment</h1>
                 <p style="margin:8px 0 0;font-size:14px;line-height:20px;color:#cbd5e1;">Account activation invitation</p>
               </td>
             </tr>
@@ -15,7 +15,7 @@
               <td style="padding:28px;">
                 <p style="margin:0 0 16px;font-size:15px;line-height:24px;">Hi {{ .Data.name }},</p>
                 <p style="margin:0 0 16px;font-size:15px;line-height:24px;">
-                  Your owner account has been created in PrimeLiving. Please verify your email and activate your account.
+                  Your owner account has been created in Geeb Apartment. Please verify your email and activate your account.
                 </p>
 
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin:16px 0;">
@@ -42,7 +42,7 @@
                 </table>
 
                 <p style="margin:22px 0 24px;">
-                  <a href="{{ .RedirectTo }}/invite/confirm?token_hash={{ .TokenHash }}&type=invite" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-size:14px;font-weight:700;">
+                  <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=invite" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-size:14px;font-weight:700;">
                     Verify & Activate Account
                   </a>
                 </p>
@@ -51,13 +51,13 @@
                   If the button does not work, copy this link into your browser:
                 </p>
                 <p style="margin:0;word-break:break-all;font-size:12px;line-height:18px;color:#475569;">
-                  {{ .RedirectTo }}/invite/confirm?token_hash={{ .TokenHash }}&type=invite
+                  {{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=invite
                 </p>
               </td>
             </tr>
             <tr>
               <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 28px;">
-                <p style="margin:0;font-size:12px;line-height:18px;color:#64748b;">PrimeLiving Property Management</p>
+                <p style="margin:0;font-size:12px;line-height:18px;color:#64748b;">Geeb Apartment Management</p>
               </td>
             </tr>
           </table>

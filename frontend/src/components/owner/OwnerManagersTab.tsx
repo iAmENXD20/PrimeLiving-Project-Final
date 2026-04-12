@@ -25,7 +25,7 @@ interface Manager {
   phone: string | null
   status: string
   joined_date: string
-  apartments?: { id: string; name: string; address: string }[]
+  apartment?: { id: string; name: string; address: string } | null
 }
 
 export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
@@ -260,10 +260,10 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
                       </span>
                     </td>
                     <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {manager.apartments?.length ? manager.apartments.map(a => a.name).join(', ') : '—'}
+                      {manager.apartment?.name || '—'}
                     </td>
                     <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {manager.apartments?.length ? manager.apartments.map(a => a.address).join(', ') : '—'}
+                      {manager.apartment?.address || '—'}
                     </td>
                     <td className={`py-3.5 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {manager.joined_date ? new Date(manager.joined_date).toLocaleDateString() : '—'}

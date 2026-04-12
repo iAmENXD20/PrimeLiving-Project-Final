@@ -40,7 +40,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/api/health", (_req, res) => {
   res.json({
     success: true,
-    message: "PrimeLiving API is running",
+    message: "Geeb Apartment API is running",
     environment: env.NODE_ENV,
     timestamp: new Date().toISOString(),
   });

@@ -3,11 +3,14 @@ import api from './apiClient'
 // ── Types ──────────────────────────────────────────────────
 export interface Owner {
   id: string
-  name: string
+  first_name: string
+  last_name: string
   email: string
   phone: string | null
   status: 'active' | 'inactive'
-  apartments?: number // computed from join
+  auth_user_id?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Apartment {
@@ -24,12 +27,16 @@ export interface Apartment {
 
 export interface Tenant {
   id: string
-  name: string
+  first_name: string
+  last_name: string
   email: string | null
   phone: string | null
   unit_id: string | null
-  status: 'active' | 'inactive'
+  apartmentowner_id: string | null
+  status: 'active' | 'inactive' | 'pending' | 'pending_verification'
   move_in_date: string
+  auth_user_id?: string | null
+  created_at?: string
 }
 
 export interface Manager {
@@ -39,8 +46,10 @@ export interface Manager {
   email: string
   phone: string | null
   apartmentowner_id: string | null
+  apartment_id?: string | null
+  apartment?: { id: string; name: string; address: string } | null
   client_name?: string // computed from join
-  status: 'active' | 'inactive'
+  status: 'active' | 'inactive' | 'pending'
   joined_date: string
   created_at: string
 }
@@ -78,7 +87,7 @@ export async function getOwners() {
 }
 
 export async function createOwner(owner: {
-  name: string; email: string; phone?: string;
+  first_name: string; last_name: string; email: string; phone?: string;
 }) {
   const result = await api.post<Owner & { generatedPassword?: string; requiresEmailVerification?: boolean }>('/owners', owner)
   return {
@@ -125,7 +134,7 @@ export async function getManagers() {
   })) as Manager[]
 }
 
-export async function createManager(manager: { name: string; email: string; phone?: string; apartmentowner_id?: string }) {
+export async function createManager(manager: { firstName: string; lastName: string; email: string; phone?: string; apartmentowner_id?: string }) {
   const result = await api.post<Manager & { generatedPassword: string }>('/managers', manager)
   return result
 }

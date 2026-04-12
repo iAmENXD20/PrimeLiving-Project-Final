@@ -219,8 +219,9 @@ export default function InviteConfirmPage() {
         id_front_photo_url: idPhotoUrl,
         id_back_photo_url: idBackPhotoUrl,
       })
-    } catch {
-      // Non-blocking — status update is best-effort
+    } catch (activationErr: any) {
+      console.error('Activation API error:', activationErr)
+      // Continue anyway — photos are already uploaded to storage
     }
 
     setSuccessMessage("You're all set! Your account is currently under review by management for verification.")

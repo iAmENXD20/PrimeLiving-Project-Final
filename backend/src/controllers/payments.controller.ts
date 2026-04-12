@@ -361,7 +361,7 @@ export async function submitPaymentProof(
 
       await sendSmsToMany(
         (managers || []).map((manager: any) => manager.phone),
-        `[PrimeLiving] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
+        `[Geeb Apartment] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
         { unit_id: unit_id || null, apartmentowner_id }
       );
 
@@ -423,7 +423,7 @@ export async function submitPaymentProof(
 
     await sendSmsToMany(
       (managers || []).map((manager: any) => manager.phone),
-      `[PrimeLiving] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
+      `[Geeb Apartment] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
       { unit_id: unit_id || null, apartmentowner_id }
     );
 
@@ -592,7 +592,7 @@ export async function verifyPayment(
       // Notify tenant
       await sendSmsToMany(
         [tenant?.phone],
-        `[PrimeLiving] Your payment has been verified by the manager. Awaiting owner approval.`,
+        `[Geeb Apartment] Your payment has been verified by the manager. Awaiting owner approval.`,
         { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 
@@ -610,7 +610,7 @@ export async function verifyPayment(
     } else {
       await sendSmsToMany(
         [tenant?.phone],
-        `[PrimeLiving] Your payment has been ${verification_status}.`,
+        `[Geeb Apartment] Your payment has been ${verification_status}.`,
         { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 
@@ -721,7 +721,7 @@ export async function approvePayment(
 
       await sendSmsToMany(
         [tenant?.phone],
-        `[PrimeLiving] Your payment has been approved by the owner. Thank you!`,
+        `[Geeb Apartment] Your payment has been approved by the owner. Thank you!`,
         { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 
@@ -776,7 +776,7 @@ export async function approvePayment(
 
       await sendSmsToMany(
         [tenant?.phone],
-        `[PrimeLiving] Your payment has been rejected by the owner.`,
+        `[Geeb Apartment] Your payment has been rejected by the owner.`,
         { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 

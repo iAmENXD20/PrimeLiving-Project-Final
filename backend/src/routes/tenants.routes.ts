@@ -27,7 +27,7 @@ router.get("/", authorize("owner", "manager"), cacheResponse({ namespace: "tenan
 router.get("/:id", authorize("owner", "manager", "tenant"), cacheResponse({ namespace: "tenants", ttlSeconds: 20 }), getTenantById);
 router.post("/assign-unit", authorize("owner", "manager"), invalidateCache(["tenants", "apartments", "analytics", "payments"]), assignTenantToUnit);
 router.post("/remove-from-unit", authorize("owner", "manager"), invalidateCache(["tenants", "apartments", "analytics"]), removeTenantFromUnit);
-router.put("/confirm-activation", authorize("tenant"), invalidateCache(["tenants"]), confirmActivation);
+router.put("/confirm-activation", authorize("tenant", "manager"), invalidateCache(["tenants", "apartment_managers"]), confirmActivation);
 router.get("/:id/id-photos", authorize("owner", "manager"), getTenantIdPhotos);
 router.put("/:id/approve", authorize("owner", "manager"), invalidateCache(["tenants", "analytics"]), approveTenant);
 router.post("/", authorize("owner", "manager"), invalidateCache(["tenants", "analytics"]), createTenant);

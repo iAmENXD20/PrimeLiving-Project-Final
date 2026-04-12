@@ -7,10 +7,7 @@ import { isValidEmailFormat } from "../utils/emailValidation";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 
 function getInviteRedirectUrl(): string {
-  const normalizedBase = env.FRONTEND_URL.replace(/\/+$/, "");
-  return normalizedBase.endsWith("/invite/confirm")
-    ? normalizedBase
-    : `${normalizedBase}/invite/confirm`;
+  return env.FRONTEND_URL.replace(/\/+$/, "") + "/invite/confirm";
 }
 
 /**
@@ -770,7 +767,7 @@ export async function approveTenant(
       return;
     }
 
-    if (tenant.status !== "pending_verification") {
+    if (tenant.status !== "pending_verification" && tenant.status !== "pending") {
       sendError(res, "Tenant is not pending verification", 400);
       return;
     }

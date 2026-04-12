@@ -44,7 +44,7 @@ function App() {
         <Route path="/login" element={<Suspense fallback={<PageLoader />}><LoginPage /></Suspense>} />
         <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPasswordPage /></Suspense>} />
         <Route path="/invite/confirm" element={<Suspense fallback={<PageLoader />}><InviteConfirmPage /></Suspense>} />
-        <Route path="/invite/confirm/invite/confirm" element={<Suspense fallback={<PageLoader />}><InviteConfirmPage /></Suspense>} />
+        <Route path="/invite/confirm/*" element={<Suspense fallback={<PageLoader />}><InviteConfirmPage /></Suspense>} />
         <Route path="/owner" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><OwnerDashboard /></Suspense></ProtectedRoute>} />
         <Route path="/manager" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><ManagerDashboard /></Suspense></ProtectedRoute>} />
         <Route path="/tenant" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><TenantDashboard /></Suspense></ProtectedRoute>} />

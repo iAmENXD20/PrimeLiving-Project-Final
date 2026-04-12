@@ -34,8 +34,10 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
   const [page, setPage] = useState(1)
   const pageSize = 10
   const today = new Date()
-  const [selectedMonth] = useState<number>(today.getMonth() + 1)
-  const [selectedYear] = useState(today.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear())
+
+  const yearOptions = Array.from({ length: 5 }, (_, i) => today.getFullYear() - i)
 
   const monthOptions = [
     { value: 0, label: 'All Time' },
@@ -177,6 +179,31 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
           <TableSkeleton rows={4} />
         </div>
       )}
+
+      {/* Revenue Period Filter */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Revenue Period:</span>
+        <select
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(Number(e.target.value))}
+          className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}
+        >
+          {monthOptions.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+        {selectedMonth !== 0 && (
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        )}
+      </div>
 
       {/* Stat Cards — full width */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

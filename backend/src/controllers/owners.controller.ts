@@ -6,10 +6,7 @@ import { sendSuccess, sendError } from "../utils/helpers";
 import { isValidEmailFormat } from "../utils/emailValidation";
 
 function toInviteConfirmUrl(baseUrl: string): string {
-  const normalizedBase = baseUrl.replace(/\/+$/, "");
-  return normalizedBase.endsWith("/invite/confirm")
-    ? normalizedBase
-    : `${normalizedBase}/invite/confirm`;
+  return baseUrl.replace(/\/+$/, "") + "/invite/confirm";
 }
 
 /**
@@ -223,7 +220,7 @@ export async function createOwner(
           role: "owner",
           name: `${first_name} ${last_name}`.trim(),
           login_email: normalizedEmail,
-          app_name: "PrimeLiving",
+          app_name: "Geeb Apartment",
         },
       });
 
@@ -279,7 +276,20 @@ export async function updateOwner(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const updates = req.body;
+
+    // Whitelist allowed fields to prevent overwriting auth_user_id, id, etc.
+    const allowedFields = ["first_name", "last_name", "email", "phone", "status", "updated_at"];
+    const updates: Record<string, any> = {};
+    for (const key of allowedFields) {
+      if (req.body[key] !== undefined) {
+        updates[key] = req.body[key];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      sendError(res, "No valid fields to update", 400);
+      return;
+    }
 
     const { data, error } = await supabaseAdmin
       .from("apartment_owners")
@@ -310,6 +320,18 @@ export async function deleteOwner(
   try {
     const { id } = req.params;
 
+    // Fetch owner to get auth_user_id before deleting
+    const { data: owner, error: fetchError } = await supabaseAdmin
+      .from("apartment_owners")
+      .select("auth_user_id")
+      .eq("id", id)
+      .single();
+
+    if (fetchError) {
+      sendError(res, fetchError.message, 404);
+      return;
+    }
+
     const { error } = await supabaseAdmin
       .from("apartment_owners")
       .delete()
@@ -318,6 +340,11 @@ export async function deleteOwner(
     if (error) {
       sendError(res, error.message, 500);
       return;
+    }
+
+    // Cleanup: delete the Supabase Auth user
+    if (owner?.auth_user_id) {
+      await supabaseAdmin.auth.admin.deleteUser(owner.auth_user_id);
     }
 
     sendSuccess(res, null, "Owner deleted successfully");

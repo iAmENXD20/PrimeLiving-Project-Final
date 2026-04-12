@@ -187,7 +187,7 @@ export async function createMaintenanceRequest(
 
     await sendSmsToMany(
       (managers || []).map((manager: any) => manager.phone),
-      `[PrimeLiving] New maintenance request from ${tenantName}: ${title} (${priority})`,
+      `[Geeb Apartment] New maintenance request from ${tenantName}: ${title} (${priority})`,
       { unit_id, apartmentowner_id }
     );
 
@@ -242,7 +242,7 @@ export async function updateMaintenanceStatus(
 
       await sendSmsToMany(
         [tenant?.phone],
-        `[PrimeLiving] Your maintenance request "${data.title}" is now ${status.replace("_", " ")}.`,
+        `[Geeb Apartment] Your maintenance request "${data.title}" is now ${status.replace("_", " ")}.`,
         { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 

@@ -11,7 +11,7 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`
   =========================================
-    PrimeLiving API Server
+    Geeb Apartment API Server
     Environment: ${env.NODE_ENV}
     Port:        ${PORT}
     URL:         http://localhost:${PORT}

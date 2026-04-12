@@ -187,7 +187,7 @@ export async function createAnnouncement(
         .filter(Boolean);
 
       if (tenantPhones.length > 0) {
-        const smsMessage = `[PrimeLiving] ${title}\n\n${message}`;
+        const smsMessage = `[Geeb Apartment] ${title}\n\n${message}`;
         sendSmsToMany(tenantPhones, smsMessage, { apartmentowner_id }).catch(
           (err) => console.error("Announcement SMS failed:", err)
         );

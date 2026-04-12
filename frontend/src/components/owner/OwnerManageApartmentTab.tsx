@@ -26,6 +26,7 @@ import {
   approveTenant,
   getOwnerProperties,
   createOwnerProperty,
+  updateOwnerProperty,
   type Property,
   type UnitWithTenant,
   type OwnerTenant,
@@ -366,14 +367,21 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
     }
   }
 
+  async function handleAssignManager(propertyId: string, managerId: string | null) {
+    try {
+      await updateOwnerProperty(propertyId, { manager_id: managerId })
+      await loadProperties()
+      setSelectedProperty(prev => prev ? { ...prev, manager_id: managerId } : prev)
+      toast.success(managerId ? 'Manager assigned successfully' : 'Manager removed')
+    } catch {
+      toast.error('Failed to update manager')
+    }
+  }
+
   async function handleAddProperty() {
     const trimmedName = addPropertyForm.name.trim()
     if (!trimmedName) {
       toast.error('Property name is required')
-      return
-    }
-    if (!addPropertyForm.manager_id) {
-      toast.error('Please assign an apartment manager')
       return
     }
     if (!addPropertyForm.address) {
@@ -390,7 +398,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
         name: trimmedName,
         address: addPropertyForm.address.full,
         apartmentowner_id: ownerId,
-        manager_id: addPropertyForm.manager_id,
+        ...(addPropertyForm.manager_id ? { manager_id: addPropertyForm.manager_id } : {}),
       })
       await loadProperties()
       toast.success('Property added successfully')
@@ -534,7 +542,10 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
     (m) => {
       // Hide inactive by default (only show when explicitly filtering for inactive)
       if (managerStatusFilter === 'all' && m.status === 'inactive') return false
-      if (managerStatusFilter !== 'all' && m.status !== managerStatusFilter) return false
+      if (managerStatusFilter === 'pending_verification') {
+        // Show both pending and pending_verification when filtering for "Awaiting Approval"
+        if (m.status !== 'pending' && m.status !== 'pending_verification') return false
+      } else if (managerStatusFilter !== 'all' && m.status !== managerStatusFilter) return false
       const q = search.toLowerCase()
       return `${m.first_name} ${m.last_name}`.toLowerCase().includes(q) ||
         m.email.toLowerCase().includes(q)
@@ -561,7 +572,10 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
       .filter((tenant) => {
         // Hide inactive by default (only show when explicitly filtering for inactive)
         if (tenantStatusFilter === 'all' && tenant.status === 'inactive') return false
-        if (tenantStatusFilter !== 'all' && tenant.status !== tenantStatusFilter) return false
+        if (tenantStatusFilter === 'pending_verification') {
+          // Show both pending and pending_verification when filtering for "Awaiting Approval"
+          if (tenant.status !== 'pending' && tenant.status !== 'pending_verification') return false
+        } else if (tenantStatusFilter !== 'all' && tenant.status !== tenantStatusFilter) return false
         return true
       })
       .filter((tenant) => {
@@ -765,13 +779,33 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                 )}
               </p>
             </div>
-            <button
-              onClick={() => { setAddUnitForm({ monthly_rent: '', max_occupancy: '', count: '1' }); setShowAddUnitModal(true) }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-600 text-white font-semibold text-sm rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Unit
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Inline manager assignment */}
+              <select
+                value={selectedProperty.manager_id || ''}
+                onChange={(e) => {
+                  const managerId = e.target.value || null
+                  handleAssignManager(selectedProperty.id, managerId)
+                }}
+                className={`px-3 py-2.5 rounded-lg border text-sm ${
+                  isDark
+                    ? 'bg-[#0A1628] border-[#1E293B] text-white'
+                    : 'bg-gray-50 border-gray-200 text-gray-900'
+                }`}
+              >
+                <option value="">No manager assigned</option>
+                {managers.filter(m => m.status === 'active').map(m => (
+                  <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => { setAddUnitForm({ monthly_rent: '', max_occupancy: '', count: '1' }); setShowAddUnitModal(true) }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-600 text-white font-semibold text-sm rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Unit
+              </button>
+            </div>
           </div>
 
           {/* Loading */}
@@ -959,7 +993,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                       `${m.first_name} ${m.last_name}`,
                       idx >= 0 ? `Branch ${idx + 1}` : 'Unassigned',
                       prop?.address || '—',
-                      m.status === 'pending_verification' ? 'Awaiting Approval' : m.status,
+                      m.status === 'pending_verification' ? 'Awaiting Approval' : m.status === 'pending' ? 'Pending Invite' : m.status,
                     ]
                   })
                   const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -1047,14 +1081,14 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                             className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
                               manager.status === 'active'
                                 ? 'bg-emerald-500/15 text-emerald-400'
-                                : manager.status === 'pending_verification'
+                                : manager.status === 'pending_verification' || manager.status === 'pending'
                                   ? 'bg-amber-500/15 text-amber-400'
                                   : manager.status === 'inactive'
                                     ? 'bg-red-500/15 text-red-400'
                                     : 'bg-gray-500/15 text-gray-400'
                             }`}
                           >
-                            {manager.status === 'pending_verification' ? 'Awaiting Approval' : manager.status}
+                            {manager.status === 'pending_verification' ? 'Awaiting Approval' : manager.status === 'pending' ? 'Pending Invite' : manager.status}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">
@@ -1156,7 +1190,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                     t.branch,
                     t.address,
                     t.unit,
-                    t.status === 'pending_verification' ? 'Awaiting Approval' : t.status,
+                    t.status === 'pending_verification' ? 'Awaiting Approval' : t.status === 'pending' ? 'Pending Invite' : t.status,
                   ])
                   const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
                   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -1230,14 +1264,14 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                           className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
                             t.status === 'active'
                               ? 'bg-emerald-500/15 text-emerald-400'
-                              : t.status === 'pending_verification'
+                              : t.status === 'pending_verification' || t.status === 'pending'
                                 ? 'bg-amber-500/15 text-amber-400'
                                 : t.status === 'inactive'
                                   ? 'bg-red-500/15 text-red-400'
                                   : 'bg-gray-500/15 text-gray-400'
                           }`}
                         >
-                          {t.status === 'pending_verification' ? 'Awaiting Approval' : t.status}
+                          {t.status === 'pending_verification' ? 'Awaiting Approval' : t.status === 'pending' ? 'Pending Invite' : t.status}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
@@ -1689,7 +1723,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                   if (idx === -1) return 'Unassigned'
                   return `Branch ${idx + 1}${properties[idx].address ? ` — ${properties[idx].address}` : ''}`
                 })() },
-                { label: 'Status', value: viewManager.status === 'pending_verification' ? 'Awaiting Approval' : viewManager.status },
+                { label: 'Status', value: viewManager.status === 'pending_verification' ? 'Awaiting Approval' : viewManager.status === 'pending' ? 'Pending Invite' : viewManager.status },
                 { label: 'Date Created', value: viewManager.joined_date ? new Date(viewManager.joined_date).toLocaleDateString() : '—' },
               ].map((item) => (
                 <div key={item.label} className={`flex justify-between items-center py-2 border-b ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
@@ -1698,7 +1732,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                     <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
                       viewManager.status === 'active'
                         ? 'bg-emerald-500/15 text-emerald-400'
-                        : viewManager.status === 'pending_verification'
+                        : viewManager.status === 'pending_verification' || viewManager.status === 'pending'
                           ? 'bg-amber-500/15 text-amber-400'
                           : 'bg-gray-500/15 text-gray-400'
                     }`}>
@@ -1766,8 +1800,8 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
             )}
 
             <div className="mt-6 flex flex-col gap-2">
-              {/* Approve button for pending_verification */}
-              {viewManager.status === 'pending_verification' && (
+              {/* Approve button for pending_verification or pending */}
+              {(viewManager.status === 'pending_verification' || viewManager.status === 'pending') && (
                 <Button
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                   disabled={approving}
@@ -1877,7 +1911,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                 { label: 'Address', value: viewTenant.address },
                 { label: 'Unit', value: viewTenant.unit },
                 { label: 'Monthly Rent', value: viewTenant.rent ? `₱${viewTenant.rent.toLocaleString()}` : '—' },
-                { label: 'Status', value: viewTenant.status === 'pending_verification' ? 'Awaiting Approval' : viewTenant.status },
+                { label: 'Status', value: viewTenant.status === 'pending_verification' ? 'Awaiting Approval' : viewTenant.status === 'pending' ? 'Pending Invite' : viewTenant.status },
               ].map((item) => (
                 <div key={item.label} className={`flex justify-between items-center py-2 border-b ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
                   <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.label}</span>
@@ -1885,7 +1919,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                     <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
                       viewTenant.status === 'active'
                         ? 'bg-emerald-500/15 text-emerald-400'
-                        : viewTenant.status === 'pending_verification'
+                        : viewTenant.status === 'pending_verification' || viewTenant.status === 'pending'
                           ? 'bg-amber-500/15 text-amber-400'
                           : 'bg-gray-500/15 text-gray-400'
                     }`}>
@@ -1953,8 +1987,8 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
             )}
 
             <div className="mt-6 flex flex-col gap-2">
-              {/* Approve button for pending_verification */}
-              {viewTenant.status === 'pending_verification' && (
+              {/* Approve button for pending_verification or pending */}
+              {(viewTenant.status === 'pending_verification' || viewTenant.status === 'pending') && (
                 <Button
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                   disabled={approvingTenant}
@@ -2029,6 +2063,17 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                       <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-72 overflow-y-auto ${
                         isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
                       }`}>
+                        <div
+                          onClick={() => {
+                            setAddPropertyForm((f) => ({ ...f, manager_id: '' }))
+                            setManagerDropdownOpen(false)
+                          }}
+                          className={`px-3 py-2 text-sm cursor-pointer transition-colors italic ${
+                            isDark ? 'hover:bg-primary/20 text-gray-500' : 'hover:bg-primary/10 text-gray-400'
+                          }`}
+                        >
+                          N/A (assign later)
+                        </div>
                         {managers
                           .filter(m => m.status === 'active')
                           .map((mgr) => (

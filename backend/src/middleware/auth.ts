@@ -133,8 +133,14 @@ export async function authenticate(
     const role = await resolveUserRole(user.id, user);
 
     const isActive = await ensureRoleIsActive(role, user.id);
-    if (!isActive.active) {
+
+    // Allow pending users through for activation endpoints
+    const isActivationPath = req.path === "/confirm-activation";
+
+    if (!isActive.active && !isActivationPath) {
       const msg = isActive.status === "pending_verification"
+        ? "Your account is awaiting approval from the apartment owner"
+        : isActive.status === "pending"
         ? "Your account is awaiting approval from the apartment owner"
         : "Account is not active yet";
       res.status(403).json({
