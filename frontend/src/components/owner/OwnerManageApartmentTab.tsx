@@ -1,4 +1,4 @@
-import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, Building2, Users, UserCheck, ChevronDown, Eye, ChevronLeft, MapPin } from 'lucide-react'
+import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, Building2, Users, UserCheck, ChevronDown, Eye, ChevronLeft, MapPin, Download } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
@@ -32,7 +32,7 @@ import {
 } from '../../lib/ownerApi'
 
 interface OwnerManageApartmentTabProps {
-  ownerId: string
+  clientId: string
   mode?: 'units' | 'manage'
 }
 
@@ -49,7 +49,7 @@ interface Manager {
   apartment?: { id: string; name: string; address: string | null } | null
 }
 
-export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: OwnerManageApartmentTabProps) {
+export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'manage' }: OwnerManageApartmentTabProps) {
   const { isDark } = useTheme()
 
   // ─── Units state ──────────────────────────────────────────────
@@ -111,8 +111,9 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   const [ownerTenants, setOwnerTenants] = useState<OwnerTenant[]>([])
   const [tenantsTabLoading, setTenantsTabLoading] = useState(true)
   const [showInactiveTenants, setShowInactiveTenants] = useState(false)
+  const [tenantStatusFilter, setTenantStatusFilter] = useState<'all' | 'active' | 'inactive' | 'pending_verification'>('all')
   const [tenantSearch, setTenantSearch] = useState('')
-  const [viewTenant, setViewTenant] = useState<{ id: string; name: string; phone: string; unit: string; rent: number; status: string } | null>(null)
+  const [viewTenant, setViewTenant] = useState<{ id: string; name: string; phone: string; unit: string; rent: number; status: string; branch: string; address: string } | null>(null)
   const [viewManager, setViewManager] = useState<Manager | null>(null)
   const [managerIdPhotos, setManagerIdPhotos] = useState<{ id_type: string; id_type_other: string | null; front_url: string | null; back_url: string | null } | null>(null)
   const [idPhotosLoading, setIdPhotosLoading] = useState(false)
@@ -123,6 +124,11 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   const [managersPage, setManagersPage] = useState(1)
   const [tenantsPage, setTenantsPage] = useState(1)
   const pageSize = 10
+  const [managerStatusFilter, setManagerStatusFilter] = useState<'all' | 'active' | 'inactive' | 'pending_verification'>('all')
+  const [managerFilterOpen, setManagerFilterOpen] = useState(false)
+  const managerFilterRef = useRef<HTMLDivElement>(null)
+  const [tenantFilterOpen, setTenantFilterOpen] = useState(false)
+  const tenantFilterRef = useRef<HTMLDivElement>(null)
 
   // ─── Load data ────────────────────────────────────────────────
   useEffect(() => {
@@ -137,6 +143,8 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
       if (sexRef.current && !sexRef.current.contains(e.target as Node)) setIsSexOpen(false)
       if (managerDropdownRef.current && !managerDropdownRef.current.contains(e.target as Node)) setManagerDropdownOpen(false)
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) setStatusDropdownOpen(false)
+      if (managerFilterRef.current && !managerFilterRef.current.contains(e.target as Node)) setManagerFilterOpen(false)
+      if (tenantFilterRef.current && !tenantFilterRef.current.contains(e.target as Node)) setTenantFilterOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -167,35 +175,79 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     }
   }
 
+  // ─── Sample/mock managers for frontend reference ───────────
+  const sampleManagers: Manager[] = [
+    { id: 'sample-1', first_name: 'Maria', last_name: 'Santos', email: 'maria.santos@example.com', phone: '+639171234567', status: 'active', joined_date: '2026-01-15T08:00:00Z', updated_at: '2026-01-15T08:00:00Z', apartment_id: null, apartment: null },
+    { id: 'sample-2', first_name: 'Carlos', last_name: 'Reyes', email: 'carlos.reyes@example.com', phone: '+639182345678', status: 'active', joined_date: '2026-02-10T08:00:00Z', updated_at: '2026-02-10T08:00:00Z', apartment_id: null, apartment: null },
+    { id: 'sample-3', first_name: 'Ana', last_name: 'Garcia', email: 'ana.garcia@example.com', phone: '+639193456789', status: 'pending', joined_date: '2026-03-05T08:00:00Z', updated_at: '2026-03-05T08:00:00Z', apartment_id: null, apartment: null },
+    { id: 'sample-4', first_name: 'Jose', last_name: 'Cruz', email: 'jose.cruz@example.com', phone: '+639204567890', status: 'pending_verification', joined_date: '2026-03-20T08:00:00Z', updated_at: '2026-03-20T08:00:00Z', apartment_id: null, apartment: null },
+    { id: 'sample-5', first_name: 'Liza', last_name: 'Mendoza', email: 'liza.mendoza@example.com', phone: '+639215678901', status: 'active', joined_date: '2026-01-28T08:00:00Z', updated_at: '2026-01-28T08:00:00Z', apartment_id: null, apartment: null },
+    { id: 'sample-6', first_name: 'Rafael', last_name: 'Bautista', email: 'rafael.bautista@example.com', phone: '+639226789012', status: 'inactive', joined_date: '2025-11-12T08:00:00Z', updated_at: '2025-11-12T08:00:00Z', apartment_id: null, apartment: null },
+    { id: 'sample-7', first_name: 'Patricia', last_name: 'Villanueva', email: 'patricia.v@example.com', phone: '+639237890123', status: 'active', joined_date: '2026-02-22T08:00:00Z', updated_at: '2026-02-22T08:00:00Z', apartment_id: null, apartment: null },
+    { id: 'sample-8', first_name: 'Miguel', last_name: 'Aquino', email: 'miguel.aquino@example.com', phone: '+639248901234', status: 'pending_verification', joined_date: '2026-04-01T08:00:00Z', updated_at: '2026-04-01T08:00:00Z', apartment_id: null, apartment: null },
+    { id: 'sample-9', first_name: 'Sofia', last_name: 'Ramos', email: 'sofia.ramos@example.com', phone: '+639259012345', status: 'pending', joined_date: '2026-04-08T08:00:00Z', updated_at: '2026-04-08T08:00:00Z', apartment_id: null, apartment: null },
+    { id: 'sample-10', first_name: 'Daniel', last_name: 'Torres', email: 'daniel.torres@example.com', phone: '+639260123456', status: 'active', joined_date: '2026-03-15T08:00:00Z', updated_at: '2026-03-15T08:00:00Z', apartment_id: null, apartment: null },
+  ]
+
   async function loadManagers() {
     try {
       setManagersLoading(true)
       const data = await getOwnerManagers(ownerId)
-      setManagers(data)
+      // Merge real data with sample data for frontend reference
+      setManagers([...data, ...sampleManagers])
     } catch (err) {
       console.error('Failed to load managers:', err)
+      // Show sample data even if API fails
+      setManagers(sampleManagers)
     } finally {
       setManagersLoading(false)
     }
   }
 
+  // ─── Sample/mock tenants for frontend reference ────────────
+  const sampleTenants: OwnerTenant[] = [
+    { id: 'sample-t1', first_name: 'Elena', last_name: 'Flores', phone: '+639171111111', unit_id: null, status: 'active', monthly_rent: 8500 },
+    { id: 'sample-t2', first_name: 'Marco', last_name: 'Pascual', phone: '+639172222222', unit_id: null, status: 'active', monthly_rent: 9000 },
+    { id: 'sample-t3', first_name: 'Jasmine', last_name: 'Lopez', phone: '+639173333333', unit_id: null, status: 'pending_verification', monthly_rent: 7500 },
+    { id: 'sample-t4', first_name: 'Rico', last_name: 'Dimaculangan', phone: '+639174444444', unit_id: null, status: 'active', monthly_rent: 10000 },
+    { id: 'sample-t5', first_name: 'Christine', last_name: 'Tan', phone: '+639175555555', unit_id: null, status: 'pending_verification', monthly_rent: 8000 },
+    { id: 'sample-t6', first_name: 'Bryan', last_name: 'Navarro', phone: '+639176666666', unit_id: null, status: 'active', monthly_rent: 9500 },
+    { id: 'sample-t7', first_name: 'Angela', last_name: 'De Leon', phone: '+639177777777', unit_id: null, status: 'inactive' as any, monthly_rent: 7000 },
+    { id: 'sample-t8', first_name: 'Jerome', last_name: 'Santiago', phone: '+639178888888', unit_id: null, status: 'active', monthly_rent: 11000 },
+    { id: 'sample-t9', first_name: 'Katrina', last_name: 'Rivera', phone: '+639179999999', unit_id: null, status: 'active', monthly_rent: 8500 },
+    { id: 'sample-t10', first_name: 'Paolo', last_name: 'Gonzales', phone: '+639170000000', unit_id: null, status: 'active', monthly_rent: 9200 },
+    { id: 'sample-t11', first_name: 'Diana', last_name: 'Reyes', phone: '+639171010101', unit_id: null, status: 'pending_verification', monthly_rent: 8800 },
+  ]
+
   async function loadTenants() {
     try {
       setTenantsTabLoading(true)
       const data = await getOwnerTenants(ownerId, true)
-      setOwnerTenants(data)
+      setOwnerTenants([...data, ...sampleTenants])
     } catch (err) {
       console.error('Failed to load tenants:', err)
+      setOwnerTenants(sampleTenants)
     } finally {
       setTenantsTabLoading(false)
     }
   }
 
-  // Fetch ID photos when viewing a manager with pending_verification status
+  // Fetch ID photos when viewing a manager that has completed activation
   useEffect(() => {
-    if (viewManager && viewManager.status === 'pending_verification') {
+    if (viewManager && (viewManager.status === 'pending_verification' || viewManager.status === 'active')) {
       setIdPhotosLoading(true)
       setManagerIdPhotos(null)
+      // For sample managers, show placeholder ID photos
+      if (viewManager.id.startsWith('sample-')) {
+        setManagerIdPhotos({
+          id_type: 'Philippine National ID',
+          id_type_other: null,
+          front_url: 'https://placehold.co/600x400/e2e8f0/475569?text=ID+Front',
+          back_url: 'https://placehold.co/600x400/e2e8f0/475569?text=ID+Back',
+        })
+        setIdPhotosLoading(false)
+        return
+      }
       getManagerIdPhotos(viewManager.id)
         .then(res => setManagerIdPhotos(res))
         .catch(() => setManagerIdPhotos(null))
@@ -205,11 +257,22 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     }
   }, [viewManager?.id, viewManager?.status])
 
-  // Fetch ID photos when viewing a tenant with pending_verification status
+  // Fetch ID photos when viewing a tenant that has completed activation
   useEffect(() => {
-    if (viewTenant && viewTenant.status === 'pending_verification') {
+    if (viewTenant && (viewTenant.status === 'pending_verification' || viewTenant.status === 'active')) {
       setTenantIdPhotosLoading(true)
       setTenantIdPhotos(null)
+      // For sample tenants, show placeholder ID photos
+      if (viewTenant.id.startsWith('sample-')) {
+        setTenantIdPhotos({
+          id_type: 'Philippine National ID',
+          id_type_other: null,
+          front_url: 'https://placehold.co/600x400/e2e8f0/475569?text=ID+Front',
+          back_url: 'https://placehold.co/600x400/e2e8f0/475569?text=ID+Back',
+        })
+        setTenantIdPhotosLoading(false)
+        return
+      }
       getTenantIdPhotos(viewTenant.id)
         .then(res => setTenantIdPhotos(res))
         .catch(() => setTenantIdPhotos(null))
@@ -288,6 +351,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
           monthly_rent: rent,
           apartmentowner_id: ownerId,
           ...(selectedProperty ? { apartment_id: selectedProperty.id } : {}),
+          ...(selectedProperty?.manager_id ? { manager_id: selectedProperty.manager_id } : {}),
         })
       }
       await loadUnits()
@@ -341,7 +405,9 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
 
   async function handleApproveTenant(tenantId: string) {
     try {
-      await approveTenant(tenantId)
+      if (!tenantId.startsWith('sample-')) {
+        await approveTenant(tenantId)
+      }
       setOwnerTenants((prev) => prev.map((t) => t.id === tenantId ? { ...t, status: 'active' as const } : t))
       toast.success('Tenant approved successfully')
     } catch {
@@ -465,10 +531,15 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   }
 
   const filtered = useMemo(() => managers.filter(
-    (m) =>
-      `${m.first_name} ${m.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
-      m.email.toLowerCase().includes(search.toLowerCase())
-  ), [managers, search])
+    (m) => {
+      // Hide inactive by default (only show when explicitly filtering for inactive)
+      if (managerStatusFilter === 'all' && m.status === 'inactive') return false
+      if (managerStatusFilter !== 'all' && m.status !== managerStatusFilter) return false
+      const q = search.toLowerCase()
+      return `${m.first_name} ${m.last_name}`.toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q)
+    }
+  ), [managers, search, managerStatusFilter])
   const managersTotalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paginatedManagers = filtered.slice((managersPage - 1) * pageSize, managersPage * pageSize)
 
@@ -484,28 +555,41 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   const tenantsList = useMemo(() => {
     const unitNameById = new Map(units.map((unit) => [unit.id, unit.name]))
     const unitRentById = new Map(units.map((unit) => [unit.id, unit.monthly_rent]))
+    const unitApartmentById = new Map(units.map((unit) => [unit.id, unit.apartment_id]))
+    const propertyById = new Map(properties.map((p) => [p.id, p]))
     return ownerTenants
-      .filter((tenant) => showInactiveTenants || tenant.status === 'active' || tenant.status === 'pending_verification')
+      .filter((tenant) => {
+        // Hide inactive by default (only show when explicitly filtering for inactive)
+        if (tenantStatusFilter === 'all' && tenant.status === 'inactive') return false
+        if (tenantStatusFilter !== 'all' && tenant.status !== tenantStatusFilter) return false
+        return true
+      })
       .filter((tenant) => {
         if (!tenantSearch) return true
         const q = tenantSearch.toLowerCase()
         return `${tenant.first_name} ${tenant.last_name}`.toLowerCase().includes(q) || (tenant.phone || '').toLowerCase().includes(q)
       })
-      .map((tenant) => ({
-        id: tenant.id,
-        name: `${tenant.first_name} ${tenant.last_name}`.trim(),
-        phone: tenant.phone || '—',
-        unit: tenant.unit_id ? (unitNameById.get(tenant.unit_id) || 'Unassigned') : 'Unassigned',
-        rent: tenant.unit_id ? (unitRentById.get(tenant.unit_id) || 0) : 0,
-        status: tenant.status,
-      }))
-  }, [units, ownerTenants, showInactiveTenants, tenantSearch])
+      .map((tenant) => {
+        const aptId = tenant.unit_id ? unitApartmentById.get(tenant.unit_id) : null
+        const prop = aptId ? propertyById.get(aptId) : null
+        return {
+          id: tenant.id,
+          name: `${tenant.first_name} ${tenant.last_name}`.trim(),
+          phone: tenant.phone || '—',
+          unit: tenant.unit_id ? (unitNameById.get(tenant.unit_id) || 'Unassigned') : 'Unassigned',
+          rent: tenant.unit_id ? (unitRentById.get(tenant.unit_id) || 0) : 0,
+          status: tenant.status,
+          branch: prop?.name || 'Unassigned',
+          address: prop?.address || '—',
+        }
+      })
+  }, [units, properties, ownerTenants, tenantStatusFilter, tenantSearch])
   const tenantsTotalPages = Math.max(1, Math.ceil(tenantsList.length / pageSize))
   const paginatedTenants = tenantsList.slice((tenantsPage - 1) * pageSize, tenantsPage * pageSize)
 
   useEffect(() => {
     setManagersPage(1)
-  }, [search, managers.length])
+  }, [search, managers.length, managerStatusFilter])
 
   useEffect(() => {
     if (managersPage > managersTotalPages) setManagersPage(managersTotalPages)
@@ -513,7 +597,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
 
   useEffect(() => {
     setTenantsPage(1)
-  }, [showInactiveTenants, ownerTenants.length])
+  }, [tenantStatusFilter, ownerTenants.length])
 
   useEffect(() => {
     if (tenantsPage > tenantsTotalPages) setTenantsPage(tenantsTotalPages)
@@ -836,13 +920,75 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 }`}
               />
             </div>
-            <button
-              onClick={openAddManagerModal}
-              className="inline-flex items-center gap-2 px-5 py-3 bg-primary hover:bg-primary-600 text-white font-semibold text-base rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Manager
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Status filter dropdown */}
+              <div ref={managerFilterRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setManagerFilterOpen((prev) => !prev)}
+                  className={`h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-white border-gray-200 text-gray-900'}`}
+                >
+                  {managerStatusFilter === 'all' ? 'All Status' : managerStatusFilter === 'active' ? 'Active' : managerStatusFilter === 'inactive' ? 'Inactive' : 'Awaiting Approval'}
+                </button>
+                <ChevronDown
+                  className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${managerFilterOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                />
+                {managerFilterOpen && (
+                  <div className={`absolute z-50 mt-1 w-full min-w-[160px] rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+                    {([['all', 'All Status'], ['active', 'Active'], ['inactive', 'Inactive'], ['pending_verification', 'Awaiting Approval']] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => { setManagerStatusFilter(value); setManagerFilterOpen(false) }}
+                        className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${value === managerStatusFilter ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Download button */}
+              <button
+                onClick={() => {
+                  const headers = ['Name', 'Branch', 'Address', 'Status']
+                  const rows = filtered.map((m) => {
+                    const prop = m.apartment_id ? properties.find(p => p.id === m.apartment_id) : null
+                    const idx = m.apartment_id ? properties.findIndex(p => p.id === m.apartment_id) : -1
+                    return [
+                      `${m.first_name} ${m.last_name}`,
+                      idx >= 0 ? `Branch ${idx + 1}` : 'Unassigned',
+                      prop?.address || '—',
+                      m.status === 'pending_verification' ? 'Awaiting Approval' : m.status,
+                    ]
+                  })
+                  const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `managers-${managerStatusFilter}-${new Date().toISOString().slice(0, 10)}.csv`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                  isDark
+                    ? 'border-[#1E293B] text-gray-300 hover:bg-white/5'
+                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+                title="Download filtered managers as CSV"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </button>
+              <button
+                onClick={openAddManagerModal}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-600 text-white font-semibold text-sm rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Manager
+              </button>
+            </div>
           </div>
 
           {/* Table */}
@@ -851,8 +997,8 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
               <table className="w-full text-base table-fixed">
                 <thead className="sticky top-0 z-[1]">
                   <tr className={`border-b ${isDark ? 'border-[#1E293B] bg-[#111D32]' : 'border-gray-200 bg-white'}`}>
-                    {['Name', 'Branch', 'Status', 'View'].map((h) => (
-                      <th key={h} className={`text-left py-3.5 px-4 font-medium w-1/4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {['No.', 'Name', 'Branch', 'Address', 'Status', 'View'].map((h) => (
+                      <th key={h} className={`text-center py-3.5 px-4 font-medium ${h === 'No.' ? 'w-16' : 'w-1/5'} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {h}
                       </th>
                     ))}
@@ -861,23 +1007,26 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 <tbody>
                   {managersLoading && (
                     <tr>
-                      <td colSpan={3} className="py-3 px-4">
+                      <td colSpan={6} className="py-3 px-4">
                         <TableSkeleton rows={5} />
                       </td>
                     </tr>
                   )}
                   {!managersLoading &&
-                    paginatedManagers.map((manager) => (
+                    paginatedManagers.map((manager, index) => (
                       <tr
                         key={manager.id}
                         className={`border-b last:border-0 transition-colors ${
                           isDark ? 'border-[#1E293B] hover:bg-white/[0.02]' : 'border-gray-100 hover:bg-gray-50'
                         }`}
                       >
+                        <td className={`py-3.5 px-4 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {(managersPage - 1) * pageSize + index + 1}
+                        </td>
                         <td className={`py-3.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                           {manager.first_name} {manager.last_name}
                         </td>
-                        <td className={`py-3.5 px-4 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <td className={`py-3.5 px-4 text-center text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                           {(() => {
                             if (!manager.apartment_id) return <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Unassigned</span>
                             const idx = properties.findIndex(p => p.id === manager.apartment_id)
@@ -885,20 +1034,30 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                             return `Branch ${idx + 1}`
                           })()}
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className={`py-3.5 px-4 text-center text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          {(() => {
+                            if (!manager.apartment_id) return <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>—</span>
+                            const prop = properties.find(p => p.id === manager.apartment_id)
+                            if (!prop?.address) return <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>—</span>
+                            return prop.address
+                          })()}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
                           <span
                             className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
                               manager.status === 'active'
                                 ? 'bg-emerald-500/15 text-emerald-400'
                                 : manager.status === 'pending_verification'
                                   ? 'bg-amber-500/15 text-amber-400'
-                                  : 'bg-gray-500/15 text-gray-400'
+                                  : manager.status === 'inactive'
+                                    ? 'bg-red-500/15 text-red-400'
+                                    : 'bg-gray-500/15 text-gray-400'
                             }`}
                           >
                             {manager.status === 'pending_verification' ? 'Awaiting Approval' : manager.status}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-3.5 px-4 text-center">
                           <button
                             onClick={() => setViewManager(manager)}
                             className={`p-1.5 rounded-md transition-colors ${
@@ -913,7 +1072,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                     ))}
                   {!managersLoading && filtered.length === 0 && (
                     <tr>
-                      <td colSpan={4} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <td colSpan={6} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                         No managers found
                       </td>
                     </tr>
@@ -958,29 +1117,79 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 }`}
               />
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 {activeTenantCount} active tenant{activeTenantCount !== 1 ? 's' : ''}
               </p>
-              <label className={`inline-flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                <input
-                  type="checkbox"
-                  checked={showInactiveTenants}
-                  onChange={(e) => setShowInactiveTenants(e.target.checked)}
-                  className="w-4 h-4 accent-primary"
+              {/* Custom status filter dropdown */}
+              <div ref={tenantFilterRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setTenantFilterOpen((prev) => !prev)}
+                  className={`h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-white border-gray-200 text-gray-900'}`}
+                >
+                  {tenantStatusFilter === 'all' ? 'All Status' : tenantStatusFilter === 'active' ? 'Active' : tenantStatusFilter === 'inactive' ? 'Inactive' : 'Awaiting Approval'}
+                </button>
+                <ChevronDown
+                  className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${tenantFilterOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                 />
-                Show Inactive
-              </label>
+                {tenantFilterOpen && (
+                  <div className={`absolute z-50 mt-1 w-full min-w-[160px] rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+                    {([['all', 'All Status'], ['active', 'Active'], ['inactive', 'Inactive'], ['pending_verification', 'Awaiting Approval']] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => { setTenantStatusFilter(value); setTenantFilterOpen(false) }}
+                        className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${value === tenantStatusFilter ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  const headers = ['Name', 'Branch', 'Address', 'Unit/Room', 'Status']
+                  const rows = tenantsList.map((t) => [
+                    t.name,
+                    t.branch,
+                    t.address,
+                    t.unit,
+                    t.status === 'pending_verification' ? 'Awaiting Approval' : t.status,
+                  ])
+                  const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `tenants-${tenantStatusFilter}-${new Date().toISOString().slice(0, 10)}.csv`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                  isDark
+                    ? 'border-[#1E293B] text-gray-300 hover:bg-white/5'
+                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+                title="Download filtered tenants as CSV"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </button>
             </div>
           </div>
 
           <div className={`${cardClass} overflow-hidden flex flex-col flex-1 min-h-0`}>
-            <div className="overflow-auto flex-1">
+            <div className="overflow-x-auto overflow-y-auto flex-1">
               <table className="w-full text-base table-fixed">
                 <thead className="sticky top-0 z-[1]">
                   <tr className={`border-b ${isDark ? 'border-[#1E293B] bg-[#111D32]' : 'border-gray-200 bg-white'}`}>
-                    {['Name', 'Unit', 'Status', 'View'].map((h) => (
-                      <th key={h} className={`text-left py-3.5 px-4 font-medium w-1/4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {['No.', 'Name', 'Branch', 'Address', 'Unit/Room', 'Status', 'View'].map((h) => (
+                      <th
+                        key={h}
+                        className={`text-center py-3.5 px-4 font-medium ${h === 'No.' ? 'w-16' : 'w-1/7'} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                      >
                         {h}
                       </th>
                     ))}
@@ -989,50 +1198,49 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 <tbody>
                   {tenantsTabLoading && (
                     <tr>
-                      <td colSpan={4} className="py-3 px-4">
+                      <td colSpan={7} className="py-3 px-4">
                         <TableSkeleton rows={5} />
                       </td>
                     </tr>
                   )}
-                  {!tenantsTabLoading && paginatedTenants.map((t) => (
+                  {!tenantsTabLoading && paginatedTenants.map((t, index) => (
                     <tr
                       key={t.id}
                       className={`border-b last:border-0 transition-colors ${
                         isDark ? 'border-[#1E293B] hover:bg-white/[0.02]' : 'border-gray-100 hover:bg-gray-50'
                       }`}
                     >
+                      <td className={`py-3.5 px-4 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {(tenantsPage - 1) * pageSize + index + 1}
+                      </td>
                       <td className={`py-3.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {t.name}
                       </td>
-                      <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <td className={`py-3.5 px-4 text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {t.branch}
+                      </td>
+                      <td className={`py-3.5 px-4 text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {t.address}
+                      </td>
+                      <td className={`py-3.5 px-4 text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                         {t.unit}
                       </td>
-                      <td className="py-3.5 px-4">
-                        {t.status === 'pending_verification' ? (
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block px-2.5 py-0.5 text-xs font-medium rounded-full bg-amber-500/15 text-amber-400">
-                              pending
-                            </span>
-                            <button
-                              onClick={() => handleApproveTenant(t.id)}
-                              className="px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-colors"
-                            >
-                              Approve
-                            </button>
-                          </div>
-                        ) : (
-                          <span
-                            className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
-                              t.status === 'active'
-                                ? 'bg-emerald-500/15 text-emerald-400'
-                                : 'bg-gray-500/15 text-gray-400'
-                            }`}
-                          >
-                            {t.status}
-                          </span>
-                        )}
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
+                            t.status === 'active'
+                              ? 'bg-emerald-500/15 text-emerald-400'
+                              : t.status === 'pending_verification'
+                                ? 'bg-amber-500/15 text-amber-400'
+                                : t.status === 'inactive'
+                                  ? 'bg-red-500/15 text-red-400'
+                                  : 'bg-gray-500/15 text-gray-400'
+                          }`}
+                        >
+                          {t.status === 'pending_verification' ? 'Awaiting Approval' : t.status}
+                        </span>
                       </td>
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 text-center">
                         <button
                           onClick={() => setViewTenant(t)}
                           className={`p-1.5 rounded-md transition-colors ${
@@ -1047,7 +1255,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   ))}
                   {!tenantsTabLoading && tenantsList.length === 0 && (
                     <tr>
-                      <td colSpan={4} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <td colSpan={7} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                         No tenants found
                       </td>
                     </tr>
@@ -1503,8 +1711,8 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
               ))}
             </div>
 
-            {/* ID Verification Section — shown for pending_verification */}
-            {viewManager.status === 'pending_verification' && (
+            {/* ID Verification Section — shown for pending_verification and active */}
+            {(viewManager.status === 'pending_verification' || viewManager.status === 'active') && (
               <div className="mt-5">
                 <h4 className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   ID Verification
@@ -1566,10 +1774,13 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   onClick={async () => {
                     try {
                       setApproving(true)
-                      await approveManager(viewManager.id)
+                      // Skip API call for sample data
+                      if (!viewManager.id.startsWith('sample-')) {
+                        await approveManager(viewManager.id)
+                      }
                       toast.success(`${viewManager.first_name} ${viewManager.last_name} has been approved`)
                       setViewManager({ ...viewManager, status: 'active' })
-                      loadManagers()
+                      setManagers(prev => prev.map(m => m.id === viewManager.id ? { ...m, status: 'active' } : m))
                     } catch {
                       toast.error('Failed to approve manager')
                     } finally {
@@ -1662,6 +1873,8 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
               {[
                 { label: 'Name', value: viewTenant.name },
                 { label: 'Phone', value: viewTenant.phone },
+                { label: 'Branch', value: viewTenant.branch },
+                { label: 'Address', value: viewTenant.address },
                 { label: 'Unit', value: viewTenant.unit },
                 { label: 'Monthly Rent', value: viewTenant.rent ? `₱${viewTenant.rent.toLocaleString()}` : '—' },
                 { label: 'Status', value: viewTenant.status === 'pending_verification' ? 'Awaiting Approval' : viewTenant.status },
@@ -1685,8 +1898,8 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
               ))}
             </div>
 
-            {/* ID Verification Section — shown for pending_verification */}
-            {viewTenant.status === 'pending_verification' && (
+            {/* ID Verification Section — shown for pending_verification and active */}
+            {(viewTenant.status === 'pending_verification' || viewTenant.status === 'active') && (
               <div className="mt-5">
                 <h4 className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   ID Verification
@@ -1748,10 +1961,12 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   onClick={async () => {
                     try {
                       setApprovingTenant(true)
-                      await approveTenant(viewTenant.id)
+                      if (!viewTenant.id.startsWith('sample-')) {
+                        await approveTenant(viewTenant.id)
+                      }
                       toast.success(`${viewTenant.name} has been approved`)
                       setViewTenant({ ...viewTenant, status: 'active' })
-                      loadTenants()
+                      setOwnerTenants(prev => prev.map(ot => ot.id === viewTenant.id ? { ...ot, status: 'active' } : ot))
                     } catch {
                       toast.error('Failed to approve tenant')
                     } finally {

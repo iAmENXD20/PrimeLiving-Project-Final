@@ -253,8 +253,8 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
             <table className="w-full text-base">
               <thead>
                 <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                  {['Name', 'Email', 'Phone', 'Unit', 'Status', ''].map((h) => (
-                    <th key={h} className={`text-left py-3.5 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {['No.', 'Name', 'Email', 'Phone', 'Unit', 'Status', ''].map((h) => (
+                    <th key={h} className={`text-left py-3.5 px-4 font-medium ${h === 'No.' ? 'w-16 text-center' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {h}
                     </th>
                   ))}
@@ -263,13 +263,13 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={6} className="py-3 px-4">
+                    <td colSpan={7} className="py-3 px-4">
                       <TableSkeleton rows={5} />
                     </td>
                   </tr>
                 )}
                 {!loading &&
-                  paginated.map((tenant) => (
+                  paginated.map((tenant, index) => (
                     <tr
                       key={tenant.id}
                       className={`border-b last:border-0 transition-colors ${
@@ -278,6 +278,9 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                           : 'border-gray-100 hover:bg-gray-50'
                       }`}
                     >
+                      <td className={`py-3.5 px-4 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {(page - 1) * pageSize + index + 1}
+                      </td>
                       <td className={`py-3.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {tenant.first_name} {tenant.last_name}
                       </td>
@@ -340,7 +343,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                 {!loading && filtered.length === 0 && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
                     >
                       No tenants found

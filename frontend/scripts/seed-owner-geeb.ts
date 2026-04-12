@@ -97,7 +97,8 @@ async function main() {
     .from('apartment_owners')
     .insert({
       auth_user_id: userId,
-      name: NEW_NAME,
+      first_name: NEW_NAME,
+      last_name: '',
       email: NEW_EMAIL,
       phone: '',
       status: 'active',
