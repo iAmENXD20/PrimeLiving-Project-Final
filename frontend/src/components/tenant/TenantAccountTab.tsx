@@ -1,14 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, Lock, ShieldCheck, Users, Plus, Trash2, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
+import {
+  getUnitOccupants,
+  addUnitOccupant,
+  deleteUnitOccupant,
+  uploadOccupantIdPhoto,
+  type UnitOccupant,
+} from '@/lib/tenantApi'
 
 function formatPhoneTo63(phone: string): string {
   if (!phone) return ''
@@ -57,6 +64,14 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
   const [apartmentName, setApartmentName] = useState<string | null>(null)
   const [ownerName, setOwnerName] = useState<string | null>(null)
   const [propertyAddress, setPropertyAddress] = useState<string | null>(null)
+  const [unitId, setUnitId] = useState<string | null>(null)
+  const [maxOccupancy, setMaxOccupancy] = useState<number | null>(null)
+  const [occupants, setOccupants] = useState<UnitOccupant[]>([])
+  const [occupantsLoading, setOccupantsLoading] = useState(false)
+  const [addingOccupant, setAddingOccupant] = useState(false)
+  const [newOccupantName, setNewOccupantName] = useState('')
+  const [newOccupantIdFile, setNewOccupantIdFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     async function loadProfile() {
@@ -80,12 +95,25 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
       if (tenantRes?.data?.move_in_date) setMoveInDate(tenantRes.data.move_in_date)
 
       if (resolvedApartmentId) {
+        setUnitId(resolvedApartmentId)
         const { data: apartment } = await supabase
           .from('units')
-          .select('name')
+          .select('name, max_occupancy')
           .eq('id', resolvedApartmentId)
           .maybeSingle()
         setApartmentName(apartment?.name || null)
+        setMaxOccupancy(apartment?.max_occupancy ?? null)
+
+        // Load occupants
+        setOccupantsLoading(true)
+        try {
+          const occ = await getUnitOccupants(resolvedApartmentId)
+          setOccupants(occ)
+        } catch {
+          // silent
+        } finally {
+          setOccupantsLoading(false)
+        }
       }
 
       if (resolvedClientId) {
@@ -256,6 +284,166 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
           </div>
         </div>
       </div>
+
+      {/* Unit Occupants */}
+      {unitId && (
+        <div className={`${sectionClass} opacity-0 animate-fade-up-delay-2`}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
+              <Users className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Unit Occupants
+              </h3>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {maxOccupancy
+                  ? `Maximum ${maxOccupancy} occupants (including you). Register other occupants living in your unit.`
+                  : 'Register other occupants living in your unit.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Occupant list */}
+          {occupantsLoading ? (
+            <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Loading occupants...</p>
+          ) : (
+            <>
+              {occupants.length === 0 && (
+                <p className={`text-sm mb-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  No additional occupants registered. If others live with you, add them below.
+                </p>
+              )}
+              {occupants.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  {occupants.map((occ) => (
+                    <div
+                      key={occ.id}
+                      className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+                        isDark ? 'bg-[#0A1628] border-[#1E293B]' : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {occ.id_photo_url ? (
+                          <a href={occ.id_photo_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-lg overflow-hidden border border-gray-300 flex-shrink-0">
+                            <img src={occ.id_photo_url} alt="ID" className="w-full h-full object-cover" />
+                          </a>
+                        ) : (
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-medium ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+                            No ID
+                          </div>
+                        )}
+                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {occ.full_name}
+                        </span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await deleteUnitOccupant(occ.id)
+                            setOccupants(prev => prev.filter(o => o.id !== occ.id))
+                            toast.success('Occupant removed')
+                          } catch {
+                            toast.error('Failed to remove occupant')
+                          }
+                        }}
+                        className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-red-500/20 text-gray-500 hover:text-red-400' : 'hover:bg-red-50 text-gray-400 hover:text-red-500'}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add occupant form */}
+              {(!maxOccupancy || occupants.length + 1 < maxOccupancy) && (
+                <div className={`rounded-lg border p-4 ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+                  <p className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Add Occupant</p>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className={`text-sm ${labelClass}`}>Full Name</Label>
+                      <Input
+                        className={`mt-1 ${inputClass}`}
+                        value={newOccupantName}
+                        onChange={(e) => setNewOccupantName(e.target.value)}
+                        placeholder="Enter occupant's full name"
+                      />
+                    </div>
+                    <div>
+                      <Label className={`text-sm ${labelClass}`}>Valid ID (photo)</Label>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setNewOccupantIdFile(e.target.files?.[0] || null)}
+                      />
+                      <div className="mt-1 flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Upload className="w-4 h-4" />
+                          {newOccupantIdFile ? 'Change File' : 'Upload ID'}
+                        </Button>
+                        {newOccupantIdFile && (
+                          <span className={`text-sm flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {newOccupantIdFile.name}
+                            <button onClick={() => { setNewOccupantIdFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}>
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      className="gap-2"
+                      disabled={addingOccupant || !newOccupantName.trim()}
+                      onClick={async () => {
+                        if (!tenantId || !unitId || !newOccupantName.trim()) return
+                        setAddingOccupant(true)
+                        try {
+                          let photoUrl: string | undefined
+                          if (newOccupantIdFile) {
+                            photoUrl = await uploadOccupantIdPhoto(newOccupantIdFile, tenantId)
+                          }
+                          const occ = await addUnitOccupant({
+                            unit_id: unitId,
+                            tenant_id: tenantId,
+                            full_name: newOccupantName.trim(),
+                            id_photo_url: photoUrl,
+                          })
+                          setOccupants(prev => [...prev, occ])
+                          setNewOccupantName('')
+                          setNewOccupantIdFile(null)
+                          if (fileInputRef.current) fileInputRef.current.value = ''
+                          toast.success('Occupant added')
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to add occupant')
+                        } finally {
+                          setAddingOccupant(false)
+                        }
+                      }}
+                    >
+                      <Plus className="w-4 h-4" />
+                      {addingOccupant ? 'Adding...' : 'Add Occupant'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {maxOccupancy && occupants.length + 1 >= maxOccupancy && (
+                <p className={`text-sm ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                  Maximum occupancy ({maxOccupancy}) has been reached.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Change Password */}
       <div className={`${sectionClass} opacity-0 animate-fade-up-delay-2`}>

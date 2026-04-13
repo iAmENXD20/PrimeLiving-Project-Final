@@ -27,6 +27,7 @@ import {
   getOwnerProperties,
   createOwnerProperty,
   updateOwnerProperty,
+  deleteOwnerProperty,
   type Property,
   type UnitWithTenant,
   type OwnerTenant,
@@ -53,11 +54,18 @@ interface Manager {
 export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'manage' }: OwnerManageApartmentTabProps) {
   const { isDark } = useTheme()
 
+  // Helper to build readable address from structured fields
+  function buildAddress(prop: Property | null | undefined): string {
+    if (!prop) return ''
+    const parts = [prop.address_street, prop.address_barangay, prop.address_city, prop.address_province, prop.address_region].filter(Boolean)
+    return parts.join(', ')
+  }
+
   // ─── Units state ──────────────────────────────────────────────
   const [units, setUnits] = useState<UnitWithTenant[]>([])
   const [unitsLoading, setUnitsLoading] = useState(true)
   const [unitPage, setUnitPage] = useState(1)
-  const unitPageSize = 12
+  const unitPageSize = 9
   const [confirmAction, setConfirmAction] = useState<
     { type: 'unit'; id: string; name: string } | { type: 'manager'; id: string; name: string } | null
   >(null)
@@ -85,6 +93,11 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
   const [managerDropdownOpen, setManagerDropdownOpen] = useState(false)
   const [managerSearch, setManagerSearch] = useState('')
   const managerDropdownRef = useRef<HTMLDivElement>(null)
+
+  // ─── Inline manager assignment dropdown ─────────────────────
+  const [inlineMgrDropdownOpen, setInlineMgrDropdownOpen] = useState(false)
+  const [inlineMgrSearch, setInlineMgrSearch] = useState('')
+  const inlineMgrDropdownRef = useRef<HTMLDivElement>(null)
 
   // ─── Managers state ───────────────────────────────────────────
   const [managers, setManagers] = useState<Manager[]>([])
@@ -143,6 +156,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
     function handleClickOutside(e: MouseEvent) {
       if (sexRef.current && !sexRef.current.contains(e.target as Node)) setIsSexOpen(false)
       if (managerDropdownRef.current && !managerDropdownRef.current.contains(e.target as Node)) setManagerDropdownOpen(false)
+      if (inlineMgrDropdownRef.current && !inlineMgrDropdownRef.current.contains(e.target as Node)) setInlineMgrDropdownOpen(false)
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) setStatusDropdownOpen(false)
       if (managerFilterRef.current && !managerFilterRef.current.contains(e.target as Node)) setManagerFilterOpen(false)
       if (tenantFilterRef.current && !tenantFilterRef.current.contains(e.target as Node)) setTenantFilterOpen(false)
@@ -348,7 +362,6 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
       for (let i = 0; i < count; i++) {
         await createOwnerApartment({
           name: `Unit ${startNum + i}`,
-          address: '-',
           monthly_rent: rent,
           apartmentowner_id: ownerId,
           ...(selectedProperty ? { apartment_id: selectedProperty.id } : {}),
@@ -378,6 +391,16 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
     }
   }
 
+  async function handleDeleteProperty(propertyId: string) {
+    try {
+      await deleteOwnerProperty(propertyId)
+      await loadProperties()
+      toast.success('Property deleted successfully')
+    } catch {
+      toast.error('Failed to delete property')
+    }
+  }
+
   async function handleAddProperty() {
     const trimmedName = addPropertyForm.name.trim()
     if (!trimmedName) {
@@ -394,11 +417,24 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
     }
     setAddingProperty(true)
     try {
+      const addr = addPropertyForm.address
       await createOwnerProperty({
         name: trimmedName,
-        address: addPropertyForm.address.full,
         apartmentowner_id: ownerId,
         ...(addPropertyForm.manager_id ? { manager_id: addPropertyForm.manager_id } : {}),
+        address_region: addr.region,
+        address_region_code: addr.regionCode,
+        address_province: addr.province,
+        address_province_code: addr.provinceCode,
+        address_city: addr.cityMunicipality,
+        address_city_code: addr.cityMunicipalityCode,
+        address_district: addr.district,
+        address_district_code: addr.districtCode,
+        address_area: addr.area,
+        address_area_code: addr.areaCode,
+        address_barangay: addr.barangay,
+        address_barangay_code: addr.barangayCode,
+        address_street: addr.street,
       })
       await loadProperties()
       toast.success('Property added successfully')
@@ -594,7 +630,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
           rent: tenant.unit_id ? (unitRentById.get(tenant.unit_id) || 0) : 0,
           status: tenant.status,
           branch: prop?.name || 'Unassigned',
-          address: prop?.address || '—',
+          address: buildAddress(prop) || '—',
         }
       })
   }, [units, properties, ownerTenants, tenantStatusFilter, tenantSearch])
@@ -732,12 +768,10 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                   <h4 className={`text-lg font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     Branch {index + 1}
                   </h4>
-                  {prop.address && (
-                    <p className={`text-sm flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="truncate">{prop.address}</span>
-                    </p>
-                  )}
+                  <p className={`text-sm flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">{buildAddress(prop) || 'No address set'}</span>
+                  </p>
                 </button>
               ))}
             </div>
@@ -770,6 +804,12 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
               <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 Branch {branchIndex}
               </h3>
+              {buildAddress(selectedProperty) && (
+                <p className={`text-sm mt-0.5 flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="truncate">{buildAddress(selectedProperty)}</span>
+                </p>
+              )}
               <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 {propertyUnits.length} total &middot;{' '}
                 <span className="text-red-400 font-medium">{propOccupied} occupied</span> &middot;{' '}
@@ -778,26 +818,85 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                   <> &middot; <span className="text-amber-400 font-medium">{propRenovation} under renovation</span></>
                 )}
               </p>
+              <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Assigned Manager:{' '}
+                <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {(() => { const mgr = managers.find(m => m.id === selectedProperty.manager_id); return mgr ? `${mgr.first_name} ${mgr.last_name}` : 'None' })()}
+                </span>
+              </p>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Inline manager assignment */}
-              <select
-                value={selectedProperty.manager_id || ''}
-                onChange={(e) => {
-                  const managerId = e.target.value || null
-                  handleAssignManager(selectedProperty.id, managerId)
-                }}
-                className={`px-3 py-2.5 rounded-lg border text-sm ${
-                  isDark
-                    ? 'bg-[#0A1628] border-[#1E293B] text-white'
-                    : 'bg-gray-50 border-gray-200 text-gray-900'
-                }`}
-              >
-                <option value="">No manager assigned</option>
-                {managers.filter(m => m.status === 'active').map(m => (
-                  <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>
-                ))}
-              </select>
+            <div className="flex items-center gap-3 self-start sm:self-end">
+              {/* Inline manager assignment dropdown */}
+              <div className="relative w-64" ref={inlineMgrDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => { setInlineMgrDropdownOpen(!inlineMgrDropdownOpen); setInlineMgrSearch('') }}
+                  className={`w-full px-3 py-2.5 rounded-lg border text-sm cursor-pointer flex items-center justify-between ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white'
+                      : 'bg-gray-50 border-gray-200 text-gray-900'
+                  }`}
+                >
+                  <span className={!selectedProperty.manager_id ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
+                    {selectedProperty.manager_id
+                      ? (() => { const m = managers.find(m => m.id === selectedProperty.manager_id); return m ? `${m.first_name} ${m.last_name}` : 'No manager assigned' })()
+                      : 'No manager assigned'}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${inlineMgrDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {inlineMgrDropdownOpen && (
+                  <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-72 overflow-y-auto ${
+                    isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
+                  }`} style={{ scrollbarGutter: 'stable' as const }}>
+                    <div className="sticky top-0 p-2" style={{ backgroundColor: isDark ? '#111D32' : '#fff' }}>
+                      <input
+                        type="text"
+                        value={inlineMgrSearch}
+                        onChange={(e) => setInlineMgrSearch(e.target.value)}
+                        placeholder="Search manager..."
+                        className={`w-full px-2.5 py-1.5 rounded border text-sm focus:outline-none focus:ring-1 focus:ring-primary ${
+                          isDark
+                            ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                            : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                        }`}
+                        autoFocus
+                      />
+                    </div>
+                    <div
+                      onClick={() => {
+                        handleAssignManager(selectedProperty.id, null)
+                        setInlineMgrDropdownOpen(false)
+                      }}
+                      className={`px-3 py-2 text-sm cursor-pointer transition-colors italic ${
+                        isDark ? 'hover:bg-primary/20 text-gray-500' : 'hover:bg-primary/10 text-gray-400'
+                      }`}
+                    >
+                      No manager assigned
+                    </div>
+                    {managers
+                      .filter(m => m.status === 'active')
+                      .filter(m => !inlineMgrSearch || `${m.first_name} ${m.last_name}`.toLowerCase().includes(inlineMgrSearch.toLowerCase()))
+                      .map((mgr) => (
+                        <div
+                          key={mgr.id}
+                          onClick={() => {
+                            handleAssignManager(selectedProperty.id, mgr.id)
+                            setInlineMgrDropdownOpen(false)
+                          }}
+                          className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                            selectedProperty.manager_id === mgr.id
+                              ? (isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary')
+                              : (isDark ? 'hover:bg-primary/20 text-gray-300' : 'hover:bg-primary/10 text-gray-700')
+                          }`}
+                        >
+                          {mgr.first_name} {mgr.last_name}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={() => { setAddUnitForm({ monthly_rent: '', max_occupancy: '', count: '1' }); setShowAddUnitModal(true) }}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-600 text-white font-semibold text-sm rounded-lg transition-colors"
@@ -834,7 +933,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                 isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
               }`}
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 h-full auto-rows-fr">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 h-full">
                   {paginatedUnits.map((unit) => {
                     const isOccupied = !!unit.tenant_name
                     const isRenovation = unit.status === 'under_renovation'
@@ -854,44 +953,44 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                         key={unit.id}
                         className="relative rounded-lg overflow-hidden transition-all duration-200 flex flex-col"
                         style={{
-                          borderLeft: `4px solid ${borderColor}`,
+                          borderLeft: `3px solid ${borderColor}`,
                           backgroundColor: bgColor,
                           border: `1px solid ${borderSolidColor}`,
-                          borderLeftWidth: '4px',
+                          borderLeftWidth: '3px',
                           borderLeftColor: borderColor,
                         }}
                       >
                         {/* Header */}
-                        <div className={`px-4 py-3 flex items-center justify-between ${isDark ? 'border-b border-white/5' : 'border-b border-gray-100'}`}>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-base font-bold tracking-wide ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        <div className={`px-4 py-4 flex items-center justify-between ${isDark ? 'border-b border-white/5' : 'border-b border-gray-100'}`}>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-sm font-bold tracking-wide ${isDark ? 'text-white' : 'text-gray-900'}`}>
                               {unit.name.toUpperCase()}
                             </span>
                             {isRenovation && (
-                              <span className="text-[0.65rem] font-semibold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-500 uppercase tracking-wide">
-                                Under Renovation
+                              <span className="text-[0.6rem] font-semibold px-1 py-0.5 rounded bg-amber-500/20 text-amber-500 uppercase tracking-wide">
+                                Renovation
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <span
-                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                               style={{ backgroundColor: borderColor }}
                             />
                             <button
                               onClick={() => openUnitModal(unit)}
-                              className={`p-1 rounded transition-colors ${isDark ? 'hover:bg-primary/20 text-gray-500 hover:text-primary' : 'hover:bg-primary/10 text-gray-400 hover:text-primary'}`}
+                              className={`p-0.5 rounded transition-colors ${isDark ? 'hover:bg-primary/20 text-gray-500 hover:text-primary' : 'hover:bg-primary/10 text-gray-400 hover:text-primary'}`}
                               title="Edit unit"
                             >
-                              <Edit2 className="w-3.5 h-3.5" />
+                              <Edit2 className="w-3 h-3" />
                             </button>
                           </div>
                         </div>
 
                         {/* Body */}
-                        <div className="px-4 py-3 space-y-2.5 text-[0.9rem] flex-1 flex flex-col justify-evenly">
+                        <div className="px-4 py-5 space-y-4 text-sm flex-1">
                           <div className="flex justify-between">
-                            <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Tenant Name</span>
+                            <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Tenant</span>
                             <span className={`font-medium truncate ml-2 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                               {unit.tenant_name || '—'}
                             </span>
@@ -992,7 +1091,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                     return [
                       `${m.first_name} ${m.last_name}`,
                       idx >= 0 ? `Branch ${idx + 1}` : 'Unassigned',
-                      prop?.address || '—',
+                      buildAddress(prop) || '—',
                       m.status === 'pending_verification' ? 'Awaiting Approval' : m.status === 'pending' ? 'Pending Invite' : m.status,
                     ]
                   })
@@ -1072,8 +1171,9 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                           {(() => {
                             if (!manager.apartment_id) return <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>—</span>
                             const prop = properties.find(p => p.id === manager.apartment_id)
-                            if (!prop?.address) return <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>—</span>
-                            return prop.address
+                            const addr = buildAddress(prop)
+                            if (!addr) return <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>—</span>
+                            return addr
                           })()}
                         </td>
                         <td className="py-3.5 px-4 text-center">
@@ -1666,19 +1766,6 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                   onChange={(e) => setAddUnitForm((f) => ({ ...f, count: e.target.value }))}
                   placeholder="1"
                 />
-                {(() => {
-                  const count = parseInt(addUnitForm.count, 10) || 1
-                  const existingNumbers = units.map((u) => {
-                    const m = u.name.match(/(\d+)/)
-                    return m ? parseInt(m[1], 10) : 0
-                  })
-                  const startNum = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1
-                  return (
-                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      Will create: Unit {startNum}{count > 1 ? ` – Unit ${startNum + count - 1}` : ''}
-                    </p>
-                  )
-                })()}
               </div>
             </div>
 
@@ -1721,7 +1808,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                   if (!viewManager.apartment_id) return 'Unassigned'
                   const idx = properties.findIndex(p => p.id === viewManager.apartment_id)
                   if (idx === -1) return 'Unassigned'
-                  return `Branch ${idx + 1}${properties[idx].address ? ` — ${properties[idx].address}` : ''}`
+                  return `Branch ${idx + 1}${buildAddress(properties[idx]) ? ` — ${buildAddress(properties[idx])}` : ''}`
                 })() },
                 { label: 'Status', value: viewManager.status === 'pending_verification' ? 'Awaiting Approval' : viewManager.status === 'pending' ? 'Pending Invite' : viewManager.status },
                 { label: 'Date Created', value: viewManager.joined_date ? new Date(viewManager.joined_date).toLocaleDateString() : '—' },
@@ -1800,8 +1887,8 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
             )}
 
             <div className="mt-6 flex flex-col gap-2">
-              {/* Approve button for pending_verification or pending */}
-              {(viewManager.status === 'pending_verification' || viewManager.status === 'pending') && (
+              {/* Approve button for pending_verification only (Awaiting Approval) */}
+              {viewManager.status === 'pending_verification' && (
                 <Button
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                   disabled={approving}
@@ -2044,7 +2131,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                   <div className="relative" ref={managerDropdownRef}>
                     <button
                       type="button"
-                      onClick={() => setManagerDropdownOpen(!managerDropdownOpen)}
+                      onClick={() => { setManagerDropdownOpen(!managerDropdownOpen); setManagerSearch('') }}
                       className={`w-full px-3 py-2.5 rounded-lg border text-sm cursor-pointer flex items-center justify-between ${
                         isDark
                           ? 'bg-[#0A1628] border-[#1E293B] text-white'
@@ -2062,7 +2149,21 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                     {managerDropdownOpen && (
                       <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-72 overflow-y-auto ${
                         isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
-                      }`}>
+                      }`} style={{ scrollbarGutter: 'stable' as const }}>
+                        <div className="sticky top-0 p-2" style={{ backgroundColor: isDark ? '#111D32' : '#fff' }}>
+                          <input
+                            type="text"
+                            value={managerSearch}
+                            onChange={(e) => setManagerSearch(e.target.value)}
+                            placeholder="Search manager..."
+                            className={`w-full px-2.5 py-1.5 rounded border text-sm focus:outline-none focus:ring-1 focus:ring-primary ${
+                              isDark
+                                ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                                : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                            }`}
+                            autoFocus
+                          />
+                        </div>
                         <div
                           onClick={() => {
                             setAddPropertyForm((f) => ({ ...f, manager_id: '' }))
@@ -2076,6 +2177,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                         </div>
                         {managers
                           .filter(m => m.status === 'active')
+                          .filter(m => !managerSearch || `${m.first_name} ${m.last_name}`.toLowerCase().includes(managerSearch.toLowerCase()))
                           .map((mgr) => (
                             <div
                               key={mgr.id}

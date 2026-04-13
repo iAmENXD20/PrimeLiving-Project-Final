@@ -91,8 +91,8 @@ export default function CalendarWidget({ deadlines, className }: CalendarWidgetP
   return (
     <div className={`${cardClass} flex flex-col ${className || ''}`}>
       {/* Title row */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Calendar
         </h3>
         <div className="flex items-center gap-4">
@@ -108,7 +108,7 @@ export default function CalendarWidget({ deadlines, className }: CalendarWidgetP
       </div>
 
       {/* Navigation row */}
-      <div className={`flex items-center justify-between px-4 py-1.5`}>
+      <div className={`flex items-center justify-between px-4 py-1`}>
         <div className="flex items-center gap-1">
           <button
             onClick={prevMonth}
@@ -145,13 +145,13 @@ export default function CalendarWidget({ deadlines, className }: CalendarWidgetP
       </div>
 
       {/* Inner container for dates */}
-      <div className={`mx-4 mb-4 mt-2 rounded-lg border overflow-hidden flex-1 flex flex-col ${cellBorder}`}>
+      <div className={`mx-3 mb-3 mt-1 rounded-lg border overflow-hidden flex-1 flex flex-col ${cellBorder}`}>
         {/* Day headers */}
         <div className={`grid grid-cols-7 border-b ${cellBorder}`}>
         {DAYS.map((day) => (
           <div
             key={day}
-            className={`text-center text-xs font-semibold py-2 ${
+            className={`text-center text-[11px] font-semibold py-1.5 ${
               isDark ? 'text-gray-500' : 'text-gray-400'
             }`}
           >
@@ -169,7 +169,7 @@ export default function CalendarWidget({ deadlines, className }: CalendarWidgetP
           return (
             <div
               key={idx}
-              className={`relative border-b border-r ${cellBorder} p-1 min-h-[48px] group ${
+              className={`relative border-b border-r ${cellBorder} p-0.5 min-h-[36px] group ${
                 idx % 7 === 0 ? 'border-l-0' : ''
               }`}
             >

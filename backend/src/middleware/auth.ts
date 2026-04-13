@@ -138,11 +138,13 @@ export async function authenticate(
     const isActivationPath = req.path === "/confirm-activation";
 
     if (!isActive.active && !isActivationPath) {
-      const msg = isActive.status === "pending_verification"
-        ? "Your account is awaiting approval from the apartment owner"
-        : isActive.status === "pending"
-        ? "Your account is awaiting approval from the apartment owner"
-        : "Account is not active yet";
+      let msg = "Account is not active yet";
+      if (isActive.status === "pending_verification") {
+        const approver = role === "tenant" ? "apartment manager" : "apartment owner";
+        msg = `Your account is currently under review. Please wait for your ${approver} to approve your account before you can log in.`;
+      } else if (isActive.status === "pending") {
+        msg = "Please complete your account setup by accepting the invitation sent to your email.";
+      }
       res.status(403).json({
         success: false,
         error: msg,

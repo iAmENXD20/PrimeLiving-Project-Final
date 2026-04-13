@@ -113,7 +113,7 @@ export default function OwnerDashboard() {
         />
 
         {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">
+        <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0 overflow-y-auto">
           <Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
             {renderContent()}
           </Suspense>

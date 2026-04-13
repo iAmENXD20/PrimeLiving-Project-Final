@@ -111,6 +111,21 @@ export interface ApiResponse<T = unknown> {
 }
 
 /**
+ * Custom error class for API errors that includes HTTP status and response data.
+ */
+export class ApiError extends Error {
+  status: number
+  response: { status: number; data: ApiResponse }
+
+  constructor(message: string, status: number, data: ApiResponse) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.response = { status, data }
+  }
+}
+
+/**
  * Get the current Supabase session access token.
  * Returns null if the user is not authenticated.
  */
@@ -199,7 +214,11 @@ async function request<T>(
     }
 
     if (!response.ok || !json.success) {
-      throw new Error(json.error || json.message || `Request failed with status ${response.status}`)
+      throw new ApiError(
+        json.error || json.message || `Request failed with status ${response.status}`,
+        response.status,
+        json,
+      )
     }
 
     const data = json.data as T

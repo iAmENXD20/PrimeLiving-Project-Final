@@ -6,8 +6,7 @@ import { logActivity, resolveActorName } from "../utils/activityLog";
 
 async function getOrCreateApartmentForOwner(
   apartmentownerId: string,
-  nameHint?: string | null,
-  addressHint?: string | null
+  nameHint?: string | null
 ): Promise<string | null> {
   if (!apartmentownerId) {
     return null;
@@ -28,7 +27,6 @@ async function getOrCreateApartmentForOwner(
     .insert({
       apartmentowner_id: apartmentownerId,
       name: nameHint || "Apartment",
-      address: addressHint || null,
       status: "active",
     })
     .select("id")
@@ -42,11 +40,9 @@ async function getOrCreateApartmentForOwner(
 }
 
 function withFlatAddress(unit: any) {
-  const address = unit?.apartment?.address ?? null;
   const apartmentName = unit?.apartment?.name ?? null;
   return {
     ...unit,
-    address,
     apartment_name: apartmentName,
     apartment: undefined,
   };
@@ -63,7 +59,7 @@ export async function getApartments(
   try {
     let query = supabaseAdmin
       .from("units")
-      .select("*, apartment:apartment_id(address,name)")
+      .select("*, apartment:apartment_id(name)")
       .order("created_at", { ascending: false });
 
     if (req.query.apartmentowner_id) {
@@ -104,7 +100,7 @@ export async function getApartmentById(
 
     const { data, error } = await supabaseAdmin
       .from("units")
-      .select("*, apartment:apartment_id(address,name)")
+      .select("*, apartment:apartment_id(name)")
       .eq("id", id)
       .single();
 
@@ -128,14 +124,12 @@ export async function createApartment(
   res: Response
 ): Promise<void> {
   try {
-    const { address, ...rawPayload } = req.body || {};
-    const payload = { ...rawPayload } as any;
+    const payload = { ...(req.body || {}) } as any;
 
     if (!payload.apartment_id && payload.apartmentowner_id) {
       payload.apartment_id = await getOrCreateApartmentForOwner(
         payload.apartmentowner_id,
-        payload.name,
-        address
+        payload.name
       );
     }
 
@@ -148,13 +142,6 @@ export async function createApartment(
     if (error) {
       sendError(res, error.message, 500);
       return;
-    }
-
-    if (address && payload.apartmentowner_id) {
-      await supabaseAdmin
-        .from("apartments")
-        .update({ address, updated_at: new Date().toISOString() })
-        .eq("apartmentowner_id", payload.apartmentowner_id);
     }
 
     sendSuccess(res, data, "Apartment created successfully", 201);
@@ -193,22 +180,13 @@ export async function createApartmentsBulk(
 
     const preparedRows: any[] = [];
     for (const row of apartments || []) {
-      const { address, ...rawPayload } = row || {};
-      const payload = { ...rawPayload } as any;
+      const payload = { ...(row || {}) } as any;
 
       if (!payload.apartment_id && payload.apartmentowner_id) {
         payload.apartment_id = await getOrCreateApartmentForOwner(
           payload.apartmentowner_id,
-          payload.name,
-          address
+          payload.name
         );
-      }
-
-      if (address && payload.apartmentowner_id) {
-        await supabaseAdmin
-          .from("apartments")
-          .update({ address, updated_at: new Date().toISOString() })
-          .eq("apartmentowner_id", payload.apartmentowner_id);
       }
 
       preparedRows.push(payload);
@@ -258,8 +236,7 @@ export async function updateApartment(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const { address, ...rawUpdates } = req.body || {};
-    const updates = { ...rawUpdates } as any;
+    const updates = { ...(req.body || {}) } as any;
 
     // Fetch old record for diff
     const { data: oldRecord } = await supabaseAdmin
@@ -271,8 +248,7 @@ export async function updateApartment(
     if (!updates.apartment_id && updates.apartmentowner_id) {
       updates.apartment_id = await getOrCreateApartmentForOwner(
         updates.apartmentowner_id,
-        updates.name,
-        address
+        updates.name
       );
     }
 
@@ -286,14 +262,6 @@ export async function updateApartment(
     if (error) {
       sendError(res, error.message, 500);
       return;
-    }
-
-    const apartmentownerIdForAddress = updates.apartmentowner_id || data?.apartmentowner_id;
-    if (address && apartmentownerIdForAddress) {
-      await supabaseAdmin
-        .from("apartments")
-        .update({ address, updated_at: new Date().toISOString() })
-        .eq("apartmentowner_id", apartmentownerIdForAddress);
     }
 
     sendSuccess(res, data, "Apartment updated successfully");
@@ -694,7 +662,16 @@ export async function createProperty(
   res: Response
 ): Promise<void> {
   try {
-    const { name, address, apartmentowner_id, manager_id } = req.body;
+    const {
+      name, apartmentowner_id, manager_id,
+      address_region, address_region_code,
+      address_province, address_province_code,
+      address_city, address_city_code,
+      address_district, address_district_code,
+      address_area, address_area_code,
+      address_barangay, address_barangay_code,
+      address_street,
+    } = req.body;
 
     if (!name || !apartmentowner_id) {
       sendError(res, "name and apartmentowner_id are required", 400);
@@ -706,9 +683,21 @@ export async function createProperty(
       .insert({
         apartmentowner_id,
         name,
-        address: address || null,
         manager_id: manager_id || null,
         status: "active",
+        address_region: address_region || null,
+        address_region_code: address_region_code || null,
+        address_province: address_province || null,
+        address_province_code: address_province_code || null,
+        address_city: address_city || null,
+        address_city_code: address_city_code || null,
+        address_district: address_district || null,
+        address_district_code: address_district_code || null,
+        address_area: address_area || null,
+        address_area_code: address_area_code || null,
+        address_barangay: address_barangay || null,
+        address_barangay_code: address_barangay_code || null,
+        address_street: address_street || null,
       })
       .select()
       .single();
@@ -734,7 +723,7 @@ export async function createProperty(
         entity_type: "apartment",
         entity_id: data.id,
         description: `Created property "${name}"`,
-        metadata: { name, address },
+        metadata: { name },
       });
     }
   } catch (err: any) {
@@ -752,13 +741,34 @@ export async function updateProperty(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const { name, address, status, manager_id } = req.body;
+    const {
+      name, status, manager_id,
+      address_region, address_region_code,
+      address_province, address_province_code,
+      address_city, address_city_code,
+      address_district, address_district_code,
+      address_area, address_area_code,
+      address_barangay, address_barangay_code,
+      address_street,
+    } = req.body;
 
     const updates: any = { updated_at: new Date().toISOString() };
     if (name !== undefined) updates.name = name;
-    if (address !== undefined) updates.address = address;
     if (status !== undefined) updates.status = status;
     if (manager_id !== undefined) updates.manager_id = manager_id;
+    if (address_region !== undefined) updates.address_region = address_region;
+    if (address_region_code !== undefined) updates.address_region_code = address_region_code;
+    if (address_province !== undefined) updates.address_province = address_province;
+    if (address_province_code !== undefined) updates.address_province_code = address_province_code;
+    if (address_city !== undefined) updates.address_city = address_city;
+    if (address_city_code !== undefined) updates.address_city_code = address_city_code;
+    if (address_district !== undefined) updates.address_district = address_district;
+    if (address_district_code !== undefined) updates.address_district_code = address_district_code;
+    if (address_area !== undefined) updates.address_area = address_area;
+    if (address_area_code !== undefined) updates.address_area_code = address_area_code;
+    if (address_barangay !== undefined) updates.address_barangay = address_barangay;
+    if (address_barangay_code !== undefined) updates.address_barangay_code = address_barangay_code;
+    if (address_street !== undefined) updates.address_street = address_street;
 
     const { data, error } = await supabaseAdmin
       .from("apartments")

@@ -45,8 +45,11 @@ export async function getCurrentOwner() {
 // ── Get Owner Apartment Address ─────────────────────────────
 export async function getOwnerApartmentAddress(ownerId: string): Promise<string | null> {
   try {
-    const data = await api.get<any[]>(`/apartments?apartmentowner_id=${ownerId}`)
-    return data?.[0]?.address || null
+    const data = await api.get<any[]>(`/apartments/properties?apartmentowner_id=${ownerId}`)
+    if (!data?.[0]) return null
+    const p = data[0]
+    const parts = [p.address_street, p.address_barangay, p.address_city, p.address_province, p.address_region].filter(Boolean)
+    return parts.length > 0 ? parts.join(', ') : null
   } catch {
     return null
   }
@@ -211,7 +214,19 @@ export interface Property {
   id: string
   apartmentowner_id: string
   name: string
-  address: string | null
+  address_region: string | null
+  address_region_code: string | null
+  address_province: string | null
+  address_province_code: string | null
+  address_city: string | null
+  address_city_code: string | null
+  address_district: string | null
+  address_district_code: string | null
+  address_area: string | null
+  address_area_code: string | null
+  address_barangay: string | null
+  address_barangay_code: string | null
+  address_street: string | null
   manager_id: string | null
   status: string
   unit_count: number
@@ -223,11 +238,28 @@ export async function getOwnerProperties(ownerId: string) {
   return api.get<Property[]>(`/apartments/properties?apartmentowner_id=${ownerId}`)
 }
 
-export async function createOwnerProperty(property: { name: string; address?: string; apartmentowner_id: string; manager_id?: string }) {
+export async function createOwnerProperty(property: {
+  name: string
+  apartmentowner_id: string
+  manager_id?: string
+  address_region?: string
+  address_region_code?: string
+  address_province?: string
+  address_province_code?: string
+  address_city?: string
+  address_city_code?: string
+  address_district?: string
+  address_district_code?: string
+  address_area?: string
+  address_area_code?: string
+  address_barangay?: string
+  address_barangay_code?: string
+  address_street?: string
+}) {
   return api.post<Property>('/apartments/properties', property)
 }
 
-export async function updateOwnerProperty(id: string, updates: { name?: string; address?: string; status?: string; manager_id?: string | null }) {
+export async function updateOwnerProperty(id: string, updates: { name?: string; status?: string; manager_id?: string | null }) {
   return api.put<Property>(`/apartments/properties/${id}`, updates)
 }
 
@@ -241,7 +273,6 @@ export async function getOwnerApartments(ownerId: string) {
 
 export async function createOwnerApartment(apartment: {
   name: string
-  address: string
   monthly_rent?: number
   total_units?: number
   apartmentowner_id: string
@@ -253,7 +284,6 @@ export async function createOwnerApartment(apartment: {
 
 export async function updateOwnerApartment(id: string, updates: {
   name?: string
-  address?: string
   monthly_rent?: number
   total_units?: number
   manager_id?: string
@@ -273,7 +303,6 @@ export async function createBulkUnits(ownerId: string, count: number, startNumbe
   for (let i = 0; i < count; i++) {
     units.push({
       name: `Unit ${startNumber + i}`,
-      address: '-',
       monthly_rent: monthlyRent,
       apartmentowner_id: ownerId,
       apartment_id: apartmentId || undefined,

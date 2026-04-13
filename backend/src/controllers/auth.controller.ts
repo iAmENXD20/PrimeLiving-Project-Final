@@ -25,6 +25,40 @@ export async function login(
     });
 
     if (error) {
+      // Check if this email belongs to a pending_verification account
+      // so we can show a proper "under review" message instead of generic credentials error
+      if (error.message === "Invalid login credentials") {
+        const { data: manager } = await supabaseAdmin
+          .from("apartment_managers")
+          .select("status")
+          .eq("email", email)
+          .in("status", ["pending_verification", "pending"])
+          .maybeSingle();
+
+        if (manager) {
+          const msg = manager.status === "pending_verification"
+            ? "Your account is currently under review. Please wait for your apartment owner to approve your account before you can log in."
+            : "Please complete your account setup by accepting the invitation sent to your email.";
+          sendError(res, msg, 403);
+          return;
+        }
+
+        const { data: tenant } = await supabaseAdmin
+          .from("tenants")
+          .select("status")
+          .eq("email", email)
+          .in("status", ["pending_verification", "pending"])
+          .maybeSingle();
+
+        if (tenant) {
+          const msg = tenant.status === "pending_verification"
+            ? "Your account is currently under review. Please wait for your apartment manager to approve your account before you can log in."
+            : "Please complete your account setup by accepting the invitation sent to your email.";
+          sendError(res, msg, 403);
+          return;
+        }
+      }
+
       sendError(res, error.message, 401);
       return;
     }

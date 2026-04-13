@@ -53,6 +53,19 @@ CREATE TABLE apartments (
   apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   address TEXT,
+  address_region TEXT,
+  address_region_code TEXT,
+  address_province TEXT,
+  address_province_code TEXT,
+  address_city TEXT,
+  address_city_code TEXT,
+  address_district TEXT,
+  address_district_code TEXT,
+  address_area TEXT,
+  address_area_code TEXT,
+  address_barangay TEXT,
+  address_barangay_code TEXT,
+  address_street TEXT,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -80,6 +93,22 @@ CREATE TABLE units (
 
 CREATE INDEX idx_units_apartment_id ON units(apartment_id);
 CREATE INDEX idx_units_apartmentowner_id ON units(apartmentowner_id);
+
+-- ============================================================
+-- 4b. UNIT_OCCUPANTS table (Additional occupants per unit)
+-- ============================================================
+CREATE TABLE unit_occupants (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  full_name TEXT NOT NULL,
+  id_photo_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_unit_occupants_unit_id ON unit_occupants(unit_id);
+CREATE INDEX idx_unit_occupants_tenant_id ON unit_occupants(tenant_id);
 
 -- ============================================================
 -- 5. TENANTS table

@@ -335,3 +335,39 @@ export async function getOwnerPaymentQrUrl(ownerId?: string | null, apartmentId?
 
   return localStorage.getItem(`${QR_CACHE_KEY}_${cacheKey}`) || null
 }
+
+// ── Unit Occupants ──────────────────────────────────────────
+export interface UnitOccupant {
+  id: string
+  unit_id: string
+  tenant_id: string
+  full_name: string
+  id_photo_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export async function getUnitOccupants(unitId: string): Promise<UnitOccupant[]> {
+  return api.get<UnitOccupant[]>(`/apartments/occupants/${unitId}`)
+}
+
+export async function addUnitOccupant(data: { unit_id: string; tenant_id: string; full_name: string; id_photo_url?: string }): Promise<UnitOccupant> {
+  return api.post<UnitOccupant>('/apartments/occupants', data)
+}
+
+export async function updateUnitOccupant(id: string, updates: { full_name?: string; id_photo_url?: string }): Promise<UnitOccupant> {
+  return api.put<UnitOccupant>(`/apartments/occupants/${id}`, updates)
+}
+
+export async function deleteUnitOccupant(id: string): Promise<void> {
+  await api.delete(`/apartments/occupants/${id}`)
+}
+
+export async function uploadOccupantIdPhoto(file: File, tenantId: string): Promise<string> {
+  const ext = file.name.split('.').pop()
+  const path = `occupant-ids/${tenantId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from('documents').upload(path, file, { upsert: true })
+  if (error) throw error
+  const { data } = supabase.storage.from('documents').getPublicUrl(path)
+  return data.publicUrl
+}

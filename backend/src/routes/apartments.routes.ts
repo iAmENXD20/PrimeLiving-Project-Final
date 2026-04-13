@@ -17,6 +17,12 @@ import {
   updateProperty,
   deleteProperty,
 } from "../controllers/apartments.controller";
+import {
+  getOccupants,
+  addOccupant,
+  updateOccupant,
+  deleteOccupant,
+} from "../controllers/occupants.controller";
 
 const router = Router();
 
@@ -27,6 +33,12 @@ router.get("/properties", authorize("owner", "manager"), getProperties);
 router.post("/properties", authorize("owner"), invalidateCache(["apartments", "analytics"]), createProperty);
 router.put("/properties/:id", authorize("owner"), invalidateCache(["apartments", "analytics"]), updateProperty);
 router.delete("/properties/:id", authorize("owner"), invalidateCache(["apartments", "tenants", "analytics"]), deleteProperty);
+
+// Occupant routes
+router.get("/occupants/:unitId", authorize("owner", "manager", "tenant"), getOccupants);
+router.post("/occupants", authorize("tenant"), addOccupant);
+router.put("/occupants/:id", authorize("tenant"), updateOccupant);
+router.delete("/occupants/:id", authorize("tenant"), deleteOccupant);
 
 // Unit-level routes
 router.get("/count", authorize("owner", "manager"), getApartmentCount);

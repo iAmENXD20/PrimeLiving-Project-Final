@@ -4,13 +4,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Building2, Eye, EyeOff, ArrowLeft, Sun, Moon, X, Mail } from 'lucide-react'
+import { Building2, Eye, EyeOff, ArrowLeft, Sun, Moon, X, Mail, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
-import api from '@/lib/apiClient'
+import api, { ApiError } from '@/lib/apiClient'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -35,6 +35,7 @@ export default function LoginPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
   const [isResetting, setIsResetting] = useState(false)
+  const [pendingAlert, setPendingAlert] = useState<string | null>(null)
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
@@ -49,48 +50,62 @@ export default function LoginPage() {
   })
 
   const onSubmit = async (data: LoginForm) => {
-    const { data: authData, error } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    })
-
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-
-    localStorage.removeItem('app-remember')
-    sessionStorage.setItem('app-session-active', 'true')
-
-    // Route based on normalized role from backend (with metadata fallback)
-    let role = normalizeRole(
-      authData.user?.user_metadata?.role ??
-      authData.user?.app_metadata?.role ??
-      authData.user?.app_metadata?.user_role,
-    )
-
+    // Use backend login endpoint which checks for pending_verification accounts
     try {
-      const me = await api.get<{ user: { role: string } }>('/auth/me')
-      role = normalizeRole(me.user?.role)
-    } catch (err: any) {
-      // If 403, account is not active — sign out and show message
-      if (err?.response?.status === 403) {
-        await supabase.auth.signOut()
-        const msg = err?.response?.data?.error || 'Account is not active yet'
-        toast.error(msg)
-        return
+      const loginRes = await api.post<{ user: any; session: any }>('/auth/login', {
+        email: data.email,
+        password: data.password,
+      })
+
+      const session = loginRes.session
+      if (session?.access_token && session?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        })
       }
-      // Keep metadata-derived fallback role
-    }
 
-    toast.success('Login successful!')
+      const user = loginRes.user
 
-    if (role === 'manager') {
-      navigate('/manager')
-    } else if (role === 'tenant') {
-      navigate('/tenant')
-    } else {
-      navigate('/owner')
+      localStorage.removeItem('app-remember')
+      sessionStorage.setItem('app-session-active', 'true')
+
+      // Route based on normalized role from backend (with metadata fallback)
+      let role = normalizeRole(
+        user?.user_metadata?.role ??
+        user?.app_metadata?.role ??
+        user?.app_metadata?.user_role,
+      )
+
+      try {
+        const me = await api.get<{ user: { role: string } }>('/auth/me')
+        role = normalizeRole(me.user?.role)
+      } catch (meErr: unknown) {
+        // If 403, account is not active — sign out and show message
+        if (meErr instanceof ApiError && meErr.status === 403) {
+          await supabase.auth.signOut()
+          const msg = meErr.response?.data?.error || 'Account is not active yet'
+          setPendingAlert(msg)
+          return
+        }
+        // Keep metadata-derived fallback role
+      }
+
+      toast.success('Login successful!')
+
+      if (role === 'manager') {
+        navigate('/manager')
+      } else if (role === 'tenant') {
+        navigate('/tenant')
+      } else {
+        navigate('/owner')
+      }
+    } catch (err: unknown) {
+      if (err instanceof ApiError && err.status === 403) {
+        setPendingAlert(err.message)
+      } else {
+        toast.error(err instanceof Error ? err.message : 'Login failed')
+      }
     }
   }
 
@@ -116,6 +131,32 @@ export default function LoginPage() {
 
   return (
     <div className={`min-h-screen flex ${isDark ? 'bg-dark' : 'bg-gray-50'}`}>
+      {/* Pending Verification Alert Modal */}
+      {pendingAlert && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setPendingAlert(null)} />
+          <div className={`relative w-full max-w-md rounded-2xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0">
+                <ShieldAlert className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Account Under Review</h3>
+                <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{pendingAlert}</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <Button
+                type="button"
+                onClick={() => setPendingAlert(null)}
+                className="bg-primary hover:bg-primary/90 text-white px-6"
+              >
+                OK
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         {/* Background Image */}
