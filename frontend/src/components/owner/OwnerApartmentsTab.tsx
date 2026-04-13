@@ -13,10 +13,10 @@ import {
 } from '../../lib/ownerApi'
 
 interface OwnerApartmentsTabProps {
-  clientId: string
+  ownerId: string
 }
 
-export default function OwnerApartmentsTab({ clientId }: OwnerApartmentsTabProps) {
+export default function OwnerApartmentsTab({ ownerId }: OwnerApartmentsTabProps) {
   const { isDark } = useTheme()
   const [units, setUnits] = useState<UnitWithTenant[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,12 +27,12 @@ export default function OwnerApartmentsTab({ clientId }: OwnerApartmentsTabProps
 
   useEffect(() => {
     loadUnits()
-  }, [clientId])
+  }, [ownerId])
 
   async function loadUnits() {
     try {
       setLoading(true)
-      const data = await getOwnerUnits(clientId)
+      const data = await getOwnerUnits(ownerId)
       setUnits(data)
     } catch (err) {
       console.error('Failed to load units:', err)
@@ -52,7 +52,7 @@ export default function OwnerApartmentsTab({ clientId }: OwnerApartmentsTabProps
     const startNumber = units.length + 1
 
     try {
-      await createBulkUnits(clientId, count, startNumber, 0)
+      await createBulkUnits(ownerId, count, startNumber, 0)
       await loadUnits()
       setShowAddModal(false)
       setAddForm({ count: '1' })

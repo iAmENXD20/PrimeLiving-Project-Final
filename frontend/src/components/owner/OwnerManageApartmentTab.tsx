@@ -34,7 +34,7 @@ import {
 } from '../../lib/ownerApi'
 
 interface OwnerManageApartmentTabProps {
-  clientId: string
+  ownerId: string
   mode?: 'units' | 'manage'
 }
 
@@ -51,7 +51,7 @@ interface Manager {
   apartment?: { id: string; name: string; address: string | null } | null
 }
 
-export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'manage' }: OwnerManageApartmentTabProps) {
+export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: OwnerManageApartmentTabProps) {
   const { isDark } = useTheme()
 
   // Helper to build readable address from structured fields
@@ -246,9 +246,9 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
     try {
       setUnitsLoading(true)
       const data = await getOwnerUnits(ownerId)
-      const merged = [...data, ...sampleUnits]
-      merged.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-      setUnits(merged)
+      const result = [...data, ...sampleUnits]
+      result.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+      setUnits(result)
     } catch (err) {
       console.error('Failed to load units:', err)
       sampleUnits.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
@@ -272,11 +272,9 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
     try {
       setManagersLoading(true)
       const data = await getOwnerManagers(ownerId)
-      // Merge real data with sample data for frontend reference
       setManagers([...data, ...sampleManagers])
     } catch (err) {
       console.error('Failed to load managers:', err)
-      // Show sample data even if API fails
       setManagers(sampleManagers)
     } finally {
       setManagersLoading(false)
@@ -461,8 +459,24 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
 
   async function handleAssignManager(propertyId: string, managerId: string | null) {
     try {
+      // Find the previous manager assigned to this property (to clear their apartment_id)
+      const prevManager = managers.find(m => m.apartment_id === propertyId)
+
+      // Update the apartment's manager_id
       await updateOwnerProperty(propertyId, { manager_id: managerId })
+
+      // Update the new manager's apartment_id (bidirectional link)
+      if (managerId) {
+        await updateOwnerManager(managerId, { apartment_id: propertyId })
+      }
+
+      // Clear the previous manager's apartment_id if switching managers
+      if (prevManager && prevManager.id !== managerId) {
+        await updateOwnerManager(prevManager.id, { apartment_id: null })
+      }
+
       await loadProperties()
+      await loadManagers()
       setSelectedProperty(prev => prev ? { ...prev, manager_id: managerId } : prev)
       toast.success(managerId ? 'Manager assigned successfully' : 'Manager removed')
     } catch {

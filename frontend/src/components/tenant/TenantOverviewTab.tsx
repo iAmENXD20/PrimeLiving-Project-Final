@@ -7,7 +7,7 @@ import {
   getTenantMaintenanceRequests,
   type TenantMaintenanceRequest,
 } from '../../lib/tenantApi'
-import { getClientApartmentName, getOwnerApartmentAddress } from '../../lib/ownerApi'
+import { getOwnerApartmentName, getOwnerApartmentAddress } from '../../lib/ownerApi'
 import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
@@ -15,10 +15,10 @@ interface TenantOverviewTabProps {
   tenantId: string
   apartmentId: string | null
   tenantName?: string
-  clientId?: string | null
+  ownerId?: string | null
 }
 
-export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, clientId }: TenantOverviewTabProps) {
+export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, ownerId }: TenantOverviewTabProps) {
   const { isDark } = useTheme()
   const [stats, setStats] = useState({ pendingMaintenance: 0, resolvedMaintenance: 0, totalPaid: 0, pendingPayments: 0 })
   const [apartmentInfo, setApartmentInfo] = useState<{ name: string; address: string; monthly_rent: number; apartmentowner_id: string } | null>(null)
@@ -41,18 +41,18 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, c
         if (apartmentId) {
           const info = await getTenantApartmentInfo(apartmentId)
           setApartmentInfo(info)
-          const fallbackClientId = info?.apartmentowner_id || clientId || null
+          const fallbackClientId = info?.apartmentowner_id || ownerId || null
           const [fallbackAddress, fallbackApartmentName] = fallbackClientId
             ? await Promise.all([
                 getOwnerApartmentAddress(fallbackClientId),
-                getClientApartmentName(fallbackClientId),
+                getOwnerApartmentName(fallbackClientId),
               ])
             : [null, null]
           setApartmentAddress(fallbackAddress || info?.address || info?.name || fallbackApartmentName || null)
-        } else if (clientId) {
+        } else if (ownerId) {
           const [fallbackAddress, fallbackApartmentName] = await Promise.all([
-            getOwnerApartmentAddress(clientId),
-            getClientApartmentName(clientId),
+            getOwnerApartmentAddress(ownerId),
+            getOwnerApartmentName(ownerId),
           ])  
           setApartmentAddress(fallbackAddress || fallbackApartmentName || null)
         }
@@ -63,7 +63,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, c
       }
     }
     load()
-  }, [tenantId, apartmentId, clientId])
+  }, [tenantId, apartmentId, ownerId])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'

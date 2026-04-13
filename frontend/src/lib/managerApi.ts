@@ -115,12 +115,12 @@ export async function getManagerMaintenanceRequests(managerId: string): Promise<
     api.get<any[]>(`/apartments?manager_id=${managerId}`).catch(() => [] as any[]),
   ])
 
-  if (!requests || requests.length === 0) return []
+  if (!data || data.length === 0) return []
 
   const tenantMap = new Map((allTenants || []).map((t: any) => [t.id, `${t.first_name} ${t.last_name}`.trim()]))
   const apartmentMap = new Map((allApts || []).map((a: any) => [a.id, a.name]))
 
-  return requests.map(r => ({
+  return data.map((r: any) => ({
     ...r,
     tenant_name: r.tenant_id ? tenantMap.get(r.tenant_id) || 'Unknown' : '\u2014',
     apartment_name: r.unit_id ? apartmentMap.get(r.unit_id) || 'Unknown' : '\u2014',

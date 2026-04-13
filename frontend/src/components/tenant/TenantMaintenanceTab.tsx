@@ -30,7 +30,7 @@ type RequestForm = z.infer<typeof requestSchema>
 interface TenantMaintenanceTabProps {
   tenantId: string
   apartmentId: string | null
-  clientId: string | null
+  ownerId: string | null
 }
 
 /** Parse photo_url field — may be a JSON array string or a single URL */
@@ -46,7 +46,7 @@ function parsePhotoUrls(photoUrl: string | null | undefined): string[] {
   return [photoUrl]
 }
 
-export default function TenantMaintenanceTab({ tenantId, apartmentId, clientId }: TenantMaintenanceTabProps) {
+export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }: TenantMaintenanceTabProps) {
   const { isDark } = useTheme()
   const [requests, setRequests] = useState<TenantMaintenanceRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -117,7 +117,7 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, clientId }
       await createTenantMaintenanceRequest({
         tenant_id: tenantId,
         unit_id: apartmentId,
-        apartmentowner_id: clientId,
+        apartmentowner_id: ownerId,
         title: data.title,
         description: data.description,
         priority: data.priority,

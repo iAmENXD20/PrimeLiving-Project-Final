@@ -18,11 +18,11 @@ import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
 interface OwnerDocumentsTabProps {
-  clientId: string
+  ownerId: string
   ownerName: string
 }
 
-export default function OwnerDocumentsTab({ clientId, ownerName }: OwnerDocumentsTabProps) {
+export default function OwnerDocumentsTab({ ownerId, ownerName }: OwnerDocumentsTabProps) {
   const { isDark } = useTheme()
   const [documents, setDocuments] = useState<OwnerDocument[]>([])
   const [units, setUnits] = useState<UnitWithTenant[]>([])
@@ -46,9 +46,9 @@ export default function OwnerDocumentsTab({ clientId, ownerName }: OwnerDocument
   async function load() {
     try {
       const [docsResult, unitsResult, tenantsResult] = await Promise.allSettled([
-        getOwnerDocuments(clientId),
-        getOwnerUnits(clientId),
-        getOwnerTenants(clientId),
+        getOwnerDocuments(ownerId),
+        getOwnerUnits(ownerId),
+        getOwnerTenants(ownerId),
       ])
 
       const docs = docsResult.status === 'fulfilled' ? docsResult.value : []
@@ -65,7 +65,7 @@ export default function OwnerDocumentsTab({ clientId, ownerName }: OwnerDocument
     }
   }
 
-  useEffect(() => { load() }, [clientId])
+  useEffect(() => { load() }, [ownerId])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -102,7 +102,7 @@ export default function OwnerDocumentsTab({ clientId, ownerName }: OwnerDocument
       const unit = units.find((u) => u.tenant_id === tenant.id)
       await uploadOwnerDocument(
         selectedFile,
-        clientId,
+        ownerId,
         unit?.id || tenant.unit_id || null,
         tenant.id,
         description,
@@ -112,7 +112,7 @@ export default function OwnerDocumentsTab({ clientId, ownerName }: OwnerDocument
       if (tenant?.first_name) {
         try {
           await createOwnerAnnouncement(
-            clientId,
+            ownerId,
             '📄 New Document Received',
             `A new document "${selectedFile.name}" has been shared with you${description ? `: ${description}` : '.'}`,
             ownerName || 'Property Owner',

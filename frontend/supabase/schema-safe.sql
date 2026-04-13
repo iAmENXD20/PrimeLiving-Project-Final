@@ -1,13 +1,14 @@
-﻿-- ============================================================
--- PrimeLiving Database Schema (v5)
--- Current state reflecting all migrations applied
+-- ============================================================
+-- PrimeLiving Database Schema (v5) — SAFE / IDEMPOTENT
+-- Can be run on fresh OR existing databases without errors.
+-- Skips tables/indexes/policies that already exist.
 -- Run this in: Supabase Dashboard -> SQL Editor -> New Query
 -- ============================================================
 
 -- ============================================================
--- 1. APARTMENT_OWNERS table (Apartment Owners / Clients)
+-- 1. APARTMENT_OWNERS table (Apartment Owners)
 -- ============================================================
-CREATE TABLE apartment_owners (
+CREATE TABLE IF NOT EXISTS apartment_owners (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   auth_user_id UUID UNIQUE,
   first_name TEXT NOT NULL DEFAULT '',
@@ -19,36 +20,10 @@ CREATE TABLE apartment_owners (
 );
 
 -- ============================================================
--- 2. APARTMENT_MANAGERS table (Managers - work under an owner)
--- ============================================================
-CREATE TABLE apartment_managers (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  auth_user_id UUID UNIQUE,
-  first_name TEXT NOT NULL DEFAULT '',
-  last_name TEXT DEFAULT '',
-  email TEXT UNIQUE NOT NULL,
-  phone TEXT,
-  sex TEXT,
-  age TEXT,
-  apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE SET NULL,
-  apartment_id UUID REFERENCES apartments(id) ON DELETE SET NULL,
-  id_type TEXT,
-  id_type_other TEXT,
-  id_front_photo_url TEXT,
-  id_back_photo_url TEXT,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'pending', 'pending_verification')),
-  joined_date TIMESTAMPTZ DEFAULT NOW(),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_apartment_managers_apartmentowner_id ON apartment_managers(apartmentowner_id);
-CREATE INDEX idx_apartment_managers_apartment_id ON apartment_managers(apartment_id);
-
--- ============================================================
 -- 3. APARTMENTS table (Property / Building level)
+-- Must be created BEFORE apartment_managers (which references it)
 -- ============================================================
-CREATE TABLE apartments (
+CREATE TABLE IF NOT EXISTS apartments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
@@ -71,12 +46,39 @@ CREATE TABLE apartments (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_apartments_apartmentowner_id ON apartments(apartmentowner_id);
+CREATE INDEX IF NOT EXISTS idx_apartments_apartmentowner_id ON apartments(apartmentowner_id);
+
+-- ============================================================
+-- 2. APARTMENT_MANAGERS table (Managers - work under an owner)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS apartment_managers (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  auth_user_id UUID UNIQUE,
+  first_name TEXT NOT NULL DEFAULT '',
+  last_name TEXT DEFAULT '',
+  email TEXT UNIQUE NOT NULL,
+  phone TEXT,
+  sex TEXT,
+  age TEXT,
+  apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE SET NULL,
+  apartment_id UUID REFERENCES apartments(id) ON DELETE SET NULL,
+  id_type TEXT,
+  id_type_other TEXT,
+  id_front_photo_url TEXT,
+  id_back_photo_url TEXT,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'pending', 'pending_verification')),
+  joined_date TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_apartment_managers_apartmentowner_id ON apartment_managers(apartmentowner_id);
+CREATE INDEX IF NOT EXISTS idx_apartment_managers_apartment_id ON apartment_managers(apartment_id);
 
 -- ============================================================
 -- 4. UNITS table (Rentable units under an apartment/property)
 -- ============================================================
-CREATE TABLE units (
+CREATE TABLE IF NOT EXISTS units (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   apartment_id UUID REFERENCES apartments(id) ON DELETE SET NULL,
@@ -91,29 +93,13 @@ CREATE TABLE units (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_units_apartment_id ON units(apartment_id);
-CREATE INDEX idx_units_apartmentowner_id ON units(apartmentowner_id);
-
--- ============================================================
--- 4b. UNIT_OCCUPANTS table (Additional occupants per unit)
--- ============================================================
-CREATE TABLE unit_occupants (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  full_name TEXT NOT NULL,
-  id_photo_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_unit_occupants_unit_id ON unit_occupants(unit_id);
-CREATE INDEX idx_unit_occupants_tenant_id ON unit_occupants(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_units_apartment_id ON units(apartment_id);
+CREATE INDEX IF NOT EXISTS idx_units_apartmentowner_id ON units(apartmentowner_id);
 
 -- ============================================================
 -- 5. TENANTS table
 -- ============================================================
-CREATE TABLE tenants (
+CREATE TABLE IF NOT EXISTS tenants (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   auth_user_id UUID UNIQUE,
   first_name TEXT NOT NULL DEFAULT '',
@@ -135,13 +121,29 @@ CREATE TABLE tenants (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_tenants_unit_id ON tenants(unit_id);
-CREATE INDEX idx_tenants_apartmentowner_id ON tenants(apartmentowner_id);
+CREATE INDEX IF NOT EXISTS idx_tenants_unit_id ON tenants(unit_id);
+CREATE INDEX IF NOT EXISTS idx_tenants_apartmentowner_id ON tenants(apartmentowner_id);
+
+-- ============================================================
+-- 4b. UNIT_OCCUPANTS table (Additional occupants per unit)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS unit_occupants (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  full_name TEXT NOT NULL,
+  id_photo_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_unit_occupants_unit_id ON unit_occupants(unit_id);
+CREATE INDEX IF NOT EXISTS idx_unit_occupants_tenant_id ON unit_occupants(tenant_id);
 
 -- ============================================================
 -- 6. MAINTENANCE table (Tenant maintenance requests)
 -- ============================================================
-CREATE TABLE maintenance (
+CREATE TABLE IF NOT EXISTS maintenance (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL,
   unit_id UUID REFERENCES units(id) ON DELETE SET NULL,
@@ -155,13 +157,13 @@ CREATE TABLE maintenance (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_maintenance_unit_status ON maintenance(unit_id, status);
-CREATE INDEX idx_maintenance_apartmentowner_id ON maintenance(apartmentowner_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_unit_status ON maintenance(unit_id, status);
+CREATE INDEX IF NOT EXISTS idx_maintenance_apartmentowner_id ON maintenance(apartmentowner_id);
 
 -- ============================================================
 -- 8. REVENUES table (Monthly apartment revenue tracking)
 -- ============================================================
-CREATE TABLE revenues (
+CREATE TABLE IF NOT EXISTS revenues (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   apartment_id UUID REFERENCES apartments(id) ON DELETE SET NULL,
   apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE SET NULL,
@@ -174,7 +176,7 @@ CREATE TABLE revenues (
 -- ============================================================
 -- 9. DOCUMENTS table (Contract / lease files)
 -- ============================================================
-CREATE TABLE documents (
+CREATE TABLE IF NOT EXISTS documents (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE SET NULL,
   apartment_id UUID REFERENCES apartments(id) ON DELETE SET NULL,
@@ -187,12 +189,12 @@ CREATE TABLE documents (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_documents_apartmentowner_id ON documents(apartmentowner_id);
+CREATE INDEX IF NOT EXISTS idx_documents_apartmentowner_id ON documents(apartmentowner_id);
 
 -- ============================================================
 -- 10. ANNOUNCEMENTS table (Owner/Manager notices)
 -- ============================================================
-CREATE TABLE announcements (
+CREATE TABLE IF NOT EXISTS announcements (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE CASCADE,
   apartment_id UUID REFERENCES apartments(id) ON DELETE SET NULL,
@@ -203,12 +205,12 @@ CREATE TABLE announcements (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_announcements_apartment_id ON announcements(apartment_id);
+CREATE INDEX IF NOT EXISTS idx_announcements_apartment_id ON announcements(apartment_id);
 
 -- ============================================================
 -- 11. PAYMENTS table (Tenant payment records)
 -- ============================================================
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE SET NULL,
   tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL,
@@ -226,14 +228,14 @@ CREATE TABLE payments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_payments_apartmentowner_status ON payments(apartmentowner_id, status);
-CREATE INDEX idx_payments_period_from ON payments(period_from);
-CREATE INDEX idx_payments_unit_id ON payments(unit_id);
+CREATE INDEX IF NOT EXISTS idx_payments_apartmentowner_status ON payments(apartmentowner_id, status);
+CREATE INDEX IF NOT EXISTS idx_payments_period_from ON payments(period_from);
+CREATE INDEX IF NOT EXISTS idx_payments_unit_id ON payments(unit_id);
 
 -- ============================================================
 -- 12. NOTIFICATIONS table (In-app notifications)
 -- ============================================================
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE SET NULL,
   apartment_id UUID REFERENCES apartments(id) ON DELETE SET NULL,
@@ -246,13 +248,13 @@ CREATE TABLE notifications (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_notifications_apartment_id ON notifications(apartment_id);
-CREATE INDEX idx_notifications_recipient ON notifications(recipient_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_apartment_id ON notifications(apartment_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_id, is_read);
 
 -- ============================================================
 -- 13. SMS_LOGS table (SMS delivery audit trail)
 -- ============================================================
-CREATE TABLE sms_logs (
+CREATE TABLE IF NOT EXISTS sms_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   phone TEXT NOT NULL,
   message TEXT NOT NULL,
@@ -262,12 +264,12 @@ CREATE TABLE sms_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_sms_logs_apartment_id ON sms_logs(apartment_id);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_apartment_id ON sms_logs(apartment_id);
 
 -- ============================================================
 -- 14. APARTMENT_LOGS table (Activity tracking / audit logs)
 -- ============================================================
-CREATE TABLE apartment_logs (
+CREATE TABLE IF NOT EXISTS apartment_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   apartmentowner_id UUID REFERENCES apartment_owners(id) ON DELETE CASCADE,
   apartment_id UUID,
@@ -282,11 +284,12 @@ CREATE TABLE apartment_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_apartment_logs_apartmentowner_id ON apartment_logs(apartmentowner_id);
-CREATE INDEX idx_apartment_logs_created_at ON apartment_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_apartment_logs_apartmentowner_id ON apartment_logs(apartmentowner_id);
+CREATE INDEX IF NOT EXISTS idx_apartment_logs_created_at ON apartment_logs(created_at DESC);
 
 -- ============================================================
--- Enable Row Level Security (RLS)
+-- Enable Row Level Security (RLS) on all tables
+-- (Safe to re-run — enabling RLS on already-enabled tables is a no-op)
 -- ============================================================
 ALTER TABLE apartment_owners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE apartment_managers ENABLE ROW LEVEL SECURITY;
@@ -305,8 +308,7 @@ ALTER TABLE apartment_logs ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- Helper functions for RLS policies
--- (Backend uses service_role key which bypasses RLS.
---  These protect direct frontend Supabase calls via anon key.)
+-- (CREATE OR REPLACE is safe to re-run)
 -- ============================================================
 CREATE OR REPLACE FUNCTION get_my_owner_id()
 RETURNS UUID AS $$
@@ -349,39 +351,54 @@ RETURNS UUID AS $$
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- ============================================================
--- RLS Policies: Role-based access per table
+-- RLS Policies (DROP IF EXISTS + CREATE to ensure correct state)
 -- ============================================================
 
--- apartment_owners: owners see/update their own record
+-- ── APARTMENT_OWNERS ────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to apartment_owners" ON apartment_owners;
+DROP POLICY IF EXISTS "owners_select_own" ON apartment_owners;
+DROP POLICY IF EXISTS "owners_update_own" ON apartment_owners;
 CREATE POLICY "owners_select_own" ON apartment_owners FOR SELECT USING (auth_user_id = auth.uid());
 CREATE POLICY "owners_update_own" ON apartment_owners FOR UPDATE USING (auth_user_id = auth.uid()) WITH CHECK (auth_user_id = auth.uid());
 
--- apartment_managers: managers see own record; owners see their managers
+-- ── APARTMENT_MANAGERS ──────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to apartment_managers" ON apartment_managers;
+DROP POLICY IF EXISTS "managers_select_own" ON apartment_managers;
+DROP POLICY IF EXISTS "managers_update_own" ON apartment_managers;
 CREATE POLICY "managers_select_own" ON apartment_managers FOR SELECT USING (auth_user_id = auth.uid() OR apartmentowner_id = get_my_owner_id());
 CREATE POLICY "managers_update_own" ON apartment_managers FOR UPDATE USING (auth_user_id = auth.uid()) WITH CHECK (auth_user_id = auth.uid());
 
--- apartments: owners see their properties; managers/tenants see assigned properties
+-- ── APARTMENTS ──────────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to apartments" ON apartments;
+DROP POLICY IF EXISTS "apartments_select" ON apartments;
 CREATE POLICY "apartments_select" ON apartments FOR SELECT USING (
   apartmentowner_id = get_my_owner_id()
   OR id = get_my_manager_apartment_id()
   OR id = get_my_tenant_apartment_id()
 );
 
--- units: owners see all; managers see their apartment's units; tenants see own unit
+-- ── UNITS ───────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to units" ON units;
+DROP POLICY IF EXISTS "units_select" ON units;
 CREATE POLICY "units_select" ON units FOR SELECT USING (
   apartmentowner_id = get_my_owner_id()
   OR apartment_id = get_my_manager_apartment_id()
   OR id = get_my_tenant_unit_id()
 );
 
--- unit_occupants: owners/managers see via units; tenants see their own
+-- ── UNIT_OCCUPANTS ──────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to unit_occupants" ON unit_occupants;
+DROP POLICY IF EXISTS "occupants_select" ON unit_occupants;
 CREATE POLICY "occupants_select" ON unit_occupants FOR SELECT USING (
   unit_id IN (SELECT id FROM units WHERE apartmentowner_id = get_my_owner_id())
   OR unit_id IN (SELECT id FROM units WHERE apartment_id = get_my_manager_apartment_id())
   OR tenant_id = get_my_tenant_id()
 );
 
--- tenants: own record, owner sees all, manager sees their apartment's tenants
+-- ── TENANTS ─────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to tenants" ON tenants;
+DROP POLICY IF EXISTS "tenants_select" ON tenants;
+DROP POLICY IF EXISTS "tenants_update_own" ON tenants;
 CREATE POLICY "tenants_select" ON tenants FOR SELECT USING (
   auth_user_id = auth.uid()
   OR apartmentowner_id = get_my_owner_id()
@@ -389,7 +406,10 @@ CREATE POLICY "tenants_select" ON tenants FOR SELECT USING (
 );
 CREATE POLICY "tenants_update_own" ON tenants FOR UPDATE USING (auth_user_id = auth.uid()) WITH CHECK (auth_user_id = auth.uid());
 
--- maintenance: tenant sees own, owner/manager see scoped
+-- ── MAINTENANCE ─────────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to maintenance" ON maintenance;
+DROP POLICY IF EXISTS "maintenance_select" ON maintenance;
+DROP POLICY IF EXISTS "maintenance_insert_tenant" ON maintenance;
 CREATE POLICY "maintenance_select" ON maintenance FOR SELECT USING (
   tenant_id = get_my_tenant_id()
   OR apartmentowner_id = get_my_owner_id()
@@ -397,7 +417,11 @@ CREATE POLICY "maintenance_select" ON maintenance FOR SELECT USING (
 );
 CREATE POLICY "maintenance_insert_tenant" ON maintenance FOR INSERT WITH CHECK (tenant_id = get_my_tenant_id());
 
--- payments: tenant sees own, owner/manager see scoped
+-- ── PAYMENTS ────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to payments" ON payments;
+DROP POLICY IF EXISTS "payments_select" ON payments;
+DROP POLICY IF EXISTS "payments_insert_tenant" ON payments;
+DROP POLICY IF EXISTS "payments_update_own" ON payments;
 CREATE POLICY "payments_select" ON payments FOR SELECT USING (
   tenant_id = get_my_tenant_id()
   OR apartmentowner_id = get_my_owner_id()
@@ -410,42 +434,67 @@ CREATE POLICY "payments_update_own" ON payments FOR UPDATE USING (
   OR unit_id IN (SELECT id FROM units WHERE apartment_id = get_my_manager_apartment_id())
 );
 
--- documents: tenant sees assigned, owner/manager see scoped
+-- ── DOCUMENTS ───────────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to documents" ON documents;
+DROP POLICY IF EXISTS "documents_select" ON documents;
 CREATE POLICY "documents_select" ON documents FOR SELECT USING (
   tenant_id = get_my_tenant_id()
   OR apartmentowner_id = get_my_owner_id()
   OR apartment_id IN (SELECT apartment_id FROM apartment_managers WHERE auth_user_id = auth.uid())
 );
 
--- announcements: owner sees all, manager sees apartment, tenant sees targeted/all
+-- ── ANNOUNCEMENTS ───────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to announcements" ON announcements;
+DROP POLICY IF EXISTS "announcements_select" ON announcements;
 CREATE POLICY "announcements_select" ON announcements FOR SELECT USING (
   apartmentowner_id = get_my_owner_id()
   OR apartment_id = get_my_manager_apartment_id()
   OR (apartmentowner_id = get_my_tenant_owner_id() AND (recipient_tenant_ids IS NULL OR get_my_tenant_id() = ANY(recipient_tenant_ids)))
 );
 
--- notifications: users see only their own
+-- ── NOTIFICATIONS ───────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to notifications" ON notifications;
+DROP POLICY IF EXISTS "notifications_select_own" ON notifications;
+DROP POLICY IF EXISTS "notifications_update_own" ON notifications;
 CREATE POLICY "notifications_select_own" ON notifications FOR SELECT USING (recipient_id = COALESCE(get_my_owner_id(), get_my_manager_id(), get_my_tenant_id()));
 CREATE POLICY "notifications_update_own" ON notifications FOR UPDATE USING (recipient_id = COALESCE(get_my_owner_id(), get_my_manager_id(), get_my_tenant_id()));
 
--- revenues: owner/manager see scoped
+-- ── REVENUES ────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to revenues" ON revenues;
+DROP POLICY IF EXISTS "revenues_select" ON revenues;
 CREATE POLICY "revenues_select" ON revenues FOR SELECT USING (
   apartmentowner_id = get_my_owner_id()
   OR apartment_id = get_my_manager_apartment_id()
 );
 
--- sms_logs: owners see their apartment logs
+-- ── SMS_LOGS ────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to sms_logs" ON sms_logs;
+DROP POLICY IF EXISTS "sms_logs_select" ON sms_logs;
 CREATE POLICY "sms_logs_select" ON sms_logs FOR SELECT USING (
   apartment_id IN (SELECT id FROM apartments WHERE apartmentowner_id = get_my_owner_id())
 );
 
--- apartment_logs: owner sees all, manager sees apartment logs
+-- ── APARTMENT_LOGS ──────────────────────────────────────────
+DROP POLICY IF EXISTS "Allow all access to apartment_logs" ON apartment_logs;
+DROP POLICY IF EXISTS "apartment_logs_select" ON apartment_logs;
 CREATE POLICY "apartment_logs_select" ON apartment_logs FOR SELECT USING (
   apartmentowner_id = get_my_owner_id()
   OR apartment_id = get_my_manager_apartment_id()
 );
 
 -- ============================================================
--- Note: Password management is handled via Supabase Auth.
+-- Ensure CHECK constraints are up to date
+-- (Safe to re-run — drops existing constraint if present, then re-creates)
+-- ============================================================
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_mode_check;
+ALTER TABLE payments ADD CONSTRAINT payments_payment_mode_check 
+  CHECK (payment_mode IN ('gcash', 'maya', 'cash', 'bank_transfer'));
+
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_verification_status_check;
+ALTER TABLE payments ADD CONSTRAINT payments_verification_status_check 
+  CHECK (verification_status IN ('pending_verification', 'verified', 'approved', 'rejected'));
+
+-- ============================================================
+-- Done! Password management is handled via Supabase Auth.
 -- Use supabase.auth.updateUser({ password }) from the client.
 -- ============================================================

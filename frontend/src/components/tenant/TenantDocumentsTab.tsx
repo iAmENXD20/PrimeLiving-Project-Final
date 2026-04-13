@@ -7,10 +7,10 @@ import TablePagination from '@/components/ui/table-pagination'
 
 interface TenantDocumentsTabProps {
   tenantId: string
-  clientId?: string | null
+  ownerId?: string | null
 }
 
-export default function TenantDocumentsTab({ tenantId, clientId }: TenantDocumentsTabProps) {
+export default function TenantDocumentsTab({ tenantId, ownerId }: TenantDocumentsTabProps) {
   const { isDark } = useTheme()
   const [documents, setDocuments] = useState<TenantDocument[]>([])
   const [loading, setLoading] = useState(true)
@@ -22,7 +22,7 @@ export default function TenantDocumentsTab({ tenantId, clientId }: TenantDocumen
     async function load() {
       try {
         setLoading(true)
-        const data = await getTenantDocuments(tenantId, clientId)
+        const data = await getTenantDocuments(tenantId, ownerId)
         setDocuments(data)
       } catch (error) {
         console.error('Failed to load tenant documents:', error)
@@ -32,7 +32,7 @@ export default function TenantDocumentsTab({ tenantId, clientId }: TenantDocumen
     }
 
     load()
-  }, [tenantId, clientId])
+  }, [tenantId, ownerId])
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()

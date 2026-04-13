@@ -187,7 +187,7 @@ export interface OwnerTenant {
   last_name: string
   phone: string | null
   unit_id: string | null
-  status: 'active' | 'inactive' | 'pending_verification'
+  status: 'active' | 'inactive' | 'pending' | 'pending_verification'
   monthly_rent?: number
 }
 

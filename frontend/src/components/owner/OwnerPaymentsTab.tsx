@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, PhilippinePeso, Upload, Trash2, QrCode, Image as ImageIcon, ChevronDown, CheckCircle2, XCircle, X, Receipt, Clock, Download } from 'lucide-react'
+import { Search, PhilippinePeso, Upload, Trash2, QrCode, Image as ImageIcon, ChevronDown, CheckCircle2, XCircle, X, Receipt, Clock, Download, Users, UserCheck, UserX } from 'lucide-react'
 const LazyBarChart = lazy(() => import('recharts').then(m => ({ default: m.BarChart })))
 const LazyBar = lazy(() => import('recharts').then(m => ({ default: m.Bar })))
 const LazyXAxis = lazy(() => import('recharts').then(m => ({ default: m.XAxis })))
@@ -26,10 +26,10 @@ import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
 interface OwnerPaymentsTabProps {
-  clientId: string
+  ownerId: string
 }
 
-const STATUS_OPTIONS = ['all', 'paid', 'unpaid', 'late_payment', 'overdue'] as const
+const STATUS_OPTIONS = ['all', 'paid', 'unpaid', 'pending_verification', 'late_payment', 'overdue'] as const
 type StatusFilter = (typeof STATUS_OPTIONS)[number]
 
 const statusBadge: Record<OwnerPayment['status'], { bg: string; text: string; label: string }> = {
@@ -38,15 +38,18 @@ const statusBadge: Record<OwnerPayment['status'], { bg: string; text: string; la
   overdue: { bg: 'bg-red-400/15', text: 'text-red-400', label: 'Overdue' },
 }
 
+const verificationBadge = { bg: 'bg-blue-400/15', text: 'text-blue-500', label: 'Pending Verification' }
+
 const filterLabel: Record<string, string> = {
   all: 'All',
   paid: 'Paid',
   unpaid: 'Unpaid',
+  pending_verification: 'Pending Verification',
   late_payment: 'Late Payment',
   overdue: 'Overdue',
 }
 
-export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
+export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
   const { isDark } = useTheme()
 
   // ─── Sample/mock payment records connected to tenants/units ───
@@ -57,62 +60,62 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
   const py = cm === 0 ? cy - 1 : cy   // previous year
   const samplePayments: OwnerPayment[] = [
     // ── Current month (all paid) ──
-    { id: 'sp-1', apartmentowner_id: clientId, tenant_id: 'sample-t1', unit_id: 'su-1-1', amount: 8500, payment_date: new Date(cy, cm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 5).toISOString(), tenant_name: 'Elena Flores', apartment_name: 'Apartment 1' },
-    { id: 'sp-2', apartmentowner_id: clientId, tenant_id: 'sample-t2', unit_id: 'su-1-2', amount: 9000, payment_date: new Date(cy, cm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 4).toISOString(), tenant_name: 'Marco Pascual', apartment_name: 'Apartment 1' },
-    { id: 'sp-3', apartmentowner_id: clientId, tenant_id: 'sample-t4', unit_id: 'su-1-4', amount: 10000, payment_date: new Date(cy, cm, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 3).toISOString(), tenant_name: 'Rico Dimaculangan', apartment_name: 'Apartment 1' },
-    { id: 'sp-4', apartmentowner_id: clientId, tenant_id: 'sample-t6', unit_id: 'su-1-6', amount: 9500, payment_date: new Date(cy, cm, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 6).toISOString(), tenant_name: 'Bryan Navarro', apartment_name: 'Apartment 1' },
-    { id: 'sp-5', apartmentowner_id: clientId, tenant_id: 'sample-t10', unit_id: 'su-2-1', amount: 7500, payment_date: new Date(cy, cm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 4).toISOString(), tenant_name: 'Paolo Gonzales', apartment_name: 'Apartment 2' },
-    { id: 'sp-6', apartmentowner_id: clientId, tenant_id: 'sample-t12', unit_id: 'su-2-3', amount: 9000, payment_date: new Date(cy, cm, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 2).toISOString(), tenant_name: 'Juan Dela Cruz', apartment_name: 'Apartment 2' },
-    { id: 'sp-7', apartmentowner_id: clientId, tenant_id: 'sample-t15', unit_id: 'su-2-6', amount: 9200, payment_date: new Date(cy, cm, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 3).toISOString(), tenant_name: 'Ana Garcia', apartment_name: 'Apartment 2' },
-    { id: 'sp-8', apartmentowner_id: clientId, tenant_id: 'sample-t17', unit_id: 'su-3-1', amount: 8000, payment_date: new Date(cy, cm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 5).toISOString(), tenant_name: 'Liza Mendoza', apartment_name: 'Apartment 3' },
-    { id: 'sp-9', apartmentowner_id: clientId, tenant_id: 'sample-t22', unit_id: 'su-3-7', amount: 7500, payment_date: new Date(cy, cm, 1).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 1).toISOString(), tenant_name: 'Karl Bautista', apartment_name: 'Apartment 3' },
-    { id: 'sp-10', apartmentowner_id: clientId, tenant_id: 'sample-t23', unit_id: 'su-4-1', amount: 8500, payment_date: new Date(cy, cm, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 6).toISOString(), tenant_name: 'Gabriel Mendez', apartment_name: 'Apartment 4' },
-    { id: 'sp-11', apartmentowner_id: clientId, tenant_id: 'sample-t24', unit_id: 'su-4-2', amount: 9000, payment_date: new Date(cy, cm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 4).toISOString(), tenant_name: 'Isabella Cruz', apartment_name: 'Apartment 4' },
-    { id: 'sp-12', apartmentowner_id: clientId, tenant_id: 'sample-t27', unit_id: 'su-5-1', amount: 8000, payment_date: new Date(cy, cm, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 3).toISOString(), tenant_name: 'Victor Lim', apartment_name: 'Apartment 5' },
-    { id: 'sp-13', apartmentowner_id: clientId, tenant_id: 'sample-t30', unit_id: 'su-5-5', amount: 8800, payment_date: new Date(cy, cm, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 2).toISOString(), tenant_name: 'Sophia Garcia', apartment_name: 'Apartment 5' },
-    { id: 'sp-14', apartmentowner_id: clientId, tenant_id: 'sample-t32', unit_id: 'su-6-1', amount: 7800, payment_date: new Date(cy, cm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 4).toISOString(), tenant_name: 'Andrea Navarro', apartment_name: 'Apartment 6' },
-    { id: 'sp-15', apartmentowner_id: clientId, tenant_id: 'sample-t34', unit_id: 'su-6-4', amount: 8500, payment_date: new Date(cy, cm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 5).toISOString(), tenant_name: 'Bianca Ramos', apartment_name: 'Apartment 6' },
+    { id: 'sp-1', apartmentowner_id: ownerId, tenant_id: 'sample-t1', unit_id: 'su-1-1', amount: 8500, payment_date: new Date(cy, cm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: 'https://placehold.co/400x600/e8f5e9/2e7d32?text=GCash+Receipt%0A%E2%82%B18%2C500%0ARef%3A+GC20260105', payment_mode: 'gcash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 5).toISOString(), tenant_name: 'Elena Flores', apartment_name: 'Apartment 1' },
+    { id: 'sp-2', apartmentowner_id: ownerId, tenant_id: 'sample-t2', unit_id: 'su-1-2', amount: 9000, payment_date: new Date(cy, cm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: 'https://placehold.co/400x600/e3f2fd/1565c0?text=Maya+Receipt%0A%E2%82%B19%2C000%0ARef%3A+MY20260104', payment_mode: 'maya', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 4).toISOString(), tenant_name: 'Marco Pascual', apartment_name: 'Apartment 1' },
+    { id: 'sp-3', apartmentowner_id: ownerId, tenant_id: 'sample-t4', unit_id: 'su-1-4', amount: 10000, payment_date: new Date(cy, cm, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: 'https://placehold.co/400x600/fff3e0/e65100?text=BDO+Transfer%0A%E2%82%B110%2C000%0ARef%3A+BT20260103', payment_mode: 'bank_transfer', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 3).toISOString(), tenant_name: 'Rico Dimaculangan', apartment_name: 'Apartment 1' },
+    { id: 'sp-4', apartmentowner_id: ownerId, tenant_id: 'sample-t6', unit_id: 'su-1-6', amount: 9500, payment_date: new Date(cy, cm, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: 'https://placehold.co/400x600/e8f5e9/2e7d32?text=GCash+Receipt%0A%E2%82%B19%2C500%0ARef%3A+GC20260106', payment_mode: 'gcash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 6).toISOString(), tenant_name: 'Bryan Navarro', apartment_name: 'Apartment 1' },
+    { id: 'sp-5', apartmentowner_id: ownerId, tenant_id: 'sample-t10', unit_id: 'su-2-1', amount: 7500, payment_date: new Date(cy, cm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: 'https://placehold.co/400x600/f3e5f5/7b1fa2?text=Cash+Payment%0A%E2%82%B17%2C500%0AReceipt+%2305', payment_mode: 'cash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 4).toISOString(), tenant_name: 'Paolo Gonzales', apartment_name: 'Apartment 2' },
+    { id: 'sp-6', apartmentowner_id: ownerId, tenant_id: 'sample-t12', unit_id: 'su-2-3', amount: 9000, payment_date: new Date(cy, cm, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: 'https://placehold.co/400x600/e8f5e9/2e7d32?text=GCash+Receipt%0A%E2%82%B19%2C000%0ARef%3A+GC20260102', payment_mode: 'gcash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 2).toISOString(), tenant_name: 'Juan Dela Cruz', apartment_name: 'Apartment 2' },
+    { id: 'sp-7', apartmentowner_id: ownerId, tenant_id: 'sample-t15', unit_id: 'su-2-6', amount: 9200, payment_date: new Date(cy, cm, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: 'https://placehold.co/400x600/e3f2fd/1565c0?text=Maya+Receipt%0A%E2%82%B19%2C200%0ARef%3A+MY20260103', payment_mode: 'maya', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 3).toISOString(), tenant_name: 'Ana Garcia', apartment_name: 'Apartment 2' },
+    { id: 'sp-8', apartmentowner_id: ownerId, tenant_id: 'sample-t17', unit_id: 'su-3-1', amount: 8000, payment_date: new Date(cy, cm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: 'https://placehold.co/400x600/fff3e0/e65100?text=BDO+Transfer%0A%E2%82%B18%2C000%0ARef%3A+BT20260105', payment_mode: 'bank_transfer', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 5).toISOString(), tenant_name: 'Liza Mendoza', apartment_name: 'Apartment 3' },
+    { id: 'sp-9', apartmentowner_id: ownerId, tenant_id: 'sample-t22', unit_id: 'su-3-7', amount: 7500, payment_date: new Date(cy, cm, 1).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 1).toISOString(), tenant_name: 'Karl Bautista', apartment_name: 'Apartment 3' },
+    { id: 'sp-10', apartmentowner_id: ownerId, tenant_id: 'sample-t23', unit_id: 'su-4-1', amount: 8500, payment_date: new Date(cy, cm, 6).toISOString(), status: 'pending', verification_status: 'pending_verification', receipt_url: 'https://placehold.co/400x600/e8f5e9/2e7d32?text=GCash+Receipt%0A%E2%82%B18%2C500%0ARef%3A+GC20260406', payment_mode: 'gcash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 6).toISOString(), tenant_name: 'Gabriel Mendez', apartment_name: 'Apartment 4' },
+    { id: 'sp-11', apartmentowner_id: ownerId, tenant_id: 'sample-t24', unit_id: 'su-4-2', amount: 9000, payment_date: new Date(cy, cm, 4).toISOString(), status: 'pending', verification_status: 'pending_verification', receipt_url: 'https://placehold.co/400x600/f3e5f5/7b1fa2?text=Cash+Payment%0A%E2%82%B19%2C000%0AReceipt+%2311', payment_mode: 'cash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 4).toISOString(), tenant_name: 'Isabella Cruz', apartment_name: 'Apartment 4' },
+    { id: 'sp-12', apartmentowner_id: ownerId, tenant_id: 'sample-t27', unit_id: 'su-5-1', amount: 8000, payment_date: new Date(cy, cm, 3).toISOString(), status: 'pending', verification_status: 'pending_verification', receipt_url: 'https://placehold.co/400x600/e3f2fd/1565c0?text=Maya+Receipt%0A%E2%82%B18%2C000%0ARef%3A+MY20260403', payment_mode: 'cash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 3).toISOString(), tenant_name: 'Victor Lim', apartment_name: 'Apartment 5' },
+    { id: 'sp-13', apartmentowner_id: ownerId, tenant_id: 'sample-t30', unit_id: 'su-5-5', amount: 8800, payment_date: new Date(cy, cm, 2).toISOString(), status: 'pending', verification_status: 'pending_verification', receipt_url: 'https://placehold.co/400x600/e3f2fd/1565c0?text=Maya+Receipt%0A%E2%82%B18%2C800%0ARef%3A+MY20260402', payment_mode: 'maya', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 2).toISOString(), tenant_name: 'Sophia Garcia', apartment_name: 'Apartment 5' },
+    { id: 'sp-14', apartmentowner_id: ownerId, tenant_id: 'sample-t32', unit_id: 'su-6-1', amount: 7800, payment_date: new Date(cy, cm, 4).toISOString(), status: 'pending', verification_status: 'pending_verification', receipt_url: 'https://placehold.co/400x600/e8f5e9/2e7d32?text=GCash+Receipt%0A%E2%82%B17%2C800%0ARef%3A+GC20260404', payment_mode: 'gcash', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 4).toISOString(), tenant_name: 'Andrea Navarro', apartment_name: 'Apartment 6' },
+    { id: 'sp-15', apartmentowner_id: ownerId, tenant_id: 'sample-t34', unit_id: 'su-6-4', amount: 8500, payment_date: new Date(cy, cm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, cm, 1).toISOString(), period_to: new Date(cy, cm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, cm, 5).toISOString(), tenant_name: 'Bianca Ramos', apartment_name: 'Apartment 6' },
     // ── Previous month (all paid) ──
-    { id: 'sp-16', apartmentowner_id: clientId, tenant_id: 'sample-t1', unit_id: 'su-1-1', amount: 8500, payment_date: new Date(py, pm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 5).toISOString(), tenant_name: 'Elena Flores', apartment_name: 'Apartment 1' },
-    { id: 'sp-17', apartmentowner_id: clientId, tenant_id: 'sample-t2', unit_id: 'su-1-2', amount: 9000, payment_date: new Date(py, pm, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 3).toISOString(), tenant_name: 'Marco Pascual', apartment_name: 'Apartment 1' },
-    { id: 'sp-18', apartmentowner_id: clientId, tenant_id: 'sample-t4', unit_id: 'su-1-4', amount: 10000, payment_date: new Date(py, pm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 4).toISOString(), tenant_name: 'Rico Dimaculangan', apartment_name: 'Apartment 1' },
-    { id: 'sp-19', apartmentowner_id: clientId, tenant_id: 'sample-t6', unit_id: 'su-1-6', amount: 9500, payment_date: new Date(py, pm, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 6).toISOString(), tenant_name: 'Bryan Navarro', apartment_name: 'Apartment 1' },
-    { id: 'sp-20', apartmentowner_id: clientId, tenant_id: 'sample-t10', unit_id: 'su-2-1', amount: 7500, payment_date: new Date(py, pm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 5).toISOString(), tenant_name: 'Paolo Gonzales', apartment_name: 'Apartment 2' },
-    { id: 'sp-21', apartmentowner_id: clientId, tenant_id: 'sample-t12', unit_id: 'su-2-3', amount: 9000, payment_date: new Date(py, pm, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 2).toISOString(), tenant_name: 'Juan Dela Cruz', apartment_name: 'Apartment 2' },
-    { id: 'sp-22', apartmentowner_id: clientId, tenant_id: 'sample-t15', unit_id: 'su-2-6', amount: 9200, payment_date: new Date(py, pm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 4).toISOString(), tenant_name: 'Ana Garcia', apartment_name: 'Apartment 2' },
-    { id: 'sp-23', apartmentowner_id: clientId, tenant_id: 'sample-t17', unit_id: 'su-3-1', amount: 8000, payment_date: new Date(py, pm, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 6).toISOString(), tenant_name: 'Liza Mendoza', apartment_name: 'Apartment 3' },
-    { id: 'sp-24', apartmentowner_id: clientId, tenant_id: 'sample-t22', unit_id: 'su-3-7', amount: 7500, payment_date: new Date(py, pm, 1).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 1).toISOString(), tenant_name: 'Karl Bautista', apartment_name: 'Apartment 3' },
-    { id: 'sp-25', apartmentowner_id: clientId, tenant_id: 'sample-t23', unit_id: 'su-4-1', amount: 8500, payment_date: new Date(py, pm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 5).toISOString(), tenant_name: 'Gabriel Mendez', apartment_name: 'Apartment 4' },
-    { id: 'sp-26', apartmentowner_id: clientId, tenant_id: 'sample-t24', unit_id: 'su-4-2', amount: 9000, payment_date: new Date(py, pm, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 3).toISOString(), tenant_name: 'Isabella Cruz', apartment_name: 'Apartment 4' },
-    { id: 'sp-27', apartmentowner_id: clientId, tenant_id: 'sample-t27', unit_id: 'su-5-1', amount: 8000, payment_date: new Date(py, pm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 4).toISOString(), tenant_name: 'Victor Lim', apartment_name: 'Apartment 5' },
-    { id: 'sp-28', apartmentowner_id: clientId, tenant_id: 'sample-t30', unit_id: 'su-5-5', amount: 8800, payment_date: new Date(py, pm, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 2).toISOString(), tenant_name: 'Sophia Garcia', apartment_name: 'Apartment 5' },
-    { id: 'sp-29', apartmentowner_id: clientId, tenant_id: 'sample-t32', unit_id: 'su-6-1', amount: 7800, payment_date: new Date(py, pm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 5).toISOString(), tenant_name: 'Andrea Navarro', apartment_name: 'Apartment 6' },
-    { id: 'sp-30', apartmentowner_id: clientId, tenant_id: 'sample-t34', unit_id: 'su-6-4', amount: 8500, payment_date: new Date(py, pm, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 6).toISOString(), tenant_name: 'Bianca Ramos', apartment_name: 'Apartment 6' },
+    { id: 'sp-16', apartmentowner_id: ownerId, tenant_id: 'sample-t1', unit_id: 'su-1-1', amount: 8500, payment_date: new Date(py, pm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 5).toISOString(), tenant_name: 'Elena Flores', apartment_name: 'Apartment 1' },
+    { id: 'sp-17', apartmentowner_id: ownerId, tenant_id: 'sample-t2', unit_id: 'su-1-2', amount: 9000, payment_date: new Date(py, pm, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 3).toISOString(), tenant_name: 'Marco Pascual', apartment_name: 'Apartment 1' },
+    { id: 'sp-18', apartmentowner_id: ownerId, tenant_id: 'sample-t4', unit_id: 'su-1-4', amount: 10000, payment_date: new Date(py, pm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 4).toISOString(), tenant_name: 'Rico Dimaculangan', apartment_name: 'Apartment 1' },
+    { id: 'sp-19', apartmentowner_id: ownerId, tenant_id: 'sample-t6', unit_id: 'su-1-6', amount: 9500, payment_date: new Date(py, pm, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 6).toISOString(), tenant_name: 'Bryan Navarro', apartment_name: 'Apartment 1' },
+    { id: 'sp-20', apartmentowner_id: ownerId, tenant_id: 'sample-t10', unit_id: 'su-2-1', amount: 7500, payment_date: new Date(py, pm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 5).toISOString(), tenant_name: 'Paolo Gonzales', apartment_name: 'Apartment 2' },
+    { id: 'sp-21', apartmentowner_id: ownerId, tenant_id: 'sample-t12', unit_id: 'su-2-3', amount: 9000, payment_date: new Date(py, pm, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 2).toISOString(), tenant_name: 'Juan Dela Cruz', apartment_name: 'Apartment 2' },
+    { id: 'sp-22', apartmentowner_id: ownerId, tenant_id: 'sample-t15', unit_id: 'su-2-6', amount: 9200, payment_date: new Date(py, pm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 4).toISOString(), tenant_name: 'Ana Garcia', apartment_name: 'Apartment 2' },
+    { id: 'sp-23', apartmentowner_id: ownerId, tenant_id: 'sample-t17', unit_id: 'su-3-1', amount: 8000, payment_date: new Date(py, pm, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 6).toISOString(), tenant_name: 'Liza Mendoza', apartment_name: 'Apartment 3' },
+    { id: 'sp-24', apartmentowner_id: ownerId, tenant_id: 'sample-t22', unit_id: 'su-3-7', amount: 7500, payment_date: new Date(py, pm, 1).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 1).toISOString(), tenant_name: 'Karl Bautista', apartment_name: 'Apartment 3' },
+    { id: 'sp-25', apartmentowner_id: ownerId, tenant_id: 'sample-t23', unit_id: 'su-4-1', amount: 8500, payment_date: new Date(py, pm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 5).toISOString(), tenant_name: 'Gabriel Mendez', apartment_name: 'Apartment 4' },
+    { id: 'sp-26', apartmentowner_id: ownerId, tenant_id: 'sample-t24', unit_id: 'su-4-2', amount: 9000, payment_date: new Date(py, pm, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 3).toISOString(), tenant_name: 'Isabella Cruz', apartment_name: 'Apartment 4' },
+    { id: 'sp-27', apartmentowner_id: ownerId, tenant_id: 'sample-t27', unit_id: 'su-5-1', amount: 8000, payment_date: new Date(py, pm, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 4).toISOString(), tenant_name: 'Victor Lim', apartment_name: 'Apartment 5' },
+    { id: 'sp-28', apartmentowner_id: ownerId, tenant_id: 'sample-t30', unit_id: 'su-5-5', amount: 8800, payment_date: new Date(py, pm, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 2).toISOString(), tenant_name: 'Sophia Garcia', apartment_name: 'Apartment 5' },
+    { id: 'sp-29', apartmentowner_id: ownerId, tenant_id: 'sample-t32', unit_id: 'su-6-1', amount: 7800, payment_date: new Date(py, pm, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 5).toISOString(), tenant_name: 'Andrea Navarro', apartment_name: 'Apartment 6' },
+    { id: 'sp-30', apartmentowner_id: ownerId, tenant_id: 'sample-t34', unit_id: 'su-6-4', amount: 8500, payment_date: new Date(py, pm, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(py, pm, 1).toISOString(), period_to: new Date(py, pm + 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(py, pm, 6).toISOString(), tenant_name: 'Bianca Ramos', apartment_name: 'Apartment 6' },
     // ── January ──
-    { id: 'sp-31', apartmentowner_id: clientId, tenant_id: 'sample-t1', unit_id: 'su-1-1', amount: 8500, payment_date: new Date(cy, 0, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 5).toISOString(), tenant_name: 'Elena Flores', apartment_name: 'Apartment 1' },
-    { id: 'sp-32', apartmentowner_id: clientId, tenant_id: 'sample-t10', unit_id: 'su-2-1', amount: 7500, payment_date: new Date(cy, 0, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 6).toISOString(), tenant_name: 'Paolo Gonzales', apartment_name: 'Apartment 2' },
-    { id: 'sp-33', apartmentowner_id: clientId, tenant_id: 'sample-t17', unit_id: 'su-3-1', amount: 8000, payment_date: new Date(cy, 0, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 4).toISOString(), tenant_name: 'Liza Mendoza', apartment_name: 'Apartment 3' },
-    { id: 'sp-34', apartmentowner_id: clientId, tenant_id: 'sample-t23', unit_id: 'su-4-1', amount: 8500, payment_date: new Date(cy, 0, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 3).toISOString(), tenant_name: 'Gabriel Mendez', apartment_name: 'Apartment 4' },
-    { id: 'sp-35', apartmentowner_id: clientId, tenant_id: 'sample-t27', unit_id: 'su-5-1', amount: 8000, payment_date: new Date(cy, 0, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 5).toISOString(), tenant_name: 'Victor Lim', apartment_name: 'Apartment 5' },
-    { id: 'sp-36', apartmentowner_id: clientId, tenant_id: 'sample-t32', unit_id: 'su-6-1', amount: 7800, payment_date: new Date(cy, 0, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 4).toISOString(), tenant_name: 'Andrea Navarro', apartment_name: 'Apartment 6' },
+    { id: 'sp-31', apartmentowner_id: ownerId, tenant_id: 'sample-t1', unit_id: 'su-1-1', amount: 8500, payment_date: new Date(cy, 0, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 5).toISOString(), tenant_name: 'Elena Flores', apartment_name: 'Apartment 1' },
+    { id: 'sp-32', apartmentowner_id: ownerId, tenant_id: 'sample-t10', unit_id: 'su-2-1', amount: 7500, payment_date: new Date(cy, 0, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 6).toISOString(), tenant_name: 'Paolo Gonzales', apartment_name: 'Apartment 2' },
+    { id: 'sp-33', apartmentowner_id: ownerId, tenant_id: 'sample-t17', unit_id: 'su-3-1', amount: 8000, payment_date: new Date(cy, 0, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 4).toISOString(), tenant_name: 'Liza Mendoza', apartment_name: 'Apartment 3' },
+    { id: 'sp-34', apartmentowner_id: ownerId, tenant_id: 'sample-t23', unit_id: 'su-4-1', amount: 8500, payment_date: new Date(cy, 0, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 3).toISOString(), tenant_name: 'Gabriel Mendez', apartment_name: 'Apartment 4' },
+    { id: 'sp-35', apartmentowner_id: ownerId, tenant_id: 'sample-t27', unit_id: 'su-5-1', amount: 8000, payment_date: new Date(cy, 0, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 5).toISOString(), tenant_name: 'Victor Lim', apartment_name: 'Apartment 5' },
+    { id: 'sp-36', apartmentowner_id: ownerId, tenant_id: 'sample-t32', unit_id: 'su-6-1', amount: 7800, payment_date: new Date(cy, 0, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 0, 1).toISOString(), period_to: new Date(cy, 1, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 0, 4).toISOString(), tenant_name: 'Andrea Navarro', apartment_name: 'Apartment 6' },
     // ── February ──
-    { id: 'sp-37', apartmentowner_id: clientId, tenant_id: 'sample-t2', unit_id: 'su-1-2', amount: 9000, payment_date: new Date(cy, 1, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 5).toISOString(), tenant_name: 'Marco Pascual', apartment_name: 'Apartment 1' },
-    { id: 'sp-38', apartmentowner_id: clientId, tenant_id: 'sample-t12', unit_id: 'su-2-3', amount: 9000, payment_date: new Date(cy, 1, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 3).toISOString(), tenant_name: 'Juan Dela Cruz', apartment_name: 'Apartment 2' },
-    { id: 'sp-39', apartmentowner_id: clientId, tenant_id: 'sample-t22', unit_id: 'su-3-7', amount: 7500, payment_date: new Date(cy, 1, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 4).toISOString(), tenant_name: 'Karl Bautista', apartment_name: 'Apartment 3' },
-    { id: 'sp-40', apartmentowner_id: clientId, tenant_id: 'sample-t24', unit_id: 'su-4-2', amount: 9000, payment_date: new Date(cy, 1, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 6).toISOString(), tenant_name: 'Isabella Cruz', apartment_name: 'Apartment 4' },
-    { id: 'sp-41', apartmentowner_id: clientId, tenant_id: 'sample-t30', unit_id: 'su-5-5', amount: 8800, payment_date: new Date(cy, 1, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 2).toISOString(), tenant_name: 'Sophia Garcia', apartment_name: 'Apartment 5' },
-    { id: 'sp-42', apartmentowner_id: clientId, tenant_id: 'sample-t34', unit_id: 'su-6-4', amount: 8500, payment_date: new Date(cy, 1, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 5).toISOString(), tenant_name: 'Bianca Ramos', apartment_name: 'Apartment 6' },
+    { id: 'sp-37', apartmentowner_id: ownerId, tenant_id: 'sample-t2', unit_id: 'su-1-2', amount: 9000, payment_date: new Date(cy, 1, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 5).toISOString(), tenant_name: 'Marco Pascual', apartment_name: 'Apartment 1' },
+    { id: 'sp-38', apartmentowner_id: ownerId, tenant_id: 'sample-t12', unit_id: 'su-2-3', amount: 9000, payment_date: new Date(cy, 1, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 3).toISOString(), tenant_name: 'Juan Dela Cruz', apartment_name: 'Apartment 2' },
+    { id: 'sp-39', apartmentowner_id: ownerId, tenant_id: 'sample-t22', unit_id: 'su-3-7', amount: 7500, payment_date: new Date(cy, 1, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 4).toISOString(), tenant_name: 'Karl Bautista', apartment_name: 'Apartment 3' },
+    { id: 'sp-40', apartmentowner_id: ownerId, tenant_id: 'sample-t24', unit_id: 'su-4-2', amount: 9000, payment_date: new Date(cy, 1, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 6).toISOString(), tenant_name: 'Isabella Cruz', apartment_name: 'Apartment 4' },
+    { id: 'sp-41', apartmentowner_id: ownerId, tenant_id: 'sample-t30', unit_id: 'su-5-5', amount: 8800, payment_date: new Date(cy, 1, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 2).toISOString(), tenant_name: 'Sophia Garcia', apartment_name: 'Apartment 5' },
+    { id: 'sp-42', apartmentowner_id: ownerId, tenant_id: 'sample-t34', unit_id: 'su-6-4', amount: 8500, payment_date: new Date(cy, 1, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, 1, 1).toISOString(), period_to: new Date(cy, 2, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 1, 5).toISOString(), tenant_name: 'Bianca Ramos', apartment_name: 'Apartment 6' },
     // ── March ──
-    { id: 'sp-43', apartmentowner_id: clientId, tenant_id: 'sample-t4', unit_id: 'su-1-4', amount: 10000, payment_date: new Date(cy, 2, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 5).toISOString(), tenant_name: 'Rico Dimaculangan', apartment_name: 'Apartment 1' },
-    { id: 'sp-44', apartmentowner_id: clientId, tenant_id: 'sample-t15', unit_id: 'su-2-6', amount: 9200, payment_date: new Date(cy, 2, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 4).toISOString(), tenant_name: 'Ana Garcia', apartment_name: 'Apartment 2' },
-    { id: 'sp-45', apartmentowner_id: clientId, tenant_id: 'sample-t17', unit_id: 'su-3-1', amount: 8000, payment_date: new Date(cy, 2, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 3).toISOString(), tenant_name: 'Liza Mendoza', apartment_name: 'Apartment 3' },
-    { id: 'sp-46', apartmentowner_id: clientId, tenant_id: 'sample-t23', unit_id: 'su-4-1', amount: 8500, payment_date: new Date(cy, 2, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 6).toISOString(), tenant_name: 'Gabriel Mendez', apartment_name: 'Apartment 4' },
-    { id: 'sp-47', apartmentowner_id: clientId, tenant_id: 'sample-t27', unit_id: 'su-5-1', amount: 8000, payment_date: new Date(cy, 2, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 2).toISOString(), tenant_name: 'Victor Lim', apartment_name: 'Apartment 5' },
-    { id: 'sp-48', apartmentowner_id: clientId, tenant_id: 'sample-t32', unit_id: 'su-6-1', amount: 7800, payment_date: new Date(cy, 2, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 4).toISOString(), tenant_name: 'Andrea Navarro', apartment_name: 'Apartment 6' },
+    { id: 'sp-43', apartmentowner_id: ownerId, tenant_id: 'sample-t4', unit_id: 'su-1-4', amount: 10000, payment_date: new Date(cy, 2, 5).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 5).toISOString(), tenant_name: 'Rico Dimaculangan', apartment_name: 'Apartment 1' },
+    { id: 'sp-44', apartmentowner_id: ownerId, tenant_id: 'sample-t15', unit_id: 'su-2-6', amount: 9200, payment_date: new Date(cy, 2, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'maya', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 4).toISOString(), tenant_name: 'Ana Garcia', apartment_name: 'Apartment 2' },
+    { id: 'sp-45', apartmentowner_id: ownerId, tenant_id: 'sample-t17', unit_id: 'su-3-1', amount: 8000, payment_date: new Date(cy, 2, 3).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'bank_transfer', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 3).toISOString(), tenant_name: 'Liza Mendoza', apartment_name: 'Apartment 3' },
+    { id: 'sp-46', apartmentowner_id: ownerId, tenant_id: 'sample-t23', unit_id: 'su-4-1', amount: 8500, payment_date: new Date(cy, 2, 6).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 6).toISOString(), tenant_name: 'Gabriel Mendez', apartment_name: 'Apartment 4' },
+    { id: 'sp-47', apartmentowner_id: ownerId, tenant_id: 'sample-t27', unit_id: 'su-5-1', amount: 8000, payment_date: new Date(cy, 2, 2).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'cash', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 2).toISOString(), tenant_name: 'Victor Lim', apartment_name: 'Apartment 5' },
+    { id: 'sp-48', apartmentowner_id: ownerId, tenant_id: 'sample-t32', unit_id: 'su-6-1', amount: 7800, payment_date: new Date(cy, 2, 4).toISOString(), status: 'paid', verification_status: null, receipt_url: null, payment_mode: 'gcash', period_from: new Date(cy, 2, 1).toISOString(), period_to: new Date(cy, 3, 0).toISOString(), description: 'Monthly rent', created_at: new Date(cy, 2, 4).toISOString(), tenant_name: 'Andrea Navarro', apartment_name: 'Apartment 6' },
   ]
 
   const [payments, setPayments] = useState<OwnerPayment[]>(samplePayments)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [page, setPage] = useState(1)
@@ -176,8 +179,8 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
     setLoading(true)
     try {
       const [paymentsResult, qrResult] = await Promise.allSettled([
-        getOwnerPayments(clientId),
-        getPaymentQrUrl(clientId),
+        getOwnerPayments(ownerId),
+        getPaymentQrUrl(ownerId),
       ])
 
       if (qrResult.status === 'fulfilled') {
@@ -216,7 +219,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
   async function loadApprovals() {
     try {
       setLoadingApprovals(true)
-      const data = await getVerifiedPayments(clientId)
+      const data = await getVerifiedPayments(ownerId)
       setPendingApprovals(data)
     } catch (err) {
       console.error('Failed to load pending approvals:', err)
@@ -225,7 +228,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
     }
   }
 
-  useEffect(() => { load(); loadApprovals() }, [clientId])
+  useEffect(() => { load(); loadApprovals() }, [ownerId])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -269,7 +272,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
     }
     setQrUploading(true)
     try {
-      const url = await uploadPaymentQr(clientId, file)
+      const url = await uploadPaymentQr(ownerId, file)
       setQrUrl(url)
       toast.success('Payment QR code uploaded successfully')
     } catch (err: any) {
@@ -284,7 +287,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
   async function handleQrDelete() {
     try {
       setDeletingQr(true)
-      await deletePaymentQr(clientId)
+      await deletePaymentQr(ownerId)
       setQrUrl(null)
       toast.success('Payment QR code removed')
     } catch (err: any) {
@@ -295,7 +298,14 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
     }
   }
 
-  co// Month/Year filter
+  const filtered = useMemo(() => payments.filter((p) => {
+    // Status filter
+    if (filter === 'pending_verification') {
+      if (p.verification_status !== 'pending_verification') return false
+    } else if (filter !== 'all' && p.status !== filter) return false
+    // Branch filter
+    if (branchFilter !== 'all' && p.apartment_name !== branchFilter) return false
+    // Month/Year filter
     if (recordMonth !== 'all' || recordYear !== 'all') {
       const d = new Date(p.payment_date ?? p.created_at)
       if (recordMonth !== 'all' && d.getMonth() !== recordMonth) return false
@@ -310,13 +320,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
       )
     }
     return true
-  }), [payments, filter, branchFilter, search, recordMonth, recordYearncludes(q) ||
-        (p.apartment_name ?? '').toLrecordMonth, recordYear, owerCase().includes(q) ||
-        (p.description ?? '').toLowerCase().includes(q)
-      )
-    }
-    return true
-  }), [payments, filter, branchFilter, search])
+  }), [payments, filter, branchFilter, search, recordMonth, recordYear])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -556,7 +560,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
             {/* Income */}
             <div className={`p-5 flex items-center gap-4 rounded-xl ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
               <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center">
-                <PhilippinePeso className="w-6 h-6 text-primary" />
+                <Users className="w-6 h-6 text-primary" />
               </div>
               <div>
                 <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Income</p>
@@ -570,7 +574,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
             {/* Paid */}
             <div className={`p-5 flex items-center gap-4 rounded-xl ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
               <div className="w-12 h-12 rounded-xl bg-green-500/15 flex items-center justify-center">
-                <PhilippinePeso className="w-6 h-6 text-green-500" />
+                <UserCheck className="w-6 h-6 text-green-500" />
               </div>
               <div>
                 <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Paid</p>
@@ -582,7 +586,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
             {/* Not Paid */}
             <div className={`p-5 flex items-center gap-4 rounded-xl ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
               <div className="w-12 h-12 rounded-xl bg-red-500/15 flex items-center justify-center">
-                <PhilippinePeso className="w-6 h-6 text-red-400" />
+                <UserX className="w-6 h-6 text-red-400" />
               </div>
               <div>
                 <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Not Paid</p>
@@ -764,17 +768,45 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
                 } focus:outline-none`}
               />
             </div>
-              <input
-                type="text"
-                placeholder="Search by tenant, unit, or description…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className={`w-full pl-10 pr-4 py-2.5 rounded-lg border text-sm transition-colors ${
+            {/* Status filter */}
+            <div className="relative w-full sm:w-auto" ref={filterDropdownRef}>
+              <button
+                onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
+                className={`w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border transition-all ${
                   isDark
-                    ? 'bg-[#111D32] border-[#1E293B] text-white placeholder-gray-500 focus:border-primary'
-                    : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-primary'
-                } focus:outline-none`}
-              />
+                    ? 'bg-[#111D32] border-[#1E293B] text-white hover:border-primary/40'
+                    : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
+                }`}
+              >
+                <span>{filterLabel[filter]}</span>
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${filterDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              <div
+                className={`absolute left-0 sm:left-auto sm:right-0 top-full mt-1 z-20 w-full sm:min-w-[120px] rounded-lg border shadow-lg overflow-hidden transition-all duration-200 origin-top ${
+                  filterDropdownOpen
+                    ? 'opacity-100 scale-y-100'
+                    : 'opacity-0 scale-y-0 pointer-events-none'
+                } ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => {
+                      setFilter(s)
+                      setFilterDropdownOpen(false)
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                      s === filter
+                        ? 'bg-primary text-white font-medium'
+                        : isDark
+                        ? 'text-gray-300 hover:bg-white/5'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {filterLabel[s]}
+                  </button>
+                ))}
+              </div>
             </div>
             {/* Month filter */}
             <div className="relative w-full sm:w-auto" ref={recordMonthDropdownRef}>
@@ -831,7 +863,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
                     : 'opacity-0 scale-y-0 pointer-events-none'
                 } ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}
               >
-                {(['all', ...Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i)] as (number | 'all')[]).map((y) => (
+                {(['all' as const, ...Array.from(new Set(payments.map(p => new Date(p.payment_date ?? p.created_at).getFullYear()))).sort((a, b) => b - a)]).map((y) => (
                   <button
                     key={String(y)}
                     onClick={() => { setRecordYear(y); setRecordYearDropdownOpen(false) }}
@@ -842,45 +874,6 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
                     }`}
                   >
                     {y === 'all' ? 'All Years' : y}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="relative w-full sm:w-auto" ref={filterDropdownRef}>
-              <button
-                onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
-                className={`w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border transition-all ${
-                  isDark
-                    ? 'bg-[#111D32] border-[#1E293B] text-white hover:border-primary/40'
-                    : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
-                }`}
-              >
-                <span>{filterLabel[filter]}</span>
-                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${filterDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-              <div
-                className={`absolute left-0 sm:left-auto sm:right-0 top-full mt-1 z-20 w-full sm:min-w-[120px] rounded-lg border shadow-lg overflow-hidden transition-all duration-200 origin-top ${
-                  filterDropdownOpen
-                    ? 'opacity-100 scale-y-100'
-                    : 'opacity-0 scale-y-0 pointer-events-none'
-                } ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}
-              >
-                {STATUS_OPTIONS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => {
-                      setFilter(s)
-                      setFilterDropdownOpen(false)
-                    }}
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                      s === filter
-                        ? 'bg-primary text-white font-medium'
-                        : isDark
-                        ? 'text-gray-300 hover:bg-white/5'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {filterLabel[s]}
                   </button>
                 ))}
               </div>
@@ -959,7 +952,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
               </thead>
               <tbody>
                 {paginated.map((p) => {
-                  const badge = statusBadge[p.status]
+                  const badge = p.verification_status === 'pending_verification' ? verificationBadge : statusBadge[p.status]
                   return (
                     <tr key={p.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
                       <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.tenant_name}</td>
@@ -988,7 +981,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
             <div className={`flex flex-col items-center justify-center h-full ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
               {payments.length === 0 ? (
                 <>
-                  <PhilippinePeso className={`w-12 h-12 mb-3 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+                  <Users className={`w-12 h-12 mb-3 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
                   <p className="text-lg font-medium">No payment records yet</p>
                 </>
               ) : (
@@ -1251,7 +1244,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
           onClick={() => setSelectedPayment(null)}
         >
           <div
-            className={`rounded-2xl p-6 max-w-md w-full mx-4 animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32] border border-[#1E293B]' : 'bg-white border border-gray-200'}`}
+            className={`rounded-2xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32] border border-[#1E293B]' : 'bg-white border border-gray-200'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
@@ -1271,19 +1264,20 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
                 ['Tenant', selectedPayment.tenant_name || '—'],
                 ['Unit', selectedPayment.apartment_name || '—'],
                 ['Amount', `₱${Number(selectedPayment.amount).toLocaleString()}`],
-                ['Payment Mode', selectedPayment.payment_mode ? selectedPayment.payment_mode.replace('_', ' ').replace(/^\w/, c => c.toUpperCase()) : '—'],
+                ['Mode of Payment', selectedPayment.payment_mode ? selectedPayment.payment_mode.replace('_', ' ').replace(/^\w/, c => c.toUpperCase()) : '—'],
                 ['Period', selectedPayment.period_from && selectedPayment.period_to
                   ? `${new Date(selectedPayment.period_from).toLocaleDateString()} – ${new Date(selectedPayment.period_to).toLocaleDateString()}`
                   : '—'],
                 ['Description', selectedPayment.description || '—'],
                 ['Date', new Date(selectedPayment.payment_date).toLocaleDateString()],
-                ['Status', selectedPayment.status.charAt(0).toUpperCase() + selectedPayment.status.slice(1)],
+                ['Status', selectedPayment.verification_status === 'pending_verification' ? 'Pending Verification' : selectedPayment.status.charAt(0).toUpperCase() + selectedPayment.status.slice(1)],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between text-sm">
                   <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{label}</span>
                   <span className={`font-medium ${
                     label === 'Status'
-                      ? selectedPayment.status === 'paid' ? 'text-green-500' : selectedPayment.status === 'overdue' ? 'text-red-400' : 'text-yellow-500'
+                      ? selectedPayment.verification_status === 'pending_verification' ? 'text-blue-500'
+                      : selectedPayment.status === 'paid' ? 'text-green-500' : selectedPayment.status === 'overdue' ? 'text-red-400' : 'text-yellow-500'
                       : isDark ? 'text-white' : 'text-gray-900'
                   }`}>{value}</span>
                 </div>
@@ -1292,7 +1286,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
 
             {selectedPayment.receipt_url && (
               <div className={`rounded-lg overflow-hidden border mb-5 ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                <img src={selectedPayment.receipt_url} alt="Receipt" className="w-full rounded-lg" />
+                <img src={selectedPayment.receipt_url} alt="Receipt" className="w-full max-h-[300px] object-contain rounded-lg" />
               </div>
             )}
 
@@ -1305,11 +1299,11 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
               >
                 Close
               </button>
-              {(selectedPayment.status === 'pending' || selectedPayment.status === 'overdue') && (
+              {(selectedPayment.status === 'pending' || selectedPayment.status === 'overdue' || selectedPayment.verification_status === 'pending_verification') && (
                 <button
                   onClick={() => {
                     setPayments(prev =>
-                      prev.map(p => p.id === selectedPayment.id ? { ...p, status: 'paid' as const } : p)
+                      prev.map(p => p.id === selectedPayment.id ? { ...p, status: 'paid' as const, verification_status: 'approved' as const } : p)
                     )
                     setSelectedPayment(null)
                     toast.success(`Payment from ${selectedPayment.tenant_name} approved`)
@@ -1369,7 +1363,7 @@ export default function OwnerPaymentsTab({ clientId }: OwnerPaymentsTabProps) {
             {/* Receipt Image */}
             {previewPayment.receipt_url ? (
               <div className={`rounded-lg overflow-hidden border mb-5 ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                <img src={previewPayment.receipt_url} alt="Payment Receipt" className="w-full rounded-lg" />
+                <img src={previewPayment.receipt_url} alt="Payment Receipt" className="w-full max-h-[300px] object-contain rounded-lg" />
               </div>
             ) : (
               <div className={`rounded-lg border p-6 text-center text-sm mb-5 ${isDark ? 'border-[#1E293B] text-gray-500' : 'border-gray-200 text-gray-500'}`}>

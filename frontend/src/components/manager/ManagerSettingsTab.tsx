@@ -36,10 +36,10 @@ interface ManagerSettingsTabProps {
   managerId?: string
   managerName?: string
   managerPhone?: string | null
-  clientId?: string | null
+  ownerId?: string | null
 }
 
-export default function ManagerSettingsTab({ managerId, managerName, managerPhone, clientId }: ManagerSettingsTabProps) {
+export default function ManagerSettingsTab({ managerId, managerName, managerPhone, ownerId }: ManagerSettingsTabProps) {
   const { isDark } = useTheme()
   const [showCurrent, setShowCurrent] = useState(false)
   const [showNew, setShowNew] = useState(false)
@@ -71,7 +71,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
 
       setUserEmail(userData.user?.email ?? null)
 
-      const resolvedClientId = (managerRes?.data?.apartmentowner_id as string | null) || clientId || null
+      const resolvedClientId = (managerRes?.data?.apartmentowner_id as string | null) || ownerId || null
       const resolvedApartmentId = managerRes?.data?.apartment_id as string | null
 
       if (managerRes?.data?.status) setManagerStatus(managerRes.data.status)
@@ -101,7 +101,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
     loadProfile().catch(() => {
       // silent fallback
     })
-  }, [managerId, clientId])
+  }, [managerId, ownerId])
 
   const {
     register,

@@ -20,7 +20,7 @@ export default function ManagerDashboard() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('overview')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [manager, setManager] = useState<{ id: string; name: string; clientId: string | null; phone: string | null } | null>(null)
+  const [manager, setManager] = useState<{ id: string; name: string; ownerId: string | null; phone: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
   const [pendingMaintenanceCount, setPendingMaintenanceCount] = useState(0)
   const [notificationCount, setNotificationCount] = useState(0)
@@ -30,7 +30,7 @@ export default function ManagerDashboard() {
       try {
         const data = await getCurrentManager()
         if (data) {
-          setManager({ id: data.id, name: `${data.first_name} ${data.last_name}`.trim(), clientId: data.apartmentowner_id, phone: data.phone })
+          setManager({ id: data.id, name: `${data.first_name} ${data.last_name}`.trim(), ownerId: data.apartmentowner_id, phone: data.phone })
         } else {
           await supabase.auth.signOut()
           navigate('/login', { replace: true })
@@ -63,9 +63,9 @@ export default function ManagerDashboard() {
   }, [manager?.id])
 
   const fetchManagerNotifications = useCallback(async () => {
-    if (!manager?.id || !manager.clientId) return []
-    return getManagerNotifications(manager.id, manager.clientId)
-  }, [manager?.id, manager?.clientId])
+    if (!manager?.id || !manager.ownerId) return []
+    return getManagerNotifications(manager.id, manager.ownerId)
+  }, [manager?.id, manager?.ownerId])
 
   const refreshNotificationCount = useCallback(async () => {
     const notifications = await fetchManagerNotifications()
@@ -74,7 +74,7 @@ export default function ManagerDashboard() {
   }, [fetchManagerNotifications])
 
   useEffect(() => {
-    if (!manager?.id || !manager.clientId) return
+    if (!manager?.id || !manager.ownerId) return
 
     refreshNotificationCount().catch(() => {
       // silent
@@ -87,10 +87,10 @@ export default function ManagerDashboard() {
     }, 30000)
 
     return () => clearInterval(interval)
-  }, [manager?.id, manager?.clientId, refreshNotificationCount])
+  }, [manager?.id, manager?.ownerId, refreshNotificationCount])
 
   useBrowserNotifications({
-    enabled: Boolean(manager?.id && manager?.clientId),
+    enabled: Boolean(manager?.id && manager?.ownerId),
     storageKey: `browser_notifs_manager_${manager?.id || 'unknown'}`,
     fetchNotifications: fetchManagerNotifications,
     pollMs: 30000,
@@ -130,9 +130,9 @@ export default function ManagerDashboard() {
       case 'payments':
         return <ManagerPaymentsTab managerId={manager.id} />
       case 'notifications':
-        return <ManagerNotificationsTab managerId={manager.id} clientId={manager.clientId || ''} onRead={refreshNotificationCount} />
+        return <ManagerNotificationsTab managerId={manager.id} ownerId={manager.ownerId || ''} onRead={refreshNotificationCount} />
       case 'settings':
-        return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} clientId={manager.clientId} />
+        return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} ownerId={manager.ownerId} />
       default:
         return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} />
     }

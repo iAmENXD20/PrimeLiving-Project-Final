@@ -3,18 +3,18 @@ import { createPortal } from 'react-dom'
 import { PhilippinePeso, QrCode, CreditCard, Upload, Trash2, Receipt, Eye, FileText, X, CheckCircle2, Clock, XCircle, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
-import { getTenantPayments, getTenantDueSchedule, getClientPaymentQrUrl, getCurrentTenant, submitCashPaymentVerification, type TenantPayment, type TenantDueScheduleItem } from '../../lib/tenantApi'
+import { getTenantPayments, getTenantDueSchedule, getOwnerPaymentQrUrl, getCurrentTenant, submitCashPaymentVerification, type TenantPayment, type TenantDueScheduleItem } from '../../lib/tenantApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
 interface TenantPaymentsTabProps {
   tenantId: string
-  clientId: string | null
+  ownerId: string | null
   apartmentId: string | null
 }
 
-export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: TenantPaymentsTabProps) {
+export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: TenantPaymentsTabProps) {
   const { isDark } = useTheme()
   const [payments, setPayments] = useState<TenantPayment[]>([])
   const [duePayments, setDuePayments] = useState<TenantDueScheduleItem[]>([])
@@ -74,7 +74,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
         const [paymentsResult, duesResult, qrResult, tenantResult] = await Promise.allSettled([
           getTenantPayments(tenantId),
           getTenantDueSchedule(tenantId),
-          getClientPaymentQrUrl(clientId, apartmentId, tenantId),
+          getOwnerPaymentQrUrl(ownerId, apartmentId, tenantId),
           getCurrentTenant(),
         ])
 
@@ -111,7 +111,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
       }
     }
     load()
-  }, [tenantId, clientId, apartmentId])
+  }, [tenantId, ownerId, apartmentId])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -259,7 +259,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
       return
     }
 
-    if (!clientId) {
+    if (!ownerId) {
       toast.error('Tenant is not linked to an owner yet')
       return
     }
@@ -270,7 +270,7 @@ export default function TenantPaymentsTab({ tenantId, clientId, apartmentId }: T
     try {
       await submitCashPaymentVerification({
         tenant_id: tenantId,
-        apartmentowner_id: clientId,
+        apartmentowner_id: ownerId,
         unit_id: apartmentId,
         amount: Number(selectedDue.amount || 0),
         receipt_url: receiptUrl,

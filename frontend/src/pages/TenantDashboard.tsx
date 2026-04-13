@@ -25,7 +25,7 @@ export default function TenantDashboard() {
     last_name: string
     phone: string | null
     apartmentId: string | null
-    clientId: string | null
+    ownerId: string | null
     status: string
   } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -36,10 +36,10 @@ export default function TenantDashboard() {
       try {
         const data = await getCurrentTenant()
         if (data) {
-          let clientId: string | null = data.apartmentowner_id || null
+          let ownerId: string | null = data.apartmentowner_id || null
           if (data.unit_id) {
             const aptInfo = await getTenantApartmentInfo(data.unit_id)
-            clientId = aptInfo?.apartmentowner_id || clientId
+            ownerId = aptInfo?.apartmentowner_id || ownerId
           }
           setTenant({
             id: data.id,
@@ -47,12 +47,12 @@ export default function TenantDashboard() {
             last_name: data.last_name,
             phone: data.phone,
             apartmentId: data.unit_id,
-            clientId,
+            ownerId,
             status: data.status,
           })
 
           // Load unread notification count
-          const count = await getUnreadNotificationCount(data.id, clientId)
+          const count = await getUnreadNotificationCount(data.id, ownerId)
           setNotificationCount(count)
         }
       } catch (err) {
@@ -84,7 +84,7 @@ export default function TenantDashboard() {
   const refreshNotificationCount = async () => {
     if (tenant?.id) {
       try {
-        const count = await getUnreadNotificationCount(tenant.id, tenant.clientId)
+        const count = await getUnreadNotificationCount(tenant.id, tenant.ownerId)
         setNotificationCount(count)
       } catch {
         // silent
@@ -97,12 +97,12 @@ export default function TenantDashboard() {
     if (!tenant?.id) return
     const interval = setInterval(refreshNotificationCount, 30000)
     return () => clearInterval(interval)
-  }, [tenant?.id, tenant?.clientId])
+  }, [tenant?.id, tenant?.ownerId])
 
   const fetchTenantNotifications = useCallback(async () => {
     if (!tenant?.id) return []
-    return getTenantNotifications(tenant.id, tenant.clientId)
-  }, [tenant?.id, tenant?.clientId])
+    return getTenantNotifications(tenant.id, tenant.ownerId)
+  }, [tenant?.id, tenant?.ownerId])
 
   useBrowserNotifications({
     enabled: Boolean(tenant?.id),
@@ -158,19 +158,19 @@ export default function TenantDashboard() {
 
     switch (activeTab) {
       case 'overview':
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} clientId={tenant.clientId} />
+        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} />
       case 'maintenance':
-        return <TenantMaintenanceTab tenantId={tenant.id} apartmentId={tenant.apartmentId} clientId={tenant.clientId} />
+        return <TenantMaintenanceTab tenantId={tenant.id} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
       case 'payments':
-        return <TenantPaymentsTab tenantId={tenant.id} clientId={tenant.clientId} apartmentId={tenant.apartmentId} />
+        return <TenantPaymentsTab tenantId={tenant.id} ownerId={tenant.ownerId} apartmentId={tenant.apartmentId} />
       case 'documents':
-        return <TenantDocumentsTab tenantId={tenant.id} clientId={tenant.clientId} />
+        return <TenantDocumentsTab tenantId={tenant.id} ownerId={tenant.ownerId} />
       case 'notifications':
-        return <TenantNotificationsTab tenantId={tenant.id} clientId={tenant.clientId} onRead={refreshNotificationCount} />
+        return <TenantNotificationsTab tenantId={tenant.id} ownerId={tenant.ownerId} onRead={refreshNotificationCount} />
       case 'account':
-        return <TenantAccountTab tenantId={tenant.id} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} clientId={tenant.clientId} />
+        return <TenantAccountTab tenantId={tenant.id} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
       default:
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} clientId={tenant.clientId} />
+        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} />
     }
   }
 

@@ -268,7 +268,7 @@ export async function updateApartment(
 
     if (oldRecord && data) {
       const changes: Record<string, { from: string; to: string }> = {};
-      for (const key of Object.keys(rawUpdates)) {
+      for (const key of Object.keys(updates)) {
         const oldVal = String(oldRecord[key] ?? "");
         const newVal = String(data[key] ?? "");
         if (oldVal !== newVal) changes[key] = { from: oldVal, to: newVal };
@@ -843,7 +843,7 @@ export async function deleteProperty(
         : "System";
       logActivity({
         apartmentowner_id: prop.apartmentowner_id,
-        apartment_id: id,
+        apartment_id: id as string,
         actor_id: req.user?.id || null,
         actor_name: actorName,
         actor_role: (req.user?.role as "owner" | "manager") || "owner",

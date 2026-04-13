@@ -14,11 +14,11 @@ import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface ManagerNotificationsTabProps {
   managerId: string
-  clientId: string
+  ownerId: string
   onRead?: () => void
 }
 
-export default function ManagerNotificationsTab({ managerId, clientId, onRead }: ManagerNotificationsTabProps) {
+export default function ManagerNotificationsTab({ managerId, ownerId, onRead }: ManagerNotificationsTabProps) {
   const { isDark } = useTheme()
   const [notifications, setNotifications] = useState<ManagerNotification[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +27,7 @@ export default function ManagerNotificationsTab({ managerId, clientId, onRead }:
 
   const loadNotifications = async () => {
     try {
-      const data = await getManagerNotifications(managerId, clientId)
+      const data = await getManagerNotifications(managerId, ownerId)
       setNotifications(data)
     } catch (error) {
       console.error('Failed to load manager notifications:', error)
@@ -37,12 +37,12 @@ export default function ManagerNotificationsTab({ managerId, clientId, onRead }:
   }
 
   useEffect(() => {
-    if (!managerId || !clientId) return
+    if (!managerId || !ownerId) return
     let mounted = true
 
     const load = async () => {
       try {
-        const data = await getManagerNotifications(managerId, clientId)
+        const data = await getManagerNotifications(managerId, ownerId)
         if (mounted) setNotifications(data)
       } catch (error) {
         console.error('Failed to load manager notifications:', error)
@@ -58,7 +58,7 @@ export default function ManagerNotificationsTab({ managerId, clientId, onRead }:
       mounted = false
       clearInterval(interval)
     }
-  }, [managerId, clientId])
+  }, [managerId, ownerId])
 
   const unreadCount = notifications.filter((notification) => !notification.is_read).length
 
@@ -102,7 +102,7 @@ export default function ManagerNotificationsTab({ managerId, clientId, onRead }:
   const handleDeleteAll = async () => {
     try {
       setConfirming(true)
-      await deleteAllManagerNotifications(managerId, clientId)
+      await deleteAllManagerNotifications(managerId, ownerId)
       setNotifications([])
       onRead?.()
     } catch (error) {

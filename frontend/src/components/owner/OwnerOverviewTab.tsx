@@ -18,13 +18,13 @@ import TablePagination from '@/components/ui/table-pagination'
 import CalendarWidget from './CalendarWidget'
 
 interface OwnerOverviewTabProps {
-  clientId: string
+  ownerId: string
   ownerName?: string
 }
 
 type HistoryItem = { id: string; type: 'maintenance' | 'payment'; description: string; detail: string; date: string; badge: string; badgeColor: string; branch?: string; extra?: Record<string, string>; photo_url?: string | null }
 
-export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewTabProps) {
+export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTabProps) {
   const { isDark } = useTheme()
   const [stats, setStats] = useState({ apartments: 0, activeTenants: 0, pendingMaintenance: 0, totalRevenue: 0 })
   const [recentMaintenance, setRecentMaintenance] = useState<MaintenanceRequest[]>([])
@@ -64,13 +64,13 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
       try {
         const [s, requests, addr, unitList, managers, payments] = await Promise.all([
           selectedMonth === 0
-            ? getOwnerDashboardStats(clientId)
-            : getOwnerDashboardStats(clientId, { month: selectedMonth, year: selectedYear }),
-          getOwnerMaintenanceRequests(clientId),
-          getOwnerApartmentAddress(clientId),
-          getOwnerUnits(clientId),
-          getOwnerManagers(clientId),
-          getOwnerPayments(clientId),
+            ? getOwnerDashboardStats(ownerId)
+            : getOwnerDashboardStats(ownerId, { month: selectedMonth, year: selectedYear }),
+          getOwnerMaintenanceRequests(ownerId),
+          getOwnerApartmentAddress(ownerId),
+          getOwnerUnits(ownerId),
+          getOwnerManagers(ownerId),
+          getOwnerPayments(ownerId),
         ])
         setStats(s)
         setRecentMaintenance(requests)
@@ -104,7 +104,7 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
       }
     }
     load()
-  }, [clientId, selectedMonth, selectedYear])
+  }, [ownerId, selectedMonth, selectedYear])
 
   const cardClass = `rounded-xl p-4 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-300'

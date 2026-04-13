@@ -14,11 +14,11 @@ import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface TenantNotificationsTabProps {
   tenantId: string
-  clientId: string | null
+  ownerId: string | null
   onRead?: () => void
 }
 
-export default function TenantNotificationsTab({ tenantId, clientId, onRead }: TenantNotificationsTabProps) {
+export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: TenantNotificationsTabProps) {
   const { isDark } = useTheme()
   const [notifications, setNotifications] = useState<TenantNotification[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,7 +28,7 @@ export default function TenantNotificationsTab({ tenantId, clientId, onRead }: T
   useEffect(() => {
     async function load() {
       try {
-        const data = await getTenantNotifications(tenantId, clientId)
+        const data = await getTenantNotifications(tenantId, ownerId)
         setNotifications(data)
       } catch (err) {
         console.error('Failed to load notifications:', err)
@@ -37,7 +37,7 @@ export default function TenantNotificationsTab({ tenantId, clientId, onRead }: T
       }
     }
     load()
-  }, [tenantId, clientId])
+  }, [tenantId, ownerId])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -93,7 +93,7 @@ export default function TenantNotificationsTab({ tenantId, clientId, onRead }: T
   const handleDeleteAll = async () => {
     try {
       setConfirming(true)
-      await deleteAllTenantNotifications(tenantId, clientId)
+      await deleteAllTenantNotifications(tenantId, ownerId)
       setNotifications([])
       onRead?.()
     } catch (error) {

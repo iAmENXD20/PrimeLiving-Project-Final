@@ -64,30 +64,30 @@ export default function OwnerDashboard() {
       return (
         <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
           <p className="text-lg font-medium mb-2">Owner profile not found</p>
-          <p className="text-sm">Please ensure your account is linked to a client profile.</p>
+          <p className="text-sm">Please ensure your account is linked to an owner profile.</p>
         </div>
       )
     }
 
     switch (activeTab) {
       case 'overview':
-        return <OwnerOverviewTab clientId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
+        return <OwnerOverviewTab ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
       case 'units':
-        return <OwnerManageApartmentTab key="units" clientId={owner.id} mode="units" />
+        return <OwnerManageApartmentTab key="units" ownerId={owner.id} mode="units" />
       case 'manage-apartment':
-        return <OwnerManageApartmentTab key="manage" clientId={owner.id} mode="manage" />
+        return <OwnerManageApartmentTab key="manage" ownerId={owner.id} mode="manage" />
       case 'maintenance':
-        return <OwnerMaintenanceTab clientId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
+        return <OwnerMaintenanceTab ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
       case 'payments':
-        return <OwnerPaymentsTab clientId={owner.id} />
+        return <OwnerPaymentsTab ownerId={owner.id} />
       case 'documents':
-        return <OwnerDocumentsTab clientId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
+        return <OwnerDocumentsTab ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
       case 'audit-reports':
-        return <OwnerApartmentLogsTab clientId={owner.id} />
+        return <OwnerApartmentLogsTab ownerId={owner.id} />
       case 'account':
-        return <OwnerAccountTab clientId={owner.id} />
+        return <OwnerAccountTab ownerId={owner.id} />
       default:
-        return <OwnerOverviewTab clientId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
+        return <OwnerOverviewTab ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
     }
   }
 

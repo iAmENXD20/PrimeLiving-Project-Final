@@ -44,10 +44,10 @@ interface TenantAccountTabProps {
   tenantName?: string
   tenantPhone?: string | null
   apartmentId?: string | null
-  clientId?: string | null
+  ownerId?: string | null
 }
 
-export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, apartmentId, clientId }: TenantAccountTabProps) {
+export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, apartmentId, ownerId }: TenantAccountTabProps) {
   const { isDark } = useTheme()
   const [showCurrent, setShowCurrent] = useState(false)
   const [showNew, setShowNew] = useState(false)
@@ -89,7 +89,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
       setUserEmail(userData.user?.email ?? null)
 
       const resolvedApartmentId = (tenantRes?.data?.unit_id as string | null) || apartmentId || null
-      const resolvedClientId = (tenantRes?.data?.apartmentowner_id as string | null) || clientId || null
+      const resolvedClientId = (tenantRes?.data?.apartmentowner_id as string | null) || ownerId || null
 
       if (tenantRes?.data?.status) setTenantStatus(tenantRes.data.status)
       if (tenantRes?.data?.move_in_date) setMoveInDate(tenantRes.data.move_in_date)
@@ -140,7 +140,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
     loadProfile().catch(() => {
       // silent fallback
     })
-  }, [tenantId, apartmentId, clientId])
+  }, [tenantId, apartmentId, ownerId])
 
   const {
     register,

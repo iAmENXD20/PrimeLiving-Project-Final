@@ -14,7 +14,7 @@ import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
 interface OwnerManagersTabProps {
-  clientId: string
+  ownerId: string
 }
 
 interface Manager {
@@ -28,7 +28,7 @@ interface Manager {
   apartment?: { id: string; name: string; address: string } | null
 }
 
-export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
+export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
   const { isDark } = useTheme()
   const [search, setSearch] = useState('')
   const [openMenu, setOpenMenu] = useState<string | null>(null)
@@ -50,12 +50,12 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
 
   useEffect(() => {
     loadManagers()
-  }, [clientId])
+  }, [ownerId])
 
   async function loadManagers() {
     try {
       setLoading(true)
-      const data = await getOwnerManagers(clientId)
+      const data = await getOwnerManagers(ownerId)
       setManagers(data)
     } catch (err) {
       console.error('Failed to load managers:', err)
@@ -110,7 +110,7 @@ export default function OwnerManagersTab({ clientId }: OwnerManagersTabProps) {
           lastName: form.lastName,
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
-          apartmentowner_id: clientId,
+          apartmentowner_id: ownerId,
         })
         setManagers((prev) => [result.manager, ...prev])
         setShowModal(false)
