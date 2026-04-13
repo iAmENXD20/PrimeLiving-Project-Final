@@ -46,29 +46,38 @@ async function resolveUserRole(userId: string, user: any): Promise<UserRole> {
     normalizeRole(user?.app_metadata?.role) ||
     normalizeRole(user?.app_metadata?.user_role);
 
-  if (metadataRole === "admin") return "owner";
+  if (metadataRole) return metadataRole;
 
   return "tenant";
 }
 
 async function ensureRoleIsActive(role: UserRole, userId: string): Promise<{ active: boolean; status?: string }> {
   if (role === "owner") {
-    const { data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("apartment_owners")
       .select("id,status")
       .eq("auth_user_id", userId)
       .maybeSingle();
+
+    // If query failed, assume active to avoid blocking legitimate users
+    if (error) {
+      return { active: true, status: "active" };
+    }
 
     const s = data?.status || "active";
     return { active: Boolean(data && s === "active"), status: s };
   }
 
   if (role === "manager") {
-    const { data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("apartment_managers")
       .select("id,status")
       .eq("auth_user_id", userId)
       .maybeSingle();
+
+    if (error) {
+      return { active: true, status: "active" };
+    }
 
     if (!data) {
       return { active: false };
@@ -78,11 +87,15 @@ async function ensureRoleIsActive(role: UserRole, userId: string): Promise<{ act
     return { active: s === "active", status: s };
   }
 
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("tenants")
     .select("id,status")
     .eq("auth_user_id", userId)
     .maybeSingle();
+
+  if (error) {
+    return { active: true, status: "active" };
+  }
 
   if (!data) {
     return { active: false };

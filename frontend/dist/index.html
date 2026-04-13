@@ -4,12 +4,26 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PrimeLiving - Modern Apartment Management</title>
+    <title>Modern Apartment Management</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="/assets/index-8b-pQZo5.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-uXEGcG_V.css">
+    <script>
+      // Prevent theme flash — apply dark/light class before any rendering
+      (function() {
+        var theme = localStorage.getItem('app-theme');
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+        document.documentElement.classList.add(theme === 'dark' ? 'dark' : 'light');
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-HiYLH794.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-CMi6yv_E.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-ui-DgKislbb.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-supabase-CfVawArw.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-charts-CDbYVV3G.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-Bg1uDFxr.css">
   </head>
   <body class="font-sans">
     <div id="root"></div>

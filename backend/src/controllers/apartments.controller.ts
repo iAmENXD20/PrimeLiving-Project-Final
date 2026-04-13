@@ -626,18 +626,33 @@ export async function getProperties(
       return;
     }
 
-    // Get unit counts per property
+    // Get unit counts and managers per property
     const propIds = (properties || []).map((p: any) => p.id);
     let unitCounts: Record<string, number> = {};
-    if (propIds.length > 0) {
-      const { data: units } = await supabaseAdmin
-        .from("units")
-        .select("apartment_id")
-        .in("apartment_id", propIds);
+    let managersMap: Record<string, any[]> = {};
 
-      (units || []).forEach((u: any) => {
+    if (propIds.length > 0) {
+      const [unitResult, managerResult] = await Promise.all([
+        supabaseAdmin
+          .from("units")
+          .select("apartment_id")
+          .in("apartment_id", propIds),
+        supabaseAdmin
+          .from("apartment_managers")
+          .select("id, first_name, last_name, email, phone, status, apartment_id")
+          .in("apartment_id", propIds),
+      ]);
+
+      (unitResult.data || []).forEach((u: any) => {
         if (u.apartment_id) {
           unitCounts[u.apartment_id] = (unitCounts[u.apartment_id] || 0) + 1;
+        }
+      });
+
+      (managerResult.data || []).forEach((m: any) => {
+        if (m.apartment_id) {
+          if (!managersMap[m.apartment_id]) managersMap[m.apartment_id] = [];
+          managersMap[m.apartment_id].push(m);
         }
       });
     }
@@ -645,6 +660,7 @@ export async function getProperties(
     const results = (properties || []).map((p: any) => ({
       ...p,
       unit_count: unitCounts[p.id] || 0,
+      managers: managersMap[p.id] || [],
     }));
 
     sendSuccess(res, results);
@@ -663,7 +679,7 @@ export async function createProperty(
 ): Promise<void> {
   try {
     const {
-      name, apartmentowner_id, manager_id,
+      name, apartmentowner_id,
       address_region, address_region_code,
       address_province, address_province_code,
       address_city, address_city_code,
@@ -683,7 +699,6 @@ export async function createProperty(
       .insert({
         apartmentowner_id,
         name,
-        manager_id: manager_id || null,
         status: "active",
         address_region: address_region || null,
         address_region_code: address_region_code || null,
@@ -742,7 +757,7 @@ export async function updateProperty(
   try {
     const { id } = req.params;
     const {
-      name, status, manager_id,
+      name, status,
       address_region, address_region_code,
       address_province, address_province_code,
       address_city, address_city_code,
@@ -755,7 +770,6 @@ export async function updateProperty(
     const updates: any = { updated_at: new Date().toISOString() };
     if (name !== undefined) updates.name = name;
     if (status !== undefined) updates.status = status;
-    if (manager_id !== undefined) updates.manager_id = manager_id;
     if (address_region !== undefined) updates.address_region = address_region;
     if (address_region_code !== undefined) updates.address_region_code = address_region_code;
     if (address_province !== undefined) updates.address_province = address_province;

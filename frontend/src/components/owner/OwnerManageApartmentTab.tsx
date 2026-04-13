@@ -88,7 +88,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   const [propertiesLoading, setPropertiesLoading] = useState(true)
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false)
-  const [addPropertyForm, setAddPropertyForm] = useState<{ name: string; address: StructuredAddress | null; manager_id: string }>({ name: '', address: null, manager_id: '' })
+  const [addPropertyForm, setAddPropertyForm] = useState<{ name: string; address: StructuredAddress | null }>({ name: '', address: null })
   const [addingProperty, setAddingProperty] = useState(false)
   const [managerDropdownOpen, setManagerDropdownOpen] = useState(false)
   const [managerSearch, setManagerSearch] = useState('')
@@ -98,6 +98,8 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   const [inlineMgrDropdownOpen, setInlineMgrDropdownOpen] = useState(false)
   const [inlineMgrSearch, setInlineMgrSearch] = useState('')
   const inlineMgrDropdownRef = useRef<HTMLDivElement>(null)
+  const [pendingManagerIds, setPendingManagerIds] = useState<Set<string>>(new Set())
+  const [savingManagers, setSavingManagers] = useState(false)
 
   // ─── Managers state ───────────────────────────────────────────
   const [managers, setManagers] = useState<Manager[]>([])
@@ -170,73 +172,18 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   }, [])
 
   // ─── Sample/mock properties (apartments) ────────────────────
-  const sampleProperties: Property[] = [
-    { id: 'sample-prop-1', apartmentowner_id: ownerId, name: 'Apartment 1', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Manila', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Malate', address_barangay_code: null, address_street: '123 Taft Ave', manager_id: 'sample-1', status: 'active', unit_count: 10, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
-    { id: 'sample-prop-2', apartmentowner_id: ownerId, name: 'Apartment 2', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Manila', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Paco', address_barangay_code: null, address_street: '456 Vito Cruz St', manager_id: 'sample-2', status: 'active', unit_count: 8, created_at: '2026-02-01T00:00:00Z', updated_at: '2026-02-01T00:00:00Z' },
-    { id: 'sample-prop-3', apartmentowner_id: ownerId, name: 'Apartment 3', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Makati', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Poblacion', address_barangay_code: null, address_street: '789 Jupiter St', manager_id: 'sample-7', status: 'active', unit_count: 7, created_at: '2026-03-01T00:00:00Z', updated_at: '2026-03-01T00:00:00Z' },
-    { id: 'sample-prop-4', apartmentowner_id: ownerId, name: 'Apartment 4', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Quezon City', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Loyola Heights', address_barangay_code: null, address_street: '321 Katipunan Ave', manager_id: 'sample-4', status: 'active', unit_count: 5, created_at: '2026-04-01T00:00:00Z', updated_at: '2026-04-01T00:00:00Z' },
-    { id: 'sample-prop-5', apartmentowner_id: ownerId, name: 'Apartment 5', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Mandaluyong', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Wack-Wack', address_barangay_code: null, address_street: '555 Shaw Blvd', manager_id: 'sample-5', status: 'active', unit_count: 6, created_at: '2026-05-01T00:00:00Z', updated_at: '2026-05-01T00:00:00Z' },
-    { id: 'sample-prop-6', apartmentowner_id: ownerId, name: 'Apartment 6', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Manila', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Sta. Cruz', address_barangay_code: null, address_street: '100 Rizal Ave', manager_id: 'sample-6', status: 'active', unit_count: 4, created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-01T00:00:00Z' },
-  ]
+  // (Sample data removed — using real API data only)
 
-  // ─── Sample/mock units for all 6 apartments ────────────────
-  const sampleUnits: UnitWithTenant[] = [
-    // Apartment 1 — 10 units
-    { id: 'su-1-1', name: 'Unit 1A', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Elena Flores', tenant_phone: '+639171111111', tenant_id: 'sample-t1', max_occupancy: 2, payment_due_day: 5 },
-    { id: 'su-1-2', name: 'Unit 2B', monthly_rent: 9000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Marco Pascual', tenant_phone: '+639172222222', tenant_id: 'sample-t2', max_occupancy: 2, payment_due_day: 5 },
-    { id: 'su-1-3', name: 'Unit 3C', monthly_rent: 7500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Jasmine Lopez', tenant_phone: '+639173333333', tenant_id: 'sample-t3', max_occupancy: 2, payment_due_day: 10 },
-    { id: 'su-1-4', name: 'Unit 4D', monthly_rent: 10000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Rico Dimaculangan', tenant_phone: '+639174444444', tenant_id: 'sample-t4', max_occupancy: 3, payment_due_day: 15 },
-    { id: 'su-1-5', name: 'Unit 5E', monthly_rent: 8000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Christine Tan', tenant_phone: '+639175555555', tenant_id: 'sample-t5', max_occupancy: 2, payment_due_day: 15 },
-    { id: 'su-1-6', name: 'Unit 6F', monthly_rent: 9500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Bryan Navarro', tenant_phone: '+639176666666', tenant_id: 'sample-t6', max_occupancy: 2, payment_due_day: 20 },
-    { id: 'su-1-7', name: 'Unit 7G', monthly_rent: 7000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
-    { id: 'su-1-8', name: 'Unit 8H', monthly_rent: 11000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Jerome Santiago', tenant_phone: '+639178888888', tenant_id: 'sample-t8', max_occupancy: 3, payment_due_day: 25 },
-    { id: 'su-1-9', name: 'Unit 9I', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Katrina Rivera', tenant_phone: '+639179999999', tenant_id: 'sample-t9', max_occupancy: 2, payment_due_day: 28 },
-    { id: 'su-1-10', name: 'Unit 10J', monthly_rent: 9200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'under_renovation', created_at: '2026-01-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
-    // Apartment 2 — 8 units
-    { id: 'su-2-1', name: 'Unit 1', monthly_rent: 7500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Paolo Gonzales', tenant_phone: '+639170000000', tenant_id: 'sample-t10', max_occupancy: 2, payment_due_day: 10 },
-    { id: 'su-2-2', name: 'Unit 2', monthly_rent: 8000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Diana Reyes', tenant_phone: '+639171010101', tenant_id: 'sample-t11', max_occupancy: 2, payment_due_day: 15 },
-    { id: 'su-2-3', name: 'Unit 3', monthly_rent: 9000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Juan Dela Cruz', tenant_phone: '+639171212121', tenant_id: 'sample-t12', max_occupancy: 2, payment_due_day: 10 },
-    { id: 'su-2-4', name: 'Unit 4', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Maria Santos', tenant_phone: '+639171313131', tenant_id: 'sample-t13', max_occupancy: 2, payment_due_day: 15 },
-    { id: 'su-2-5', name: 'Unit 5', monthly_rent: 7800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Carlos Reyes', tenant_phone: '+639171414141', tenant_id: 'sample-t14', max_occupancy: 2, payment_due_day: 5 },
-    { id: 'su-2-6', name: 'Unit 6', monthly_rent: 9200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Ana Garcia', tenant_phone: '+639171515151', tenant_id: 'sample-t15', max_occupancy: 3, payment_due_day: 20 },
-    { id: 'su-2-7', name: 'Unit 7', monthly_rent: 8200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
-    { id: 'su-2-8', name: 'Unit 8', monthly_rent: 7600, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Patricia Villanueva', tenant_phone: '+639171616161', tenant_id: 'sample-t16', max_occupancy: 2, payment_due_day: 25 },
-    // Apartment 3 — 7 units
-    { id: 'su-3-1', name: 'Unit 1', monthly_rent: 8000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Liza Mendoza', tenant_phone: '+639171717171', tenant_id: 'sample-t17', max_occupancy: 2, payment_due_day: 5 },
-    { id: 'su-3-2', name: 'Unit 2', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Rafael Bautista', tenant_phone: '+639171818181', tenant_id: 'sample-t18', max_occupancy: 2, payment_due_day: 10 },
-    { id: 'su-3-3', name: 'Unit 3', monthly_rent: 7200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Miguel Aquino', tenant_phone: '+639171919191', tenant_id: 'sample-t19', max_occupancy: 2, payment_due_day: 15 },
-    { id: 'su-3-4', name: 'Unit 4', monthly_rent: 9000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Sofia Ramos', tenant_phone: '+639172020202', tenant_id: 'sample-t20', max_occupancy: 2, payment_due_day: 15 },
-    { id: 'su-3-5', name: 'Unit 5', monthly_rent: 7800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
-    { id: 'su-3-6', name: 'Unit 6', monthly_rent: 8800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Daniel Torres', tenant_phone: '+639172121212', tenant_id: 'sample-t21', max_occupancy: 3, payment_due_day: 20 },
-    { id: 'su-3-7', name: 'Unit 7', monthly_rent: 7500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Karl Bautista', tenant_phone: '+639172222212', tenant_id: 'sample-t22', max_occupancy: 2, payment_due_day: 25 },
-    // Apartment 4 — 5 units
-    { id: 'su-4-1', name: 'Unit 1', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-4', manager_id: 'sample-4', status: 'active', created_at: '2026-04-01T00:00:00Z', tenant_name: 'Gabriel Mendez', tenant_phone: '+639172323232', tenant_id: 'sample-t23', max_occupancy: 2, payment_due_day: 5 },
-    { id: 'su-4-2', name: 'Unit 2', monthly_rent: 9000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-4', manager_id: 'sample-4', status: 'active', created_at: '2026-04-01T00:00:00Z', tenant_name: 'Isabella Cruz', tenant_phone: '+639172424242', tenant_id: 'sample-t24', max_occupancy: 2, payment_due_day: 10 },
-    { id: 'su-4-3', name: 'Unit 3', monthly_rent: 7800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-4', manager_id: 'sample-4', status: 'active', created_at: '2026-04-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
-    { id: 'su-4-4', name: 'Unit 4', monthly_rent: 8200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-4', manager_id: 'sample-4', status: 'active', created_at: '2026-04-01T00:00:00Z', tenant_name: 'Lorenzo Reyes', tenant_phone: '+639172525252', tenant_id: 'sample-t25', max_occupancy: 2, payment_due_day: 15 },
-    { id: 'su-4-5', name: 'Unit 5', monthly_rent: 9500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-4', manager_id: 'sample-4', status: 'active', created_at: '2026-04-01T00:00:00Z', tenant_name: 'Carmela Santos', tenant_phone: '+639172626262', tenant_id: 'sample-t26', max_occupancy: 2, payment_due_day: 20 },
-    // Apartment 5 — 6 units
-    { id: 'su-5-1', name: 'Unit 1', monthly_rent: 8000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: 'Victor Lim', tenant_phone: '+639172727272', tenant_id: 'sample-t27', max_occupancy: 2, payment_due_day: 5 },
-    { id: 'su-5-2', name: 'Unit 2', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: 'Rachel Tan', tenant_phone: '+639172828282', tenant_id: 'sample-t28', max_occupancy: 2, payment_due_day: 10 },
-    { id: 'su-5-3', name: 'Unit 3', monthly_rent: 9000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: 'Dennis Aquino', tenant_phone: '+639172929292', tenant_id: 'sample-t29', max_occupancy: 2, payment_due_day: 15 },
-    { id: 'su-5-4', name: 'Unit 4', monthly_rent: 7500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
-    { id: 'su-5-5', name: 'Unit 5', monthly_rent: 8800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: 'Sophia Garcia', tenant_phone: '+639173030303', tenant_id: 'sample-t30', max_occupancy: 2, payment_due_day: 20 },
-    { id: 'su-5-6', name: 'Unit 6', monthly_rent: 9200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: 'Mario Fernandez', tenant_phone: '+639173131313', tenant_id: 'sample-t31', max_occupancy: 3, payment_due_day: 25 },
-    // Apartment 6 — 4 units
-    { id: 'su-6-1', name: 'Unit 1', monthly_rent: 7800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-6', manager_id: 'sample-6', status: 'active', created_at: '2026-06-01T00:00:00Z', tenant_name: 'Andrea Navarro', tenant_phone: '+639173232323', tenant_id: 'sample-t32', max_occupancy: 2, payment_due_day: 5 },
-    { id: 'su-6-2', name: 'Unit 2', monthly_rent: 8200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-6', manager_id: 'sample-6', status: 'active', created_at: '2026-06-01T00:00:00Z', tenant_name: 'Julian Torres', tenant_phone: '+639173330303', tenant_id: 'sample-t33', max_occupancy: 2, payment_due_day: 10 },
-    { id: 'su-6-3', name: 'Unit 3', monthly_rent: 7500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-6', manager_id: 'sample-6', status: 'active', created_at: '2026-06-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
-    { id: 'su-6-4', name: 'Unit 4', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-6', manager_id: 'sample-6', status: 'active', created_at: '2026-06-01T00:00:00Z', tenant_name: 'Bianca Ramos', tenant_phone: '+639173434343', tenant_id: 'sample-t34', max_occupancy: 2, payment_due_day: 15 },
-  ]
+  // ─── Sample/mock units removed — using real API data only ────
 
   async function loadProperties() {
     try {
       setPropertiesLoading(true)
       const data = await getOwnerProperties(ownerId)
-      setProperties([...data, ...sampleProperties])
+      setProperties(data)
     } catch (err) {
       console.error('Failed to load properties:', err)
-      setProperties(sampleProperties)
+      setProperties([])
     } finally {
       setPropertiesLoading(false)
     }
@@ -246,79 +193,37 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     try {
       setUnitsLoading(true)
       const data = await getOwnerUnits(ownerId)
-      const result = [...data, ...sampleUnits]
-      result.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-      setUnits(result)
+      data.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+      setUnits(data)
     } catch (err) {
       console.error('Failed to load units:', err)
-      sampleUnits.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-      setUnits(sampleUnits)
+      setUnits([])
     } finally {
       setUnitsLoading(false)
     }
   }
 
-  // ─── Sample/mock managers for frontend reference ───────────
-  const sampleManagers: Manager[] = [
-    { id: 'sample-1', first_name: 'Maria', last_name: 'Santos', email: 'maria.santos@example.com', phone: '+639171234567', status: 'active', joined_date: '2026-01-15T08:00:00Z', updated_at: '2026-01-15T08:00:00Z', apartment_id: 'sample-prop-1', apartment: null },
-    { id: 'sample-2', first_name: 'Carlos', last_name: 'Reyes', email: 'carlos.reyes@example.com', phone: '+639182345678', status: 'pending', joined_date: '2026-02-10T08:00:00Z', updated_at: '2026-02-10T08:00:00Z', apartment_id: 'sample-prop-2', apartment: null },
-    { id: 'sample-7', first_name: 'Patricia', last_name: 'Villanueva', email: 'patricia.v@example.com', phone: '+639237890123', status: 'pending_verification', joined_date: '2026-02-22T08:00:00Z', updated_at: '2026-02-22T08:00:00Z', apartment_id: 'sample-prop-3', apartment: null },
-    { id: 'sample-4', first_name: 'Roberto', last_name: 'Lim', email: 'roberto.lim@example.com', phone: '+639194567890', status: 'active', joined_date: '2026-03-05T08:00:00Z', updated_at: '2026-03-05T08:00:00Z', apartment_id: 'sample-prop-4', apartment: null },
-    { id: 'sample-5', first_name: 'Angela', last_name: 'De Guzman', email: 'angela.dg@example.com', phone: '+639205678901', status: 'inactive', joined_date: '2025-09-10T08:00:00Z', updated_at: '2026-01-20T08:00:00Z', apartment_id: 'sample-prop-5', apartment: null },
-    { id: 'sample-6', first_name: 'Fernando', last_name: 'Cruz', email: 'fernando.cruz@example.com', phone: '+639216789012', status: 'inactive', joined_date: '2025-08-01T08:00:00Z', updated_at: '2025-12-15T08:00:00Z', apartment_id: 'sample-prop-6', apartment: null },
-  ]
-
   async function loadManagers() {
     try {
       setManagersLoading(true)
       const data = await getOwnerManagers(ownerId)
-      setManagers([...data, ...sampleManagers])
+      setManagers(data)
     } catch (err) {
       console.error('Failed to load managers:', err)
-      setManagers(sampleManagers)
+      setManagers([])
     } finally {
       setManagersLoading(false)
     }
   }
 
-  // ─── Sample/mock tenants for frontend reference ────────────
-  const sampleTenants: OwnerTenant[] = [
-    { id: 'sample-t1', first_name: 'Elena', last_name: 'Flores', phone: '+639171111111', unit_id: 'su-1-1', status: 'active', monthly_rent: 8500 },
-    { id: 'sample-t2', first_name: 'Marco', last_name: 'Pascual', phone: '+639172222222', unit_id: 'su-1-2', status: 'active', monthly_rent: 9000 },
-    { id: 'sample-t3', first_name: 'Jasmine', last_name: 'Lopez', phone: '+639173333333', unit_id: 'su-1-3', status: 'pending_verification', monthly_rent: 7500 },
-    { id: 'sample-t4', first_name: 'Rico', last_name: 'Dimaculangan', phone: '+639174444444', unit_id: 'su-1-4', status: 'active', monthly_rent: 10000 },
-    { id: 'sample-t5', first_name: 'Christine', last_name: 'Tan', phone: '+639175555555', unit_id: 'su-1-5', status: 'pending_verification', monthly_rent: 8000 },
-    { id: 'sample-t6', first_name: 'Bryan', last_name: 'Navarro', phone: '+639176666666', unit_id: 'su-1-6', status: 'active', monthly_rent: 9500 },
-    { id: 'sample-t7', first_name: 'Angela', last_name: 'De Leon', phone: '+639177777777', unit_id: null, status: 'inactive' as any, monthly_rent: 7000 },
-    { id: 'sample-t8', first_name: 'Jerome', last_name: 'Santiago', phone: '+639178888888', unit_id: 'su-1-8', status: 'active', monthly_rent: 11000 },
-    { id: 'sample-t9', first_name: 'Katrina', last_name: 'Rivera', phone: '+639179999999', unit_id: 'su-1-9', status: 'active', monthly_rent: 8500 },
-    { id: 'sample-t10', first_name: 'Paolo', last_name: 'Gonzales', phone: '+639170000000', unit_id: 'su-2-1', status: 'active', monthly_rent: 9200 },
-    { id: 'sample-t11', first_name: 'Diana', last_name: 'Reyes', phone: '+639171010101', unit_id: 'su-2-2', status: 'pending_verification', monthly_rent: 8800 },
-    // Apt 4 tenants
-    { id: 'sample-t23', first_name: 'Gabriel', last_name: 'Mendez', phone: '+639172323232', unit_id: 'su-4-1', status: 'active', monthly_rent: 8500 },
-    { id: 'sample-t24', first_name: 'Isabella', last_name: 'Cruz', phone: '+639172424242', unit_id: 'su-4-2', status: 'active', monthly_rent: 9000 },
-    { id: 'sample-t25', first_name: 'Lorenzo', last_name: 'Reyes', phone: '+639172525252', unit_id: 'su-4-4', status: 'pending_verification', monthly_rent: 8200 },
-    { id: 'sample-t26', first_name: 'Carmela', last_name: 'Santos', phone: '+639172626262', unit_id: 'su-4-5', status: 'active', monthly_rent: 9500 },
-    // Apt 5 tenants
-    { id: 'sample-t27', first_name: 'Victor', last_name: 'Lim', phone: '+639172727272', unit_id: 'su-5-1', status: 'active', monthly_rent: 8000 },
-    { id: 'sample-t28', first_name: 'Rachel', last_name: 'Tan', phone: '+639172828282', unit_id: 'su-5-2', status: 'active', monthly_rent: 8500 },
-    { id: 'sample-t29', first_name: 'Dennis', last_name: 'Aquino', phone: '+639172929292', unit_id: 'su-5-3', status: 'pending_verification', monthly_rent: 9000 },
-    { id: 'sample-t30', first_name: 'Sophia', last_name: 'Garcia', phone: '+639173030303', unit_id: 'su-5-5', status: 'active', monthly_rent: 8800 },
-    { id: 'sample-t31', first_name: 'Mario', last_name: 'Fernandez', phone: '+639173131313', unit_id: 'su-5-6', status: 'active', monthly_rent: 9200 },
-    // Apt 6 tenants
-    { id: 'sample-t32', first_name: 'Andrea', last_name: 'Navarro', phone: '+639173232323', unit_id: 'su-6-1', status: 'active', monthly_rent: 7800 },
-    { id: 'sample-t33', first_name: 'Julian', last_name: 'Torres', phone: '+639173330303', unit_id: 'su-6-2', status: 'active', monthly_rent: 8200 },
-    { id: 'sample-t34', first_name: 'Bianca', last_name: 'Ramos', phone: '+639173434343', unit_id: 'su-6-4', status: 'active', monthly_rent: 8500 },
-  ]
-
   async function loadTenants() {
     try {
       setTenantsTabLoading(true)
       const data = await getOwnerTenants(ownerId, true)
-      setOwnerTenants([...data, ...sampleTenants])
+      setOwnerTenants(data)
     } catch (err) {
       console.error('Failed to load tenants:', err)
-      setOwnerTenants(sampleTenants)
+      setOwnerTenants([])
     } finally {
       setTenantsTabLoading(false)
     }
@@ -329,17 +234,6 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     if (viewManager && (viewManager.status === 'pending_verification' || viewManager.status === 'active')) {
       setIdPhotosLoading(true)
       setManagerIdPhotos(null)
-      // For sample managers, show placeholder ID photos
-      if (viewManager.id.startsWith('sample-')) {
-        setManagerIdPhotos({
-          id_type: 'Philippine National ID',
-          id_type_other: null,
-          front_url: 'https://placehold.co/600x400/e2e8f0/475569?text=ID+Front',
-          back_url: 'https://placehold.co/600x400/e2e8f0/475569?text=ID+Back',
-        })
-        setIdPhotosLoading(false)
-        return
-      }
       getManagerIdPhotos(viewManager.id)
         .then(res => setManagerIdPhotos(res))
         .catch(() => setManagerIdPhotos(null))
@@ -354,17 +248,6 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     if (viewTenant && (viewTenant.status === 'pending_verification' || viewTenant.status === 'active')) {
       setTenantIdPhotosLoading(true)
       setTenantIdPhotos(null)
-      // For sample tenants, show placeholder ID photos
-      if (viewTenant.id.startsWith('sample-')) {
-        setTenantIdPhotos({
-          id_type: 'Philippine National ID',
-          id_type_other: null,
-          front_url: 'https://placehold.co/600x400/e2e8f0/475569?text=ID+Front',
-          back_url: 'https://placehold.co/600x400/e2e8f0/475569?text=ID+Back',
-        })
-        setTenantIdPhotosLoading(false)
-        return
-      }
       getTenantIdPhotos(viewTenant.id)
         .then(res => setTenantIdPhotos(res))
         .catch(() => setTenantIdPhotos(null))
@@ -442,7 +325,6 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
           monthly_rent: rent,
           apartmentowner_id: ownerId,
           ...(selectedProperty ? { apartment_id: selectedProperty.id } : {}),
-          ...(selectedProperty?.manager_id ? { manager_id: selectedProperty.manager_id } : {}),
         })
       }
       await loadUnits()
@@ -457,31 +339,41 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     }
   }
 
-  async function handleAssignManager(propertyId: string, managerId: string | null) {
+  function handleTogglePendingManager(managerId: string) {
+    setPendingManagerIds(prev => {
+      const next = new Set(prev)
+      if (next.has(managerId)) next.delete(managerId)
+      else next.add(managerId)
+      return next
+    })
+  }
+
+  async function handleSaveManagerAssignments(propertyId: string) {
     try {
-      // Find the previous manager assigned to this property (to clear their apartment_id)
-      const prevManager = managers.find(m => m.apartment_id === propertyId)
+      setSavingManagers(true)
+      const currentlyAssigned = new Set(managers.filter(m => m.apartment_id === propertyId).map(m => m.id))
+      const toAssign = [...pendingManagerIds].filter(id => !currentlyAssigned.has(id))
+      const toUnassign = [...currentlyAssigned].filter(id => !pendingManagerIds.has(id))
 
-      // Update the apartment's manager_id
-      await updateOwnerProperty(propertyId, { manager_id: managerId })
+      await Promise.all([
+        ...toAssign.map(id => updateOwnerManager(id, { apartment_id: propertyId })),
+        ...toUnassign.map(id => updateOwnerManager(id, { apartment_id: null })),
+      ])
 
-      // Update the new manager's apartment_id (bidirectional link)
-      if (managerId) {
-        await updateOwnerManager(managerId, { apartment_id: propertyId })
+      await Promise.all([loadProperties(), loadManagers()])
+      setInlineMgrDropdownOpen(false)
+      if (toAssign.length > 0 || toUnassign.length > 0) {
+        toast.success('Manager assignments updated')
       }
-
-      // Clear the previous manager's apartment_id if switching managers
-      if (prevManager && prevManager.id !== managerId) {
-        await updateOwnerManager(prevManager.id, { apartment_id: null })
-      }
-
-      await loadProperties()
-      await loadManagers()
-      setSelectedProperty(prev => prev ? { ...prev, manager_id: managerId } : prev)
-      toast.success(managerId ? 'Manager assigned successfully' : 'Manager removed')
     } catch {
-      toast.error('Failed to update manager')
+      toast.error('Failed to update manager assignments')
+    } finally {
+      setSavingManagers(false)
     }
+  }
+
+  async function handleClearAllManagers(propertyId: string) {
+    setPendingManagerIds(new Set())
   }
 
   async function handleDeleteProperty(propertyId: string) {
@@ -514,7 +406,6 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
       await createOwnerProperty({
         name: trimmedName,
         apartmentowner_id: ownerId,
-        ...(addPropertyForm.manager_id ? { manager_id: addPropertyForm.manager_id } : {}),
         address_region: addr.region,
         address_region_code: addr.regionCode,
         address_province: addr.province,
@@ -532,7 +423,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
       await loadProperties()
       toast.success('Property added successfully')
       setShowAddPropertyModal(false)
-      setAddPropertyForm({ name: '', address: null, manager_id: '' })
+      setAddPropertyForm({ name: '', address: null })
     } catch {
       toast.error('Failed to add property')
     } finally {
@@ -818,7 +709,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
               </p>
             </div>
             <button
-              onClick={() => { setAddPropertyForm({ name: '', address: null, manager_id: '' }); setShowAddPropertyModal(true) }}
+              onClick={() => { setAddPropertyForm({ name: '', address: null }); setShowAddPropertyModal(true) }}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-600 text-white font-semibold text-sm rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -919,80 +810,129 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 )}
               </p>
               <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Assigned Manager:{' '}
+                Assigned Manager(s):{' '}
                 <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {(() => { const mgr = managers.find(m => m.id === selectedProperty.manager_id); return mgr ? `${mgr.first_name} ${mgr.last_name}` : 'None' })()}
+                  {(() => {
+                    const assignedMgrs = managers.filter(m => m.apartment_id === selectedProperty.id)
+                    return assignedMgrs.length > 0
+                      ? assignedMgrs.map(m => `${m.first_name} ${m.last_name}`).join(', ')
+                      : 'None'
+                  })()}
                 </span>
               </p>
             </div>
             <div className="flex items-center gap-3 self-start sm:self-end">
-              {/* Inline manager assignment dropdown */}
-              <div className="relative w-64" ref={inlineMgrDropdownRef}>
+              {/* Inline multi-manager assignment dropdown */}
+              <div className="relative w-72" ref={inlineMgrDropdownRef}>
                 <button
                   type="button"
-                  onClick={() => { setInlineMgrDropdownOpen(!inlineMgrDropdownOpen); setInlineMgrSearch('') }}
+                  onClick={() => {
+                    if (!inlineMgrDropdownOpen) {
+                      // Initialize pending set from currently assigned managers
+                      const currentIds = new Set(managers.filter(m => m.apartment_id === selectedProperty.id).map(m => m.id))
+                      setPendingManagerIds(currentIds)
+                    }
+                    setInlineMgrDropdownOpen(!inlineMgrDropdownOpen)
+                    setInlineMgrSearch('')
+                  }}
                   className={`w-full px-3 py-2.5 rounded-lg border text-sm cursor-pointer flex items-center justify-between ${
                     isDark
                       ? 'bg-[#0A1628] border-[#1E293B] text-white'
                       : 'bg-gray-50 border-gray-200 text-gray-900'
                   }`}
                 >
-                  <span className={!selectedProperty.manager_id ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
-                    {selectedProperty.manager_id
-                      ? (() => { const m = managers.find(m => m.id === selectedProperty.manager_id); return m ? `${m.first_name} ${m.last_name}` : 'No manager assigned' })()
-                      : 'No manager assigned'}
+                  <span className={managers.filter(m => m.apartment_id === selectedProperty.id).length === 0 ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
+                    {(() => {
+                      const assigned = managers.filter(m => m.apartment_id === selectedProperty.id)
+                      if (assigned.length === 0) return 'Assign managers...'
+                      if (assigned.length === 1) return `${assigned[0].first_name} ${assigned[0].last_name}`
+                      return `${assigned.length} managers assigned`
+                    })()}
                   </span>
                   <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${inlineMgrDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {inlineMgrDropdownOpen && (
-                  <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-72 overflow-y-auto ${
+                  <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-lg ${
                     isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
-                  }`} style={{ scrollbarGutter: 'stable' as const }}>
-                    <div className="sticky top-0 p-2" style={{ backgroundColor: isDark ? '#111D32' : '#fff' }}>
-                      <input
-                        type="text"
-                        value={inlineMgrSearch}
-                        onChange={(e) => setInlineMgrSearch(e.target.value)}
-                        placeholder="Search manager..."
-                        className={`w-full px-2.5 py-1.5 rounded border text-sm focus:outline-none focus:ring-1 focus:ring-primary ${
-                          isDark
-                            ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
-                            : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
-                        }`}
-                        autoFocus
-                      />
-                    </div>
-                    <div
-                      onClick={() => {
-                        handleAssignManager(selectedProperty.id, null)
-                        setInlineMgrDropdownOpen(false)
-                      }}
-                      className={`px-3 py-2 text-sm cursor-pointer transition-colors italic ${
-                        isDark ? 'hover:bg-primary/20 text-gray-500' : 'hover:bg-primary/10 text-gray-400'
-                      }`}
-                    >
-                      No manager assigned
-                    </div>
-                    {managers
-                      .filter(m => m.status === 'active')
-                      .filter(m => !inlineMgrSearch || `${m.first_name} ${m.last_name}`.toLowerCase().includes(inlineMgrSearch.toLowerCase()))
-                      .map((mgr) => (
+                  }`}>
+                    <div className="max-h-60 overflow-y-auto" style={{ scrollbarGutter: 'stable' as const }}>
+                      <div className="sticky top-0 p-2" style={{ backgroundColor: isDark ? '#111D32' : '#fff' }}>
+                        <input
+                          type="text"
+                          value={inlineMgrSearch}
+                          onChange={(e) => setInlineMgrSearch(e.target.value)}
+                          placeholder="Search manager..."
+                          className={`w-full px-2.5 py-1.5 rounded border text-sm focus:outline-none focus:ring-1 focus:ring-primary ${
+                            isDark
+                              ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                              : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                          }`}
+                          autoFocus
+                        />
+                      </div>
+                      {pendingManagerIds.size > 0 && (
                         <div
-                          key={mgr.id}
-                          onClick={() => {
-                            handleAssignManager(selectedProperty.id, mgr.id)
-                            setInlineMgrDropdownOpen(false)
-                          }}
-                          className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
-                            selectedProperty.manager_id === mgr.id
-                              ? (isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary')
-                              : (isDark ? 'hover:bg-primary/20 text-gray-300' : 'hover:bg-primary/10 text-gray-700')
+                          onClick={() => handleClearAllManagers(selectedProperty.id)}
+                          className={`px-3 py-2 text-sm cursor-pointer transition-colors italic ${
+                            isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'
                           }`}
                         >
-                          {mgr.first_name} {mgr.last_name}
+                          Clear all managers
                         </div>
-                      ))}
+                      )}
+                      {managers
+                        .filter(m => m.status === 'active')
+                        .filter(m => !inlineMgrSearch || `${m.first_name} ${m.last_name}`.toLowerCase().includes(inlineMgrSearch.toLowerCase()))
+                        .map((mgr) => {
+                          const isSelected = pendingManagerIds.has(mgr.id)
+                          return (
+                          <div
+                            key={mgr.id}
+                            onClick={() => handleTogglePendingManager(mgr.id)}
+                            className={`px-3 py-2 text-sm cursor-pointer transition-colors flex items-center gap-2 ${
+                              isSelected
+                                ? (isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary')
+                                : (isDark ? 'hover:bg-primary/20 text-gray-300' : 'hover:bg-primary/10 text-gray-700')
+                            }`}
+                          >
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                              isSelected
+                                ? 'bg-primary border-primary'
+                                : isDark ? 'border-gray-600' : 'border-gray-300'
+                            }`}>
+                              {isSelected && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            {mgr.first_name} {mgr.last_name}
+                            {mgr.apartment_id && mgr.apartment_id !== selectedProperty.id && !isSelected && (
+                              <span className={`text-xs ml-auto ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>(other branch)</span>
+                            )}
+                          </div>
+                        )})}
+                    </div>
+                    {/* Update Managers button */}
+                    {(() => {
+                      const currentAssigned = new Set(managers.filter(m => m.apartment_id === selectedProperty.id).map(m => m.id))
+                      const hasChanges = pendingManagerIds.size !== currentAssigned.size || [...pendingManagerIds].some(id => !currentAssigned.has(id))
+                      return (
+                        <div className={`sticky bottom-0 p-2 border-t ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`} style={{ backgroundColor: isDark ? '#111D32' : '#fff' }}>
+                          <button
+                            type="button"
+                            disabled={!hasChanges || savingManagers}
+                            onClick={() => handleSaveManagerAssignments(selectedProperty.id)}
+                            className={`w-full py-2 text-sm font-semibold rounded-lg transition-colors ${
+                              hasChanges && !savingManagers
+                                ? 'bg-primary hover:bg-primary-600 text-white cursor-pointer'
+                                : isDark
+                                  ? 'bg-[#1E293B] text-gray-500 cursor-not-allowed'
+                                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            {savingManagers ? 'Updating...' : hasChanges ? 'Update Managers' : 'No changes'}
+                          </button>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
               </div>
@@ -2266,76 +2206,9 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
 
             <div className="overflow-y-auto flex-1 px-6 pb-2">
               <div className="space-y-4">
-                <div>
-                  <Label className="mb-1.5 block">Assign Apartment Manager</Label>
-                  <div className="relative" ref={managerDropdownRef}>
-                    <button
-                      type="button"
-                      onClick={() => { setManagerDropdownOpen(!managerDropdownOpen); setManagerSearch('') }}
-                      className={`w-full px-3 py-2.5 rounded-lg border text-sm cursor-pointer flex items-center justify-between ${
-                        isDark
-                          ? 'bg-[#0A1628] border-[#1E293B] text-white'
-                          : 'bg-gray-50 border-gray-200 text-gray-900'
-                      }`}
-                    >
-                      <span className={!addPropertyForm.manager_id ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
-                        {addPropertyForm.manager_id
-                          ? (() => { const m = managers.find(m => m.id === addPropertyForm.manager_id); return m ? `${m.first_name} ${m.last_name}` : 'Select manager' })()
-                          : 'Select manager'}
-                      </span>
-                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${managerDropdownOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {managerDropdownOpen && (
-                      <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-72 overflow-y-auto ${
-                        isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
-                      }`} style={{ scrollbarGutter: 'stable' as const }}>
-                        <div className="sticky top-0 p-2" style={{ backgroundColor: isDark ? '#111D32' : '#fff' }}>
-                          <input
-                            type="text"
-                            value={managerSearch}
-                            onChange={(e) => setManagerSearch(e.target.value)}
-                            placeholder="Search manager..."
-                            className={`w-full px-2.5 py-1.5 rounded border text-sm focus:outline-none focus:ring-1 focus:ring-primary ${
-                              isDark
-                                ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
-                                : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
-                            }`}
-                            autoFocus
-                          />
-                        </div>
-                        <div
-                          onClick={() => {
-                            setAddPropertyForm((f) => ({ ...f, manager_id: '' }))
-                            setManagerDropdownOpen(false)
-                          }}
-                          className={`px-3 py-2 text-sm cursor-pointer transition-colors italic ${
-                            isDark ? 'hover:bg-primary/20 text-gray-500' : 'hover:bg-primary/10 text-gray-400'
-                          }`}
-                        >
-                          N/A (assign later)
-                        </div>
-                        {managers
-                          .filter(m => m.status === 'active')
-                          .filter(m => !managerSearch || `${m.first_name} ${m.last_name}`.toLowerCase().includes(managerSearch.toLowerCase()))
-                          .map((mgr) => (
-                            <div
-                              key={mgr.id}
-                              onClick={() => {
-                                setAddPropertyForm((f) => ({ ...f, manager_id: mgr.id }))
-                                setManagerDropdownOpen(false)
-                              }}
-                              className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
-                                isDark ? 'hover:bg-primary/20 text-gray-300' : 'hover:bg-primary/10 text-gray-700'
-                              }`}
-                            >
-                              {mgr.first_name} {mgr.last_name}
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  You can assign managers after creating the apartment.
+                </p>
 
                 <div>
                   <Label className="mb-1.5 block">Apartment Name</Label>

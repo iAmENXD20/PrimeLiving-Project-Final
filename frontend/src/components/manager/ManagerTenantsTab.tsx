@@ -51,6 +51,9 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
   const pageSize = 10
   const tenantEmailValidation = useEmailValidation(form.email)
   const ownerIdRef = useRef<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending' | 'pending_verification' | 'inactive'>('all')
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false)
+  const statusFilterRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadData()
@@ -59,6 +62,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (sexRef.current && !sexRef.current.contains(e.target as Node)) setIsSexOpen(false)
+      if (statusFilterRef.current && !statusFilterRef.current.contains(e.target as Node)) setStatusFilterOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -193,9 +197,17 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
   }
 
   const filtered = tenants.filter(
-    (t) =>
-      `${t.first_name} ${t.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
-      (t.email || '').toLowerCase().includes(search.toLowerCase())
+    (t) => {
+      // Status filter
+      if (statusFilter === 'all' && t.status === 'inactive') return false
+      if (statusFilter === 'pending_verification') {
+        if (t.status !== 'pending' && t.status !== 'pending_verification') return false
+      } else if (statusFilter !== 'all' && t.status !== statusFilter) return false
+      // Search filter
+      const q = search.toLowerCase()
+      return `${t.first_name} ${t.last_name}`.toLowerCase().includes(q) ||
+        (t.email || '').toLowerCase().includes(q)
+    }
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -237,6 +249,39 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                   : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
               }`}
             />
+          </div>
+          {/* Status Filter */}
+          <div className="relative" ref={statusFilterRef}>
+            <button
+              onClick={() => setStatusFilterOpen(!statusFilterOpen)}
+              className={`inline-flex items-center gap-2 px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
+                isDark
+                  ? 'bg-[#0A1628] border-[#1E293B] text-gray-300 hover:bg-white/5'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {statusFilter === 'all' ? 'All Status' : statusFilter === 'pending_verification' ? 'Awaiting Approval' : statusFilter === 'pending' ? 'Pending' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+              <ChevronDown className={`w-4 h-4 transition-transform ${statusFilterOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {statusFilterOpen && (
+              <div className={`absolute z-30 mt-1 w-48 rounded-lg border shadow-lg py-1 ${
+                isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
+              }`}>
+                {([['all', 'All Status'], ['active', 'Active'], ['pending_verification', 'Awaiting Approval'], ['pending', 'Pending'], ['inactive', 'Inactive']] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => { setStatusFilter(value); setStatusFilterOpen(false); setPage(1) }}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                      statusFilter === value
+                        ? (isDark ? 'bg-primary/20 text-primary font-medium' : 'bg-primary/10 text-primary font-medium')
+                        : (isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50')
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <button
             onClick={openAddModal}
@@ -298,10 +343,16 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                           className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
                             tenant.status === 'active'
                               ? 'bg-emerald-500/15 text-emerald-400'
+                              : tenant.status === 'pending'
+                              ? 'bg-amber-500/15 text-amber-400'
+                              : tenant.status === 'pending_verification'
+                              ? 'bg-blue-500/15 text-blue-400'
+                              : tenant.status === 'inactive'
+                              ? 'bg-red-500/15 text-red-400'
                               : 'bg-gray-500/15 text-gray-400'
                           }`}
                         >
-                          {tenant.status}
+                          {tenant.status === 'pending_verification' ? 'Awaiting Approval' : tenant.status === 'pending' ? 'Pending' : tenant.status}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 relative">
@@ -369,26 +420,25 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
 
       {/* Add/Edit Modal */}
       {showModal && createPortal(
-        <div className="fixed inset-0 z-[100]">
-          <div className="absolute inset-0 bg-black/65 animate-in fade-in duration-200" onClick={() => setShowModal(false)} />
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className={`relative w-full max-w-md rounded-xl border p-6 animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
-              <button
-                onClick={() => setShowModal(false)}
-                className={`absolute top-4 right-4 p-1 rounded-lg ${isDark ? 'text-gray-400 hover:bg-white/10' : 'text-gray-500 hover:bg-gray-100'}`}
-              >
-                <X className="w-4 h-4" />
-              </button>
-
-              <h3 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {editingTenant ? 'Edit Tenant' : 'Create Tenant'}
-              </h3>
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20">
+            <div className={`relative w-full max-w-md rounded-xl border p-6 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {editingTenant ? 'Edit Tenant' : 'Add Tenant'}
+                </h3>
+                <button onClick={() => setShowModal(false)} className={isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
               {!editingTenant && (
                 <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Enter the tenant's account details. Unit assignment is managed only in the Units tab.
+                  Enter the tenant's email address. An invitation will be sent for them to set up their account.
                 </p>
               )}
+              {editingTenant && <div className="mb-4" />}
 
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -511,7 +561,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                   onClick={() => setShowModal(false)}
                   className={isDark ? 'border-[#1E293B] text-gray-300 hover:bg-white/5' : ''}
                 >
-                  Cancel
+                  Back
                 </Button>
                 <Button
                   onClick={handleSave}
@@ -524,7 +574,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                   }
                   className="bg-primary hover:bg-primary/90 text-white font-semibold"
                 >
-                  {editingTenant ? 'Update' : saving ? 'Creating...' : 'Create'}
+                  {editingTenant ? 'Update' : saving ? 'Adding...' : 'Add'}
                 </Button>
               </div>
             </div>

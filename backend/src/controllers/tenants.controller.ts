@@ -60,11 +60,30 @@ export async function getTenants(
 
     if (req.query.manager_id) {
       const { unitIds } = await getManagerScope(req.query.manager_id as string);
-      if (unitIds.length === 0) {
+
+      // Also get the manager's owner to include unassigned tenants
+      const { data: mgr } = await supabaseAdmin
+        .from("apartment_managers")
+        .select("apartmentowner_id")
+        .eq("id", req.query.manager_id as string)
+        .single();
+
+      const ownerId = mgr?.apartmentowner_id;
+
+      if (unitIds.length === 0 && !ownerId) {
         sendSuccess(res, []);
         return;
       }
-      query = query.in("unit_id", unitIds);
+
+      // Include tenants assigned to the manager's units OR unassigned tenants belonging to the same owner
+      const orParts: string[] = [];
+      if (unitIds.length > 0) {
+        orParts.push(`unit_id.in.(${unitIds.join(",")})`);
+      }
+      if (ownerId) {
+        orParts.push(`apartmentowner_id.eq.${ownerId}`);
+      }
+      query = query.or(orParts.join(","));
     }
 
     const { data, error } = await query;

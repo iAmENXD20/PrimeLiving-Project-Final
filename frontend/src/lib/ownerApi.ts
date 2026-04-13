@@ -210,6 +210,15 @@ export async function getTenantIdPhotos(id: string) {
 }
 
 // ── Property-level apartments (buildings/locations) ────────
+export interface PropertyManager {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+  phone: string | null
+  status: string
+}
+
 export interface Property {
   id: string
   apartmentowner_id: string
@@ -227,7 +236,7 @@ export interface Property {
   address_barangay: string | null
   address_barangay_code: string | null
   address_street: string | null
-  manager_id: string | null
+  managers: PropertyManager[]
   status: string
   unit_count: number
   created_at: string
@@ -241,7 +250,6 @@ export async function getOwnerProperties(ownerId: string) {
 export async function createOwnerProperty(property: {
   name: string
   apartmentowner_id: string
-  manager_id?: string
   address_region?: string
   address_region_code?: string
   address_province?: string
@@ -259,7 +267,7 @@ export async function createOwnerProperty(property: {
   return api.post<Property>('/apartments/properties', property)
 }
 
-export async function updateOwnerProperty(id: string, updates: { name?: string; status?: string; manager_id?: string | null }) {
+export async function updateOwnerProperty(id: string, updates: { name?: string; status?: string }) {
   return api.put<Property>(`/apartments/properties/${id}`, updates)
 }
 

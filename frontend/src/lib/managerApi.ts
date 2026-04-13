@@ -358,13 +358,14 @@ export async function recordCashPayment(payment: {
 }
 
 export async function settleCashBilling(paymentId: string, description?: string, paymentMode?: 'gcash' | 'maya' | 'cash' | 'bank_transfer') {
+  // First update payment metadata (generic PUT strips status/verification_status)
   await api.put(`/payments/${paymentId}`, {
-    status: 'pending',
     payment_mode: paymentMode || 'cash',
-    verification_status: 'verified',
     payment_date: new Date().toISOString(),
     description: description || 'Payment recorded by manager',
   })
+  // Then mark as verified via the dedicated verify endpoint
+  await api.put(`/payments/${paymentId}/verify`, { verification_status: 'verified' })
 }
 
 // ── Get Active Tenants (for SMS notifications) ─────────────

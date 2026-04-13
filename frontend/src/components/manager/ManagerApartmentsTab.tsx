@@ -161,8 +161,9 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
     }
   }
 
-  const occupiedCount = units.filter((u) => u.tenant_name).length
-  const availableCount = units.length - occupiedCount
+  const occupiedCount = units.filter((u) => u.tenant_name && u.status !== 'under_renovation').length
+  const renovationCount = units.filter((u) => u.status === 'under_renovation').length
+  const availableCount = units.length - occupiedCount - renovationCount
 
   const selectedTenantDetails = editForm.tenantId
     ? tenants.find((tenant) => tenant.id === editForm.tenantId)
@@ -188,6 +189,9 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
             {units.length} units &middot;{' '}
             <span className="text-red-400 font-medium">{occupiedCount} occupied</span> &middot;{' '}
             <span className="text-emerald-400 font-medium">{availableCount} vacant</span>
+            {renovationCount > 0 && (
+              <> &middot; <span className="text-amber-400 font-medium">{renovationCount} under renovation</span></>
+            )}
           </p>
         </div>
 
@@ -213,24 +217,42 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
           <div className={`rounded-xl border p-4 max-h-[65vh] overflow-y-auto ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {units.map((unit) => {
-              const isOccupied = !!unit.tenant_name
+              const isRenovation = unit.status === 'under_renovation'
+              const isOccupied = !isRenovation && !!unit.tenant_name
+              const isVacant = !isRenovation && !isOccupied
               const tenantDetails = unit.tenant_id
                 ? tenants.find((tenant) => tenant.id === unit.tenant_id)
                 : null
+
+              const borderColor = isRenovation ? '#D97706' : isOccupied ? '#DC2626' : '#059669'
+              const bgColor = isRenovation
+                ? (isDark ? 'rgba(217,119,6,0.15)' : '#FEF3C7')
+                : isOccupied
+                  ? (isDark ? 'rgba(220,38,38,0.15)' : '#FEE2E2')
+                  : (isDark ? 'rgba(5,150,105,0.15)' : '#D1FAE5')
+              const borderStyleColor = isRenovation
+                ? (isDark ? 'rgba(217,119,6,0.3)' : '#FDE68A')
+                : isOccupied
+                  ? (isDark ? 'rgba(220,38,38,0.3)' : '#FECACA')
+                  : (isDark ? 'rgba(5,150,105,0.3)' : '#A7F3D0')
+
+              const statusLabel = isRenovation ? 'Under Renovation' : isOccupied ? 'Occupied' : 'Vacant'
+              const statusBadge = isRenovation
+                ? 'bg-amber-500/20 text-amber-400'
+                : isOccupied
+                  ? 'bg-red-500/20 text-red-400'
+                  : 'bg-emerald-500/20 text-emerald-400'
+
               return (
                 <div
                   key={unit.id}
                   className="relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg"
                   style={{
-                    borderLeft: `4px solid ${isOccupied ? '#DC2626' : '#059669'}`,
-                    backgroundColor: isOccupied
-                      ? (isDark ? 'rgba(220,38,38,0.15)' : '#FEE2E2')
-                      : (isDark ? 'rgba(5,150,105,0.15)' : '#D1FAE5'),
-                    border: `1px solid ${isOccupied
-                      ? (isDark ? 'rgba(220,38,38,0.3)' : '#FECACA')
-                      : (isDark ? 'rgba(5,150,105,0.3)' : '#A7F3D0')}`,
+                    borderLeft: `4px solid ${borderColor}`,
+                    backgroundColor: bgColor,
+                    border: `1px solid ${borderStyleColor}`,
                     borderLeftWidth: '4px',
-                    borderLeftColor: isOccupied ? '#DC2626' : '#059669',
+                    borderLeftColor: borderColor,
                   }}
                   onClick={() => openEditModal(unit)}
                 >
@@ -239,12 +261,8 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                     <span className={`text-base font-bold tracking-wide ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {unit.name.toUpperCase()}
                     </span>
-                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                      isOccupied
-                        ? 'bg-red-500/20 text-red-400'
-                        : 'bg-emerald-500/20 text-emerald-400'
-                    }`}>
-                      {isOccupied ? 'Occupied' : 'Vacant'}
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${statusBadge}`}>
+                      {statusLabel}
                     </span>
                   </div>
 

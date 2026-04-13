@@ -92,12 +92,12 @@ export async function getDocuments(
       query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
     if (req.query.manager_id) {
-      const { apartmentIds } = await getManagerScope(req.query.manager_id as string);
-      if (apartmentIds.length === 0) {
+      const { unitIds } = await getManagerScope(req.query.manager_id as string);
+      if (unitIds.length === 0) {
         sendSuccess(res, []);
         return;
       }
-      query = query.in("apartment_id", apartmentIds);
+      query = query.in("unit_id", unitIds);
     }
     if (req.query.unit_id) {
       query = query.eq("unit_id", req.query.unit_id as string);

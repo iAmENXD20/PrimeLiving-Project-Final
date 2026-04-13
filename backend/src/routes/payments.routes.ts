@@ -30,8 +30,8 @@ router.get("/due-schedule/:tenantId", authorize("owner", "manager", "tenant"), c
 router.get("/qr/by-tenant/:tenantId", authorize("owner", "manager", "tenant"), cacheResponse({ namespace: "payments", ttlSeconds: 30 }), getPaymentQrByTenant);
 router.get("/qr/by-apartment/:apartmentId", authorize("owner", "manager", "tenant"), cacheResponse({ namespace: "payments", ttlSeconds: 30 }), getPaymentQrByApartment);
 router.get("/qr/:apartmentownerId", authorize("owner", "manager", "tenant"), cacheResponse({ namespace: "payments", ttlSeconds: 30 }), getPaymentQr);
-router.post("/qr", authorize("owner", "manager"), uploadPaymentQr);
-router.delete("/qr/:apartmentownerId", authorize("owner", "manager"), deletePaymentQr);
+router.post("/qr", authorize("owner", "manager"), invalidateCache(["payments"]), uploadPaymentQr);
+router.delete("/qr/:apartmentownerId", authorize("owner", "manager"), invalidateCache(["payments"]), deletePaymentQr);
 router.get("/pending-verifications", authorize("owner", "manager"), cacheResponse({ namespace: "payments", ttlSeconds: 10 }), getPendingVerifications);
 router.get("/verified-pending-approval", authorize("owner"), cacheResponse({ namespace: "payments", ttlSeconds: 10 }), getVerifiedPayments);
 router.get("/", authorize("owner", "manager", "tenant"), cacheResponse({ namespace: "payments", ttlSeconds: 15 }), getPayments);
