@@ -115,12 +115,12 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
     : `${monthOptions.find((m) => m.value === selectedMonth)?.label} ${selectedYear}`
 
   const statCards = [
-    { label: 'Total Income', value: (stats.totalRevenue || 125000).toLocaleString(), icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: `${monthOptions.find((m) => m.value === today.getMonth() + 1)?.label} ${today.getFullYear()}` },
-    { label: 'Paid Tenants', value: `${paidTenantCount || 7}/${stats.activeTenants || 10}`, icon: CreditCard, color: 'text-cyan-400', bg: 'bg-cyan-500/15', subtitle: monthOptions.find((m) => m.value === today.getMonth() + 1)?.label },
-    { label: 'Pending Maintenance', value: stats.pendingMaintenance || 3, icon: Wrench, color: 'text-red-400', bg: 'bg-red-500/15' },
-    { label: 'Active Tenants', value: stats.activeTenants || 10, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
-    { label: 'Apartments', value: stats.apartments || 2, icon: Building2, color: 'text-blue-400', bg: 'bg-blue-500/15' },
-    { label: 'Apartment Managers', value: managerCount || 3, icon: UserCog, color: 'text-violet-400', bg: 'bg-violet-500/15' },
+    { label: 'Total Income', value: (stats.totalRevenue || 285000).toLocaleString(), icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: `${monthOptions.find((m) => m.value === today.getMonth() + 1)?.label} ${today.getFullYear()}` },
+    { label: 'Paid Tenants', value: `${paidTenantCount || 28}/${stats.activeTenants || 33}`, icon: CreditCard, color: 'text-cyan-400', bg: 'bg-cyan-500/15', subtitle: monthOptions.find((m) => m.value === today.getMonth() + 1)?.label },
+    { label: 'Pending Maintenance', value: stats.pendingMaintenance || 7, icon: Wrench, color: 'text-red-400', bg: 'bg-red-500/15' },
+    { label: 'Active Tenants', value: stats.activeTenants || 33, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
+    { label: 'Apartments', value: stats.apartments || 6, icon: Building2, color: 'text-blue-400', bg: 'bg-blue-500/15' },
+    { label: 'Apartment Managers', value: managerCount || 6, icon: UserCog, color: 'text-violet-400', bg: 'bg-violet-500/15' },
   ]
 
   // Build unified history from maintenance requests + payments
@@ -160,12 +160,23 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
 
   const mockHistory: HistoryItem[] = [
     { id: 'mock-1', type: 'maintenance', description: 'Juan Dela Cruz submitted a request', detail: 'Leaking faucet in kitchen', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 1' },
-    { id: 'mock-2', type: 'payment', description: 'Maria Santos rent payment', detail: '₱8,500', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 1' },
-    { id: 'mock-3', type: 'maintenance', description: 'Carlos Reyes submitted a request', detail: 'Broken door lock - Unit 5', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3).toISOString(), badge: 'in progress', badgeColor: 'bg-blue-500/15 text-blue-400', branch: 'Apartment 2' },
-    { id: 'mock-4', type: 'payment', description: 'Ana Garcia rent payment', detail: '₱12,000', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 4).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 1' },
-    { id: 'mock-5', type: 'maintenance', description: 'Patricia Villanueva submitted a request', detail: 'AC not working - Unit 8', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 5).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 2' },
-    { id: 'mock-6', type: 'payment', description: 'Liza Mendoza rent payment', detail: '₱9,000', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 5).toISOString(), badge: 'overdue', badgeColor: 'bg-red-500/15 text-red-400', branch: 'Apartment 1' },
-    { id: 'mock-7', type: 'maintenance', description: 'Karl Bautista submitted a request', detail: 'Clogged drain in bathroom', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6).toISOString(), badge: 'resolved', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 1' },
+    { id: 'mock-2', type: 'payment', description: 'Maria Santos rent payment', detail: '₱8,500', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 1' },
+    { id: 'mock-3', type: 'maintenance', description: 'Carlos Reyes submitted a request', detail: 'Broken door lock - Unit 5', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2).toISOString(), badge: 'in progress', badgeColor: 'bg-blue-500/15 text-blue-400', branch: 'Apartment 2' },
+    { id: 'mock-4', type: 'maintenance', description: 'Patricia Villanueva submitted a request', detail: 'AC not working - Unit 8', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 2' },
+    { id: 'mock-5', type: 'payment', description: 'Ana Garcia rent payment', detail: '₱12,000', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 1' },
+    { id: 'mock-6', type: 'maintenance', description: 'Rico Dimaculangan submitted a request', detail: 'Clogged drain in bathroom - Unit 3', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 3' },
+    { id: 'mock-7', type: 'maintenance', description: 'Elena Flores submitted a request', detail: 'Flickering lights in hallway - Unit 2', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 4).toISOString(), badge: 'in progress', badgeColor: 'bg-blue-500/15 text-blue-400', branch: 'Apartment 3' },
+    { id: 'mock-8', type: 'payment', description: 'Liza Mendoza rent payment', detail: '₱9,000', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 4).toISOString(), badge: 'overdue', badgeColor: 'bg-red-500/15 text-red-400', branch: 'Apartment 1' },
+    { id: 'mock-9', type: 'maintenance', description: 'Marco Pascual submitted a request', detail: 'Water heater not working - Unit 6', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 5).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 2' },
+    { id: 'mock-10', type: 'maintenance', description: 'Karl Bautista submitted a request', detail: 'Pest control needed - Unit 4', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 5).toISOString(), badge: 'resolved', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 1' },
+    { id: 'mock-11', type: 'payment', description: 'Bryan Navarro rent payment', detail: '₱9,500', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 3' },
+    { id: 'mock-12', type: 'maintenance', description: 'Christine Tan submitted a request', detail: 'Broken window latch - Unit 7', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6).toISOString(), badge: 'resolved', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 3' },
+    { id: 'mock-13', type: 'payment', description: 'Gabriel Mendez rent payment', detail: '₱8,500', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 4' },
+    { id: 'mock-14', type: 'maintenance', description: 'Isabella Cruz submitted a request', detail: 'Leaking pipe in bathroom - Unit 2', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 4' },
+    { id: 'mock-15', type: 'payment', description: 'Victor Lim rent payment', detail: '₱8,000', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 5' },
+    { id: 'mock-16', type: 'maintenance', description: 'Rachel Tan submitted a request', detail: 'Broken cabinet hinge - Unit 2', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3).toISOString(), badge: 'in progress', badgeColor: 'bg-blue-500/15 text-blue-400', branch: 'Apartment 5' },
+    { id: 'mock-17', type: 'maintenance', description: 'Andrea Navarro submitted a request', detail: 'Faulty electrical outlet - Unit 1', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 4).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 6' },
+    { id: 'mock-18', type: 'payment', description: 'Bianca Ramos rent payment', detail: '₱8,500', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 5).toISOString(), badge: 'overdue', badgeColor: 'bg-red-500/15 text-red-400', branch: 'Apartment 6' },
   ]
 
   const historyItems = realHistory.length > 0 ? realHistory : mockHistory
@@ -204,7 +215,12 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
                         '🔧 Carlos Reyes: Broken door lock - Unit 5 (in progress)',
                         '🔧 Patricia Villanueva: AC not working - Unit 8 (pending)',
                         '💰 Liza Mendoza: Rent overdue - ₱9,000',
-                        '🔧 New maintenance request from Unit 3C',
+                        '🔧 Rico Dimaculangan: Clogged drain in bathroom - Unit 3 (pending)',
+                        '🔧 Elena Flores: Flickering lights in hallway - Unit 2 (in progress)',
+                        '🔧 Marco Pascual: Water heater not working - Unit 6 (pending)',
+                        '🔧 Isabella Cruz: Leaking pipe in bathroom - Apt 4 Unit 2 (pending)',
+                        '🔧 Rachel Tan: Broken cabinet hinge - Apt 5 Unit 2 (in progress)',
+                        '🔧 Andrea Navarro: Faulty electrical outlet - Apt 6 Unit 1 (pending)',
                       ]
                     return tickets.join('     •     ')
                   })()}
@@ -340,13 +356,25 @@ export default function OwnerOverviewTab({ clientId, ownerName }: OwnerOverviewT
               .map((u) => ({ unitName: u.name, dueDay: u.payment_due_day! }))
             if (realDeadlines.length > 0) return realDeadlines
             return [
-              { unitName: 'Taft - Unit 1A', dueDay: 5 },
-              { unitName: 'Taft - Unit 2B', dueDay: 5 },
-              { unitName: 'Vito Cruz - Unit 3C', dueDay: 10 },
-              { unitName: 'Taft - Unit 4D', dueDay: 15 },
-              { unitName: 'Vito Cruz - Unit 5E', dueDay: 15 },
-              { unitName: 'Taft - Unit 6F', dueDay: 20 },
-              { unitName: 'Vito Cruz - Unit 7G', dueDay: 25 },
+              { unitName: 'Apt 1 - Unit 1A', dueDay: 5 },
+              { unitName: 'Apt 1 - Unit 2B', dueDay: 5 },
+              { unitName: 'Apt 1 - Unit 3C', dueDay: 10 },
+              { unitName: 'Apt 2 - Unit 1', dueDay: 10 },
+              { unitName: 'Apt 2 - Unit 2', dueDay: 15 },
+              { unitName: 'Apt 2 - Unit 5', dueDay: 15 },
+              { unitName: 'Apt 3 - Unit 1', dueDay: 20 },
+              { unitName: 'Apt 3 - Unit 3', dueDay: 20 },
+              { unitName: 'Apt 3 - Unit 6', dueDay: 25 },
+              { unitName: 'Apt 4 - Unit 1', dueDay: 5 },
+              { unitName: 'Apt 4 - Unit 2', dueDay: 10 },
+              { unitName: 'Apt 4 - Unit 5', dueDay: 20 },
+              { unitName: 'Apt 5 - Unit 1', dueDay: 5 },
+              { unitName: 'Apt 5 - Unit 3', dueDay: 15 },
+              { unitName: 'Apt 5 - Unit 6', dueDay: 25 },
+              { unitName: 'Apt 6 - Unit 1', dueDay: 5 },
+              { unitName: 'Apt 6 - Unit 2', dueDay: 10 },
+              { unitName: 'Apt 6 - Unit 4', dueDay: 15 },
+              { unitName: 'Apt 1 - Unit 7G', dueDay: 28 },
             ]
           })()}
         />

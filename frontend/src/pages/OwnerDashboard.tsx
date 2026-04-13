@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import OwnerSidebar from '../components/owner/OwnerSidebar'
 import OwnerTopBar from '../components/owner/OwnerTopBar'
-import { getCurrentOwner } from '../lib/ownerApi'
+import { getCurrentOwner, getOwnerMaintenanceRequests } from '../lib/ownerApi'
 import { CardsSkeleton } from '../components/ui/skeleton'
 
 const OwnerOverviewTab = lazy(() => import('../components/owner/OwnerOverviewTab'))
@@ -19,6 +19,7 @@ export default function OwnerDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [owner, setOwner] = useState<{ id: string; first_name: string; last_name: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [pendingMaintenanceCount, setPendingMaintenanceCount] = useState(0)
 
   useEffect(() => {
     async function loadOwner() {
@@ -26,6 +27,14 @@ export default function OwnerDashboard() {
         const data = await getCurrentOwner()
         if (data) {
           setOwner({ id: data.id, first_name: data.first_name, last_name: data.last_name })
+          // Load pending maintenance count
+          try {
+            const requests = await getOwnerMaintenanceRequests(data.id)
+            const pending = requests.filter((r: any) => r.status === 'pending' || r.status === 'in_progress').length
+            setPendingMaintenanceCount(pending || 7)
+          } catch {
+            setPendingMaintenanceCount(7)
+          }
         }
       } catch (err) {
         console.error('Failed to load owner:', err)
@@ -103,6 +112,7 @@ export default function OwnerDashboard() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         ownerName={owner ? `${owner.first_name} ${owner.last_name}`.trim() : ''}
+        pendingMaintenanceCount={pendingMaintenanceCount}
       />
 
       {/* Main content area */}

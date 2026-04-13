@@ -9,6 +9,7 @@ interface OwnerSidebarProps {
   isOpen: boolean
   onClose: () => void
   ownerName?: string
+  pendingMaintenanceCount?: number
 }
 
 const navItems = [
@@ -16,13 +17,13 @@ const navItems = [
   { id: 'manage-apartment', label: 'User Management', icon: Users },
   { id: 'units', label: 'Manage My Apartment', icon: Building2 },
   { id: 'maintenance', label: 'Maintenance', icon: Wrench },
-  { id: 'payments', label: 'Payment', icon: PhilippinePeso },
+  { id: 'payments', label: 'Payment History', icon: PhilippinePeso },
   { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'audit-reports', label: 'Audit Reports', icon: ClipboardList },
   { id: 'account', label: 'Account Settings', icon: Settings },
 ]
 
-export default function OwnerSidebar({ activeTab, onTabChange, isOpen, onClose, ownerName }: OwnerSidebarProps) {
+export default function OwnerSidebar({ activeTab, onTabChange, isOpen, onClose, ownerName, pendingMaintenanceCount }: OwnerSidebarProps) {
   const { isDark } = useTheme()
   const navigate = useNavigate()
 
@@ -86,6 +87,11 @@ export default function OwnerSidebar({ activeTab, onTabChange, isOpen, onClose, 
             >
               <Icon className="w-[18px] h-[18px]" />
               {item.label}
+              {item.id === 'maintenance' && (pendingMaintenanceCount ?? 0) > 0 && (
+                <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold rounded-full bg-red-500 text-white">
+                  {pendingMaintenanceCount}
+                </span>
+              )}
             </button>
           )
         })}

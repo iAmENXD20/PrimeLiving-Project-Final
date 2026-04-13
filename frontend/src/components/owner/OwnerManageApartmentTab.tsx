@@ -125,7 +125,7 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
   const [ownerTenants, setOwnerTenants] = useState<OwnerTenant[]>([])
   const [tenantsTabLoading, setTenantsTabLoading] = useState(true)
   const [showInactiveTenants, setShowInactiveTenants] = useState(false)
-  const [tenantStatusFilter, setTenantStatusFilter] = useState<'all' | 'active' | 'inactive' | 'pending_verification'>('all')
+  const [tenantStatusFilter, setTenantStatusFilter] = useState<'all' | 'active' | 'inactive' | 'pending' | 'pending_verification'>('all')
   const [tenantSearch, setTenantSearch] = useState('')
   const [viewTenant, setViewTenant] = useState<{ id: string; name: string; phone: string; unit: string; rent: number; status: string; branch: string; address: string } | null>(null)
   const [viewManager, setViewManager] = useState<Manager | null>(null)
@@ -138,11 +138,14 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
   const [managersPage, setManagersPage] = useState(1)
   const [tenantsPage, setTenantsPage] = useState(1)
   const pageSize = 10
-  const [managerStatusFilter, setManagerStatusFilter] = useState<'all' | 'active' | 'inactive' | 'pending_verification'>('all')
+  const [managerStatusFilter, setManagerStatusFilter] = useState<'all' | 'active' | 'inactive' | 'pending' | 'pending_verification'>('all')
   const [managerFilterOpen, setManagerFilterOpen] = useState(false)
   const managerFilterRef = useRef<HTMLDivElement>(null)
   const [tenantFilterOpen, setTenantFilterOpen] = useState(false)
   const tenantFilterRef = useRef<HTMLDivElement>(null)
+  const [tenantBranchFilter, setTenantBranchFilter] = useState<string>('all')
+  const [tenantBranchFilterOpen, setTenantBranchFilterOpen] = useState(false)
+  const tenantBranchFilterRef = useRef<HTMLDivElement>(null)
 
   // ─── Load data ────────────────────────────────────────────────
   useEffect(() => {
@@ -160,18 +163,80 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) setStatusDropdownOpen(false)
       if (managerFilterRef.current && !managerFilterRef.current.contains(e.target as Node)) setManagerFilterOpen(false)
       if (tenantFilterRef.current && !tenantFilterRef.current.contains(e.target as Node)) setTenantFilterOpen(false)
+      if (tenantBranchFilterRef.current && !tenantBranchFilterRef.current.contains(e.target as Node)) setTenantBranchFilterOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // ─── Sample/mock properties (apartments) ────────────────────
+  const sampleProperties: Property[] = [
+    { id: 'sample-prop-1', apartmentowner_id: ownerId, name: 'Apartment 1', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Manila', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Malate', address_barangay_code: null, address_street: '123 Taft Ave', manager_id: 'sample-1', status: 'active', unit_count: 10, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+    { id: 'sample-prop-2', apartmentowner_id: ownerId, name: 'Apartment 2', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Manila', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Paco', address_barangay_code: null, address_street: '456 Vito Cruz St', manager_id: 'sample-2', status: 'active', unit_count: 8, created_at: '2026-02-01T00:00:00Z', updated_at: '2026-02-01T00:00:00Z' },
+    { id: 'sample-prop-3', apartmentowner_id: ownerId, name: 'Apartment 3', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Makati', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Poblacion', address_barangay_code: null, address_street: '789 Jupiter St', manager_id: 'sample-7', status: 'active', unit_count: 7, created_at: '2026-03-01T00:00:00Z', updated_at: '2026-03-01T00:00:00Z' },
+    { id: 'sample-prop-4', apartmentowner_id: ownerId, name: 'Apartment 4', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Quezon City', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Loyola Heights', address_barangay_code: null, address_street: '321 Katipunan Ave', manager_id: 'sample-4', status: 'active', unit_count: 5, created_at: '2026-04-01T00:00:00Z', updated_at: '2026-04-01T00:00:00Z' },
+    { id: 'sample-prop-5', apartmentowner_id: ownerId, name: 'Apartment 5', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Mandaluyong', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Wack-Wack', address_barangay_code: null, address_street: '555 Shaw Blvd', manager_id: 'sample-5', status: 'active', unit_count: 6, created_at: '2026-05-01T00:00:00Z', updated_at: '2026-05-01T00:00:00Z' },
+    { id: 'sample-prop-6', apartmentowner_id: ownerId, name: 'Apartment 6', address_region: 'NCR', address_region_code: null, address_province: 'Metro Manila', address_province_code: null, address_city: 'Manila', address_city_code: null, address_district: null, address_district_code: null, address_area: null, address_area_code: null, address_barangay: 'Sta. Cruz', address_barangay_code: null, address_street: '100 Rizal Ave', manager_id: 'sample-6', status: 'active', unit_count: 4, created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-01T00:00:00Z' },
+  ]
+
+  // ─── Sample/mock units for all 6 apartments ────────────────
+  const sampleUnits: UnitWithTenant[] = [
+    // Apartment 1 — 10 units
+    { id: 'su-1-1', name: 'Unit 1A', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Elena Flores', tenant_phone: '+639171111111', tenant_id: 'sample-t1', max_occupancy: 2, payment_due_day: 5 },
+    { id: 'su-1-2', name: 'Unit 2B', monthly_rent: 9000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Marco Pascual', tenant_phone: '+639172222222', tenant_id: 'sample-t2', max_occupancy: 2, payment_due_day: 5 },
+    { id: 'su-1-3', name: 'Unit 3C', monthly_rent: 7500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Jasmine Lopez', tenant_phone: '+639173333333', tenant_id: 'sample-t3', max_occupancy: 2, payment_due_day: 10 },
+    { id: 'su-1-4', name: 'Unit 4D', monthly_rent: 10000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Rico Dimaculangan', tenant_phone: '+639174444444', tenant_id: 'sample-t4', max_occupancy: 3, payment_due_day: 15 },
+    { id: 'su-1-5', name: 'Unit 5E', monthly_rent: 8000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Christine Tan', tenant_phone: '+639175555555', tenant_id: 'sample-t5', max_occupancy: 2, payment_due_day: 15 },
+    { id: 'su-1-6', name: 'Unit 6F', monthly_rent: 9500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Bryan Navarro', tenant_phone: '+639176666666', tenant_id: 'sample-t6', max_occupancy: 2, payment_due_day: 20 },
+    { id: 'su-1-7', name: 'Unit 7G', monthly_rent: 7000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
+    { id: 'su-1-8', name: 'Unit 8H', monthly_rent: 11000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Jerome Santiago', tenant_phone: '+639178888888', tenant_id: 'sample-t8', max_occupancy: 3, payment_due_day: 25 },
+    { id: 'su-1-9', name: 'Unit 9I', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'active', created_at: '2026-01-01T00:00:00Z', tenant_name: 'Katrina Rivera', tenant_phone: '+639179999999', tenant_id: 'sample-t9', max_occupancy: 2, payment_due_day: 28 },
+    { id: 'su-1-10', name: 'Unit 10J', monthly_rent: 9200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-1', manager_id: 'sample-1', status: 'under_renovation', created_at: '2026-01-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
+    // Apartment 2 — 8 units
+    { id: 'su-2-1', name: 'Unit 1', monthly_rent: 7500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Paolo Gonzales', tenant_phone: '+639170000000', tenant_id: 'sample-t10', max_occupancy: 2, payment_due_day: 10 },
+    { id: 'su-2-2', name: 'Unit 2', monthly_rent: 8000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Diana Reyes', tenant_phone: '+639171010101', tenant_id: 'sample-t11', max_occupancy: 2, payment_due_day: 15 },
+    { id: 'su-2-3', name: 'Unit 3', monthly_rent: 9000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Juan Dela Cruz', tenant_phone: '+639171212121', tenant_id: 'sample-t12', max_occupancy: 2, payment_due_day: 10 },
+    { id: 'su-2-4', name: 'Unit 4', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Maria Santos', tenant_phone: '+639171313131', tenant_id: 'sample-t13', max_occupancy: 2, payment_due_day: 15 },
+    { id: 'su-2-5', name: 'Unit 5', monthly_rent: 7800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Carlos Reyes', tenant_phone: '+639171414141', tenant_id: 'sample-t14', max_occupancy: 2, payment_due_day: 5 },
+    { id: 'su-2-6', name: 'Unit 6', monthly_rent: 9200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Ana Garcia', tenant_phone: '+639171515151', tenant_id: 'sample-t15', max_occupancy: 3, payment_due_day: 20 },
+    { id: 'su-2-7', name: 'Unit 7', monthly_rent: 8200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
+    { id: 'su-2-8', name: 'Unit 8', monthly_rent: 7600, apartmentowner_id: ownerId, apartment_id: 'sample-prop-2', manager_id: 'sample-2', status: 'active', created_at: '2026-02-01T00:00:00Z', tenant_name: 'Patricia Villanueva', tenant_phone: '+639171616161', tenant_id: 'sample-t16', max_occupancy: 2, payment_due_day: 25 },
+    // Apartment 3 — 7 units
+    { id: 'su-3-1', name: 'Unit 1', monthly_rent: 8000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Liza Mendoza', tenant_phone: '+639171717171', tenant_id: 'sample-t17', max_occupancy: 2, payment_due_day: 5 },
+    { id: 'su-3-2', name: 'Unit 2', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Rafael Bautista', tenant_phone: '+639171818181', tenant_id: 'sample-t18', max_occupancy: 2, payment_due_day: 10 },
+    { id: 'su-3-3', name: 'Unit 3', monthly_rent: 7200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Miguel Aquino', tenant_phone: '+639171919191', tenant_id: 'sample-t19', max_occupancy: 2, payment_due_day: 15 },
+    { id: 'su-3-4', name: 'Unit 4', monthly_rent: 9000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Sofia Ramos', tenant_phone: '+639172020202', tenant_id: 'sample-t20', max_occupancy: 2, payment_due_day: 15 },
+    { id: 'su-3-5', name: 'Unit 5', monthly_rent: 7800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
+    { id: 'su-3-6', name: 'Unit 6', monthly_rent: 8800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Daniel Torres', tenant_phone: '+639172121212', tenant_id: 'sample-t21', max_occupancy: 3, payment_due_day: 20 },
+    { id: 'su-3-7', name: 'Unit 7', monthly_rent: 7500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-3', manager_id: 'sample-7', status: 'active', created_at: '2026-03-01T00:00:00Z', tenant_name: 'Karl Bautista', tenant_phone: '+639172222212', tenant_id: 'sample-t22', max_occupancy: 2, payment_due_day: 25 },
+    // Apartment 4 — 5 units
+    { id: 'su-4-1', name: 'Unit 1', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-4', manager_id: 'sample-4', status: 'active', created_at: '2026-04-01T00:00:00Z', tenant_name: 'Gabriel Mendez', tenant_phone: '+639172323232', tenant_id: 'sample-t23', max_occupancy: 2, payment_due_day: 5 },
+    { id: 'su-4-2', name: 'Unit 2', monthly_rent: 9000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-4', manager_id: 'sample-4', status: 'active', created_at: '2026-04-01T00:00:00Z', tenant_name: 'Isabella Cruz', tenant_phone: '+639172424242', tenant_id: 'sample-t24', max_occupancy: 2, payment_due_day: 10 },
+    { id: 'su-4-3', name: 'Unit 3', monthly_rent: 7800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-4', manager_id: 'sample-4', status: 'active', created_at: '2026-04-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
+    { id: 'su-4-4', name: 'Unit 4', monthly_rent: 8200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-4', manager_id: 'sample-4', status: 'active', created_at: '2026-04-01T00:00:00Z', tenant_name: 'Lorenzo Reyes', tenant_phone: '+639172525252', tenant_id: 'sample-t25', max_occupancy: 2, payment_due_day: 15 },
+    { id: 'su-4-5', name: 'Unit 5', monthly_rent: 9500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-4', manager_id: 'sample-4', status: 'active', created_at: '2026-04-01T00:00:00Z', tenant_name: 'Carmela Santos', tenant_phone: '+639172626262', tenant_id: 'sample-t26', max_occupancy: 2, payment_due_day: 20 },
+    // Apartment 5 — 6 units
+    { id: 'su-5-1', name: 'Unit 1', monthly_rent: 8000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: 'Victor Lim', tenant_phone: '+639172727272', tenant_id: 'sample-t27', max_occupancy: 2, payment_due_day: 5 },
+    { id: 'su-5-2', name: 'Unit 2', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: 'Rachel Tan', tenant_phone: '+639172828282', tenant_id: 'sample-t28', max_occupancy: 2, payment_due_day: 10 },
+    { id: 'su-5-3', name: 'Unit 3', monthly_rent: 9000, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: 'Dennis Aquino', tenant_phone: '+639172929292', tenant_id: 'sample-t29', max_occupancy: 2, payment_due_day: 15 },
+    { id: 'su-5-4', name: 'Unit 4', monthly_rent: 7500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
+    { id: 'su-5-5', name: 'Unit 5', monthly_rent: 8800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: 'Sophia Garcia', tenant_phone: '+639173030303', tenant_id: 'sample-t30', max_occupancy: 2, payment_due_day: 20 },
+    { id: 'su-5-6', name: 'Unit 6', monthly_rent: 9200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-5', manager_id: 'sample-5', status: 'active', created_at: '2026-05-01T00:00:00Z', tenant_name: 'Mario Fernandez', tenant_phone: '+639173131313', tenant_id: 'sample-t31', max_occupancy: 3, payment_due_day: 25 },
+    // Apartment 6 — 4 units
+    { id: 'su-6-1', name: 'Unit 1', monthly_rent: 7800, apartmentowner_id: ownerId, apartment_id: 'sample-prop-6', manager_id: 'sample-6', status: 'active', created_at: '2026-06-01T00:00:00Z', tenant_name: 'Andrea Navarro', tenant_phone: '+639173232323', tenant_id: 'sample-t32', max_occupancy: 2, payment_due_day: 5 },
+    { id: 'su-6-2', name: 'Unit 2', monthly_rent: 8200, apartmentowner_id: ownerId, apartment_id: 'sample-prop-6', manager_id: 'sample-6', status: 'active', created_at: '2026-06-01T00:00:00Z', tenant_name: 'Julian Torres', tenant_phone: '+639173330303', tenant_id: 'sample-t33', max_occupancy: 2, payment_due_day: 10 },
+    { id: 'su-6-3', name: 'Unit 3', monthly_rent: 7500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-6', manager_id: 'sample-6', status: 'active', created_at: '2026-06-01T00:00:00Z', tenant_name: null, tenant_phone: null, tenant_id: null, max_occupancy: 2, payment_due_day: null },
+    { id: 'su-6-4', name: 'Unit 4', monthly_rent: 8500, apartmentowner_id: ownerId, apartment_id: 'sample-prop-6', manager_id: 'sample-6', status: 'active', created_at: '2026-06-01T00:00:00Z', tenant_name: 'Bianca Ramos', tenant_phone: '+639173434343', tenant_id: 'sample-t34', max_occupancy: 2, payment_due_day: 15 },
+  ]
+
   async function loadProperties() {
     try {
       setPropertiesLoading(true)
       const data = await getOwnerProperties(ownerId)
-      setProperties(data)
+      setProperties([...data, ...sampleProperties])
     } catch (err) {
       console.error('Failed to load properties:', err)
+      setProperties(sampleProperties)
     } finally {
       setPropertiesLoading(false)
     }
@@ -181,10 +246,13 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
     try {
       setUnitsLoading(true)
       const data = await getOwnerUnits(ownerId)
-      data.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-      setUnits(data)
+      const merged = [...data, ...sampleUnits]
+      merged.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+      setUnits(merged)
     } catch (err) {
       console.error('Failed to load units:', err)
+      sampleUnits.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+      setUnits(sampleUnits)
     } finally {
       setUnitsLoading(false)
     }
@@ -192,16 +260,12 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
 
   // ─── Sample/mock managers for frontend reference ───────────
   const sampleManagers: Manager[] = [
-    { id: 'sample-1', first_name: 'Maria', last_name: 'Santos', email: 'maria.santos@example.com', phone: '+639171234567', status: 'active', joined_date: '2026-01-15T08:00:00Z', updated_at: '2026-01-15T08:00:00Z', apartment_id: null, apartment: null },
-    { id: 'sample-2', first_name: 'Carlos', last_name: 'Reyes', email: 'carlos.reyes@example.com', phone: '+639182345678', status: 'active', joined_date: '2026-02-10T08:00:00Z', updated_at: '2026-02-10T08:00:00Z', apartment_id: null, apartment: null },
-    { id: 'sample-3', first_name: 'Ana', last_name: 'Garcia', email: 'ana.garcia@example.com', phone: '+639193456789', status: 'pending', joined_date: '2026-03-05T08:00:00Z', updated_at: '2026-03-05T08:00:00Z', apartment_id: null, apartment: null },
-    { id: 'sample-4', first_name: 'Jose', last_name: 'Cruz', email: 'jose.cruz@example.com', phone: '+639204567890', status: 'pending_verification', joined_date: '2026-03-20T08:00:00Z', updated_at: '2026-03-20T08:00:00Z', apartment_id: null, apartment: null },
-    { id: 'sample-5', first_name: 'Liza', last_name: 'Mendoza', email: 'liza.mendoza@example.com', phone: '+639215678901', status: 'active', joined_date: '2026-01-28T08:00:00Z', updated_at: '2026-01-28T08:00:00Z', apartment_id: null, apartment: null },
-    { id: 'sample-6', first_name: 'Rafael', last_name: 'Bautista', email: 'rafael.bautista@example.com', phone: '+639226789012', status: 'inactive', joined_date: '2025-11-12T08:00:00Z', updated_at: '2025-11-12T08:00:00Z', apartment_id: null, apartment: null },
-    { id: 'sample-7', first_name: 'Patricia', last_name: 'Villanueva', email: 'patricia.v@example.com', phone: '+639237890123', status: 'active', joined_date: '2026-02-22T08:00:00Z', updated_at: '2026-02-22T08:00:00Z', apartment_id: null, apartment: null },
-    { id: 'sample-8', first_name: 'Miguel', last_name: 'Aquino', email: 'miguel.aquino@example.com', phone: '+639248901234', status: 'pending_verification', joined_date: '2026-04-01T08:00:00Z', updated_at: '2026-04-01T08:00:00Z', apartment_id: null, apartment: null },
-    { id: 'sample-9', first_name: 'Sofia', last_name: 'Ramos', email: 'sofia.ramos@example.com', phone: '+639259012345', status: 'pending', joined_date: '2026-04-08T08:00:00Z', updated_at: '2026-04-08T08:00:00Z', apartment_id: null, apartment: null },
-    { id: 'sample-10', first_name: 'Daniel', last_name: 'Torres', email: 'daniel.torres@example.com', phone: '+639260123456', status: 'active', joined_date: '2026-03-15T08:00:00Z', updated_at: '2026-03-15T08:00:00Z', apartment_id: null, apartment: null },
+    { id: 'sample-1', first_name: 'Maria', last_name: 'Santos', email: 'maria.santos@example.com', phone: '+639171234567', status: 'active', joined_date: '2026-01-15T08:00:00Z', updated_at: '2026-01-15T08:00:00Z', apartment_id: 'sample-prop-1', apartment: null },
+    { id: 'sample-2', first_name: 'Carlos', last_name: 'Reyes', email: 'carlos.reyes@example.com', phone: '+639182345678', status: 'pending', joined_date: '2026-02-10T08:00:00Z', updated_at: '2026-02-10T08:00:00Z', apartment_id: 'sample-prop-2', apartment: null },
+    { id: 'sample-7', first_name: 'Patricia', last_name: 'Villanueva', email: 'patricia.v@example.com', phone: '+639237890123', status: 'pending_verification', joined_date: '2026-02-22T08:00:00Z', updated_at: '2026-02-22T08:00:00Z', apartment_id: 'sample-prop-3', apartment: null },
+    { id: 'sample-4', first_name: 'Roberto', last_name: 'Lim', email: 'roberto.lim@example.com', phone: '+639194567890', status: 'active', joined_date: '2026-03-05T08:00:00Z', updated_at: '2026-03-05T08:00:00Z', apartment_id: 'sample-prop-4', apartment: null },
+    { id: 'sample-5', first_name: 'Angela', last_name: 'De Guzman', email: 'angela.dg@example.com', phone: '+639205678901', status: 'inactive', joined_date: '2025-09-10T08:00:00Z', updated_at: '2026-01-20T08:00:00Z', apartment_id: 'sample-prop-5', apartment: null },
+    { id: 'sample-6', first_name: 'Fernando', last_name: 'Cruz', email: 'fernando.cruz@example.com', phone: '+639216789012', status: 'inactive', joined_date: '2025-08-01T08:00:00Z', updated_at: '2025-12-15T08:00:00Z', apartment_id: 'sample-prop-6', apartment: null },
   ]
 
   async function loadManagers() {
@@ -221,17 +285,32 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
 
   // ─── Sample/mock tenants for frontend reference ────────────
   const sampleTenants: OwnerTenant[] = [
-    { id: 'sample-t1', first_name: 'Elena', last_name: 'Flores', phone: '+639171111111', unit_id: null, status: 'active', monthly_rent: 8500 },
-    { id: 'sample-t2', first_name: 'Marco', last_name: 'Pascual', phone: '+639172222222', unit_id: null, status: 'active', monthly_rent: 9000 },
-    { id: 'sample-t3', first_name: 'Jasmine', last_name: 'Lopez', phone: '+639173333333', unit_id: null, status: 'pending_verification', monthly_rent: 7500 },
-    { id: 'sample-t4', first_name: 'Rico', last_name: 'Dimaculangan', phone: '+639174444444', unit_id: null, status: 'active', monthly_rent: 10000 },
-    { id: 'sample-t5', first_name: 'Christine', last_name: 'Tan', phone: '+639175555555', unit_id: null, status: 'pending_verification', monthly_rent: 8000 },
-    { id: 'sample-t6', first_name: 'Bryan', last_name: 'Navarro', phone: '+639176666666', unit_id: null, status: 'active', monthly_rent: 9500 },
+    { id: 'sample-t1', first_name: 'Elena', last_name: 'Flores', phone: '+639171111111', unit_id: 'su-1-1', status: 'active', monthly_rent: 8500 },
+    { id: 'sample-t2', first_name: 'Marco', last_name: 'Pascual', phone: '+639172222222', unit_id: 'su-1-2', status: 'active', monthly_rent: 9000 },
+    { id: 'sample-t3', first_name: 'Jasmine', last_name: 'Lopez', phone: '+639173333333', unit_id: 'su-1-3', status: 'pending_verification', monthly_rent: 7500 },
+    { id: 'sample-t4', first_name: 'Rico', last_name: 'Dimaculangan', phone: '+639174444444', unit_id: 'su-1-4', status: 'active', monthly_rent: 10000 },
+    { id: 'sample-t5', first_name: 'Christine', last_name: 'Tan', phone: '+639175555555', unit_id: 'su-1-5', status: 'pending_verification', monthly_rent: 8000 },
+    { id: 'sample-t6', first_name: 'Bryan', last_name: 'Navarro', phone: '+639176666666', unit_id: 'su-1-6', status: 'active', monthly_rent: 9500 },
     { id: 'sample-t7', first_name: 'Angela', last_name: 'De Leon', phone: '+639177777777', unit_id: null, status: 'inactive' as any, monthly_rent: 7000 },
-    { id: 'sample-t8', first_name: 'Jerome', last_name: 'Santiago', phone: '+639178888888', unit_id: null, status: 'active', monthly_rent: 11000 },
-    { id: 'sample-t9', first_name: 'Katrina', last_name: 'Rivera', phone: '+639179999999', unit_id: null, status: 'active', monthly_rent: 8500 },
-    { id: 'sample-t10', first_name: 'Paolo', last_name: 'Gonzales', phone: '+639170000000', unit_id: null, status: 'active', monthly_rent: 9200 },
-    { id: 'sample-t11', first_name: 'Diana', last_name: 'Reyes', phone: '+639171010101', unit_id: null, status: 'pending_verification', monthly_rent: 8800 },
+    { id: 'sample-t8', first_name: 'Jerome', last_name: 'Santiago', phone: '+639178888888', unit_id: 'su-1-8', status: 'active', monthly_rent: 11000 },
+    { id: 'sample-t9', first_name: 'Katrina', last_name: 'Rivera', phone: '+639179999999', unit_id: 'su-1-9', status: 'active', monthly_rent: 8500 },
+    { id: 'sample-t10', first_name: 'Paolo', last_name: 'Gonzales', phone: '+639170000000', unit_id: 'su-2-1', status: 'active', monthly_rent: 9200 },
+    { id: 'sample-t11', first_name: 'Diana', last_name: 'Reyes', phone: '+639171010101', unit_id: 'su-2-2', status: 'pending_verification', monthly_rent: 8800 },
+    // Apt 4 tenants
+    { id: 'sample-t23', first_name: 'Gabriel', last_name: 'Mendez', phone: '+639172323232', unit_id: 'su-4-1', status: 'active', monthly_rent: 8500 },
+    { id: 'sample-t24', first_name: 'Isabella', last_name: 'Cruz', phone: '+639172424242', unit_id: 'su-4-2', status: 'active', monthly_rent: 9000 },
+    { id: 'sample-t25', first_name: 'Lorenzo', last_name: 'Reyes', phone: '+639172525252', unit_id: 'su-4-4', status: 'pending_verification', monthly_rent: 8200 },
+    { id: 'sample-t26', first_name: 'Carmela', last_name: 'Santos', phone: '+639172626262', unit_id: 'su-4-5', status: 'active', monthly_rent: 9500 },
+    // Apt 5 tenants
+    { id: 'sample-t27', first_name: 'Victor', last_name: 'Lim', phone: '+639172727272', unit_id: 'su-5-1', status: 'active', monthly_rent: 8000 },
+    { id: 'sample-t28', first_name: 'Rachel', last_name: 'Tan', phone: '+639172828282', unit_id: 'su-5-2', status: 'active', monthly_rent: 8500 },
+    { id: 'sample-t29', first_name: 'Dennis', last_name: 'Aquino', phone: '+639172929292', unit_id: 'su-5-3', status: 'pending_verification', monthly_rent: 9000 },
+    { id: 'sample-t30', first_name: 'Sophia', last_name: 'Garcia', phone: '+639173030303', unit_id: 'su-5-5', status: 'active', monthly_rent: 8800 },
+    { id: 'sample-t31', first_name: 'Mario', last_name: 'Fernandez', phone: '+639173131313', unit_id: 'su-5-6', status: 'active', monthly_rent: 9200 },
+    // Apt 6 tenants
+    { id: 'sample-t32', first_name: 'Andrea', last_name: 'Navarro', phone: '+639173232323', unit_id: 'su-6-1', status: 'active', monthly_rent: 7800 },
+    { id: 'sample-t33', first_name: 'Julian', last_name: 'Torres', phone: '+639173330303', unit_id: 'su-6-2', status: 'active', monthly_rent: 8200 },
+    { id: 'sample-t34', first_name: 'Bianca', last_name: 'Ramos', phone: '+639173434343', unit_id: 'su-6-4', status: 'active', monthly_rent: 8500 },
   ]
 
   async function loadTenants() {
@@ -581,6 +660,8 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
       if (managerStatusFilter === 'pending_verification') {
         // Show both pending and pending_verification when filtering for "Awaiting Approval"
         if (m.status !== 'pending' && m.status !== 'pending_verification') return false
+      } else if (managerStatusFilter === 'pending') {
+        if (m.status !== 'pending') return false
       } else if (managerStatusFilter !== 'all' && m.status !== managerStatusFilter) return false
       const q = search.toLowerCase()
       return `${m.first_name} ${m.last_name}`.toLowerCase().includes(q) ||
@@ -608,9 +689,10 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
       .filter((tenant) => {
         // Hide inactive by default (only show when explicitly filtering for inactive)
         if (tenantStatusFilter === 'all' && tenant.status === 'inactive') return false
-        if (tenantStatusFilter === 'pending_verification') {
-          // Show both pending and pending_verification when filtering for "Awaiting Approval"
-          if (tenant.status !== 'pending' && tenant.status !== 'pending_verification') return false
+        if (tenantStatusFilter === 'pending') {
+          if ((tenant.status as string) !== 'pending') return false
+        } else if (tenantStatusFilter === 'pending_verification') {
+          if (tenant.status !== 'pending_verification') return false
         } else if (tenantStatusFilter !== 'all' && tenant.status !== tenantStatusFilter) return false
         return true
       })
@@ -633,7 +715,11 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
           address: buildAddress(prop) || '—',
         }
       })
-  }, [units, properties, ownerTenants, tenantStatusFilter, tenantSearch])
+      .filter((t) => {
+        if (tenantBranchFilter === 'all') return true
+        return t.branch === tenantBranchFilter
+      })
+  }, [units, properties, ownerTenants, tenantStatusFilter, tenantSearch, tenantBranchFilter])
   const tenantsTotalPages = Math.max(1, Math.ceil(tenantsList.length / pageSize))
   const paginatedTenants = tenantsList.slice((tenantsPage - 1) * pageSize, tenantsPage * pageSize)
 
@@ -1061,14 +1147,14 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                   onClick={() => setManagerFilterOpen((prev) => !prev)}
                   className={`h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-white border-gray-200 text-gray-900'}`}
                 >
-                  {managerStatusFilter === 'all' ? 'All Status' : managerStatusFilter === 'active' ? 'Active' : managerStatusFilter === 'inactive' ? 'Inactive' : 'Awaiting Approval'}
+                  {managerStatusFilter === 'all' ? 'All Status' : managerStatusFilter === 'active' ? 'Active' : managerStatusFilter === 'inactive' ? 'Inactive' : managerStatusFilter === 'pending' ? 'Pending Invite' : 'Awaiting Approval'}
                 </button>
                 <ChevronDown
                   className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${managerFilterOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                 />
                 {managerFilterOpen && (
                   <div className={`absolute z-50 mt-1 w-full min-w-[160px] rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
-                    {([['all', 'All Status'], ['active', 'Active'], ['inactive', 'Inactive'], ['pending_verification', 'Awaiting Approval']] as const).map(([value, label]) => (
+                    {([['all', 'All Status'], ['active', 'Active'], ['inactive', 'Inactive'], ['pending', 'Pending Invite'], ['pending_verification', 'Awaiting Approval']] as const).map(([value, label]) => (
                       <button
                         key={value}
                         type="button"
@@ -1181,11 +1267,13 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                             className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
                               manager.status === 'active'
                                 ? 'bg-emerald-500/15 text-emerald-400'
-                                : manager.status === 'pending_verification' || manager.status === 'pending'
+                                : manager.status === 'pending_verification'
                                   ? 'bg-amber-500/15 text-amber-400'
-                                  : manager.status === 'inactive'
+                                  : manager.status === 'pending'
                                     ? 'bg-red-500/15 text-red-400'
-                                    : 'bg-gray-500/15 text-gray-400'
+                                    : manager.status === 'inactive'
+                                      ? 'bg-red-500/15 text-red-400'
+                                      : 'bg-gray-500/15 text-gray-400'
                             }`}
                           >
                             {manager.status === 'pending_verification' ? 'Awaiting Approval' : manager.status === 'pending' ? 'Pending Invite' : manager.status}
@@ -1262,19 +1350,46 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                   onClick={() => setTenantFilterOpen((prev) => !prev)}
                   className={`h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-white border-gray-200 text-gray-900'}`}
                 >
-                  {tenantStatusFilter === 'all' ? 'All Status' : tenantStatusFilter === 'active' ? 'Active' : tenantStatusFilter === 'inactive' ? 'Inactive' : 'Awaiting Approval'}
+                  {tenantStatusFilter === 'all' ? 'All Status' : tenantStatusFilter === 'active' ? 'Active' : tenantStatusFilter === 'inactive' ? 'Inactive' : tenantStatusFilter === 'pending' ? 'Pending Verification' : 'Awaiting Approval'}
                 </button>
                 <ChevronDown
                   className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${tenantFilterOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                 />
                 {tenantFilterOpen && (
                   <div className={`absolute z-50 mt-1 w-full min-w-[160px] rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
-                    {([['all', 'All Status'], ['active', 'Active'], ['inactive', 'Inactive'], ['pending_verification', 'Awaiting Approval']] as const).map(([value, label]) => (
+                    {([['all', 'All Status'], ['active', 'Active'], ['inactive', 'Inactive'], ['pending', 'Pending Verification'], ['pending_verification', 'Awaiting Approval']] as const).map(([value, label]) => (
                       <button
                         key={value}
                         type="button"
                         onClick={() => { setTenantStatusFilter(value); setTenantFilterOpen(false) }}
                         className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${value === tenantStatusFilter ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Branch filter dropdown */}
+              <div ref={tenantBranchFilterRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setTenantBranchFilterOpen((prev) => !prev)}
+                  className={`h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-white border-gray-200 text-gray-900'}`}
+                >
+                  {tenantBranchFilter === 'all' ? 'All Branches' : tenantBranchFilter}
+                </button>
+                <ChevronDown
+                  className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${tenantBranchFilterOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                />
+                {tenantBranchFilterOpen && (
+                  <div className={`absolute z-50 mt-1 w-full min-w-[160px] rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+                    {[['all', 'All Branches'], ...properties.map((p, i) => [p.name, `Branch ${i + 1}`])].map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => { setTenantBranchFilter(value); setTenantBranchFilterOpen(false) }}
+                        className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${value === tenantBranchFilter ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
                       >
                         {label}
                       </button>
@@ -1364,11 +1479,13 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                           className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
                             t.status === 'active'
                               ? 'bg-emerald-500/15 text-emerald-400'
-                              : t.status === 'pending_verification' || t.status === 'pending'
+                              : t.status === 'pending_verification'
                                 ? 'bg-amber-500/15 text-amber-400'
-                                : t.status === 'inactive'
+                                : t.status === 'pending'
                                   ? 'bg-red-500/15 text-red-400'
-                                  : 'bg-gray-500/15 text-gray-400'
+                                  : t.status === 'inactive'
+                                    ? 'bg-red-500/15 text-red-400'
+                                    : 'bg-gray-500/15 text-gray-400'
                           }`}
                         >
                           {t.status === 'pending_verification' ? 'Awaiting Approval' : t.status === 'pending' ? 'Pending Invite' : t.status}
@@ -1808,25 +1925,32 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                   if (!viewManager.apartment_id) return 'Unassigned'
                   const idx = properties.findIndex(p => p.id === viewManager.apartment_id)
                   if (idx === -1) return 'Unassigned'
-                  return `Branch ${idx + 1}${buildAddress(properties[idx]) ? ` — ${buildAddress(properties[idx])}` : ''}`
+                  return `Branch ${idx + 1}`
+                })() },
+                { label: 'Address', value: (() => {
+                  if (!viewManager.apartment_id) return '—'
+                  const prop = properties.find(p => p.id === viewManager.apartment_id)
+                  return buildAddress(prop) || '—'
                 })() },
                 { label: 'Status', value: viewManager.status === 'pending_verification' ? 'Awaiting Approval' : viewManager.status === 'pending' ? 'Pending Invite' : viewManager.status },
                 { label: 'Date Created', value: viewManager.joined_date ? new Date(viewManager.joined_date).toLocaleDateString() : '—' },
               ].map((item) => (
-                <div key={item.label} className={`flex justify-between items-center py-2 border-b ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
-                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.label}</span>
+                <div key={item.label} className={`flex justify-between items-start gap-4 py-2 border-b ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
+                  <span className={`text-sm shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.label}</span>
                   {item.label === 'Status' ? (
                     <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
                       viewManager.status === 'active'
                         ? 'bg-emerald-500/15 text-emerald-400'
-                        : viewManager.status === 'pending_verification' || viewManager.status === 'pending'
+                        : viewManager.status === 'pending_verification'
                           ? 'bg-amber-500/15 text-amber-400'
-                          : 'bg-gray-500/15 text-gray-400'
+                          : viewManager.status === 'pending'
+                            ? 'bg-red-500/15 text-red-400'
+                            : 'bg-gray-500/15 text-gray-400'
                     }`}>
                       {item.value}
                     </span>
                   ) : (
-                    <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.value}</span>
+                    <span className={`text-sm font-medium text-right max-w-[60%] break-words ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.value}</span>
                   )}
                 </div>
               ))}
@@ -2000,20 +2124,22 @@ export default function OwnerManageApartmentTab({ clientId: ownerId, mode = 'man
                 { label: 'Monthly Rent', value: viewTenant.rent ? `₱${viewTenant.rent.toLocaleString()}` : '—' },
                 { label: 'Status', value: viewTenant.status === 'pending_verification' ? 'Awaiting Approval' : viewTenant.status === 'pending' ? 'Pending Invite' : viewTenant.status },
               ].map((item) => (
-                <div key={item.label} className={`flex justify-between items-center py-2 border-b ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
-                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.label}</span>
+                <div key={item.label} className={`flex justify-between items-start gap-4 py-2 border-b ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
+                  <span className={`text-sm shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.label}</span>
                   {item.label === 'Status' ? (
                     <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
                       viewTenant.status === 'active'
                         ? 'bg-emerald-500/15 text-emerald-400'
-                        : viewTenant.status === 'pending_verification' || viewTenant.status === 'pending'
+                        : viewTenant.status === 'pending_verification'
                           ? 'bg-amber-500/15 text-amber-400'
-                          : 'bg-gray-500/15 text-gray-400'
+                          : (viewTenant.status as string) === 'pending'
+                            ? 'bg-red-500/15 text-red-400'
+                            : 'bg-gray-500/15 text-gray-400'
                     }`}>
                       {item.value}
                     </span>
                   ) : (
-                    <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.value}</span>
+                    <span className={`text-sm font-medium text-right max-w-[60%] break-words ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.value}</span>
                   )}
                 </div>
               ))}
