@@ -5,6 +5,7 @@ import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 import { isValidEmailFormat } from "../utils/emailValidation";
 import { logActivity, resolveActorName } from "../utils/activityLog";
+import { createNotification } from "../utils/notifications";
 
 function getInviteRedirectUrl(): string {
   return env.FRONTEND_URL.replace(/\/+$/, "") + "/invite/confirm";
@@ -869,6 +870,165 @@ export async function getTenantIdPhotos(
       front_url: frontUrl,
       back_url: backUrl,
     });
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/tenants/check-lease-expiry
+ * Check for expiring leases and notify tenants.
+ * Called on dashboard load. Idempotent — skips if notification already sent today.
+ */
+export async function checkLeaseExpiry(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const ownerId = req.query.apartmentowner_id as string;
+    if (!ownerId) {
+      sendError(res, "apartmentowner_id is required", 400);
+      return;
+    }
+
+    // Get all active units with lease_end set
+    const { data: units, error: unitsError } = await supabaseAdmin
+      .from("units")
+      .select("id, name, lease_end, apartmentowner_id")
+      .eq("apartmentowner_id", ownerId)
+      .not("lease_end", "is", null)
+      .eq("status", "active");
+
+    if (unitsError || !units) {
+      sendSuccess(res, { checked: 0, notified: 0 });
+      return;
+    }
+
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    let notified = 0;
+
+    for (const unit of units) {
+      const leaseEnd = new Date(unit.lease_end);
+      const daysUntilExpiry = Math.ceil((leaseEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Notify at 30, 15, 7 days before and on expiry day
+      if (daysUntilExpiry > 30 || daysUntilExpiry < 0) continue;
+
+      // Find active tenant in this unit
+      const { data: tenant } = await supabaseAdmin
+        .from("tenants")
+        .select("id, first_name, last_name, contract_status")
+        .eq("unit_id", unit.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (!tenant) continue;
+      // Skip if already renewed
+      if (tenant.contract_status === "renewed") continue;
+
+      // Check if we already sent a notification today for this tenant+unit
+      const { data: existing } = await supabaseAdmin
+        .from("notifications")
+        .select("id")
+        .eq("recipient_id", tenant.id)
+        .eq("type", "lease_expiring")
+        .gte("created_at", today + "T00:00:00")
+        .lte("created_at", today + "T23:59:59")
+        .limit(1);
+
+      if (existing && existing.length > 0) continue;
+
+      // Update tenant contract_status to 'expiring' if not already
+      if (tenant.contract_status !== "expiring") {
+        await supabaseAdmin
+          .from("tenants")
+          .update({ contract_status: "expiring" })
+          .eq("id", tenant.id);
+      }
+
+      const message =
+        daysUntilExpiry <= 0
+          ? `Your contract for ${unit.name} has expired. Please contact your apartment manager to discuss renewal.`
+          : `Your contract for ${unit.name} expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"} (${unit.lease_end}). Please contact your apartment manager if you wish to renew.`;
+
+      await createNotification({
+        apartmentowner_id: unit.apartmentowner_id,
+        recipient_role: "tenant",
+        recipient_id: tenant.id,
+        type: "lease_expiring",
+        title: daysUntilExpiry <= 0 ? "Contract Expired" : "Contract Expiring Soon",
+        message,
+        unit_id: unit.id,
+      });
+
+      notified++;
+    }
+
+    sendSuccess(res, { checked: units.length, notified });
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * PUT /api/tenants/:id/renew
+ * Tenant requests contract renewal.
+ */
+export async function renewTenantContract(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    const { data: tenant, error: fetchErr } = await supabaseAdmin
+      .from("tenants")
+      .select("id, first_name, last_name, unit_id, apartmentowner_id, renewal_count")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !tenant) {
+      sendError(res, "Tenant not found", 404);
+      return;
+    }
+
+    const { error } = await supabaseAdmin
+      .from("tenants")
+      .update({
+        contract_status: "renewed",
+        renewal_date: new Date().toISOString().slice(0, 10),
+        renewal_count: (tenant.renewal_count || 0) + 1,
+      })
+      .eq("id", id);
+
+    if (error) {
+      sendError(res, error.message, 500);
+      return;
+    }
+
+    // Notify the manager about the renewal
+    if (tenant.unit_id) {
+      const { data: unit } = await supabaseAdmin
+        .from("units")
+        .select("manager_id, name")
+        .eq("id", tenant.unit_id)
+        .maybeSingle();
+
+      if (unit?.manager_id) {
+        await createNotification({
+          apartmentowner_id: tenant.apartmentowner_id,
+          recipient_role: "manager",
+          recipient_id: unit.manager_id,
+          type: "lease_renewed",
+          title: "Tenant Contract Renewed",
+          message: `${tenant.first_name} ${tenant.last_name} has renewed their contract for ${unit.name}.`,
+          unit_id: tenant.unit_id,
+        });
+      }
+    }
+
+    sendSuccess(res, { renewed: true }, "Contract renewed successfully");
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

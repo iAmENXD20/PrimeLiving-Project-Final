@@ -27,6 +27,7 @@ export default function TenantDashboard() {
     apartmentId: string | null
     ownerId: string | null
     status: string
+    contract_status: string | null
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [notificationCount, setNotificationCount] = useState(0)
@@ -49,6 +50,7 @@ export default function TenantDashboard() {
             apartmentId: data.unit_id,
             ownerId,
             status: data.status,
+            contract_status: data.contract_status || 'active',
           })
 
           // Load unread notification count
@@ -158,7 +160,7 @@ export default function TenantDashboard() {
 
     switch (activeTab) {
       case 'overview':
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} />
+        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} />
       case 'maintenance':
         return <TenantMaintenanceTab tenantId={tenant.id} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
       case 'payments':
@@ -170,7 +172,7 @@ export default function TenantDashboard() {
       case 'account':
         return <TenantAccountTab tenantId={tenant.id} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
       default:
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} />
+        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} />
     }
   }
 

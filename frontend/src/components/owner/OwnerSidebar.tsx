@@ -16,7 +16,7 @@ const navItems = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'manage-apartment', label: 'User Management', icon: Users },
   { id: 'units', label: 'Manage My Apartment', icon: Building2 },
-  { id: 'maintenance', label: 'Maintenance History', icon: Wrench },
+  { id: 'maintenance', label: 'Maintenance Request', icon: Wrench },
   { id: 'payments', label: 'Payment History', icon: PhilippinePeso },
   { id: 'activity-logs', label: 'Activity Logs', icon: ScrollText },
   { id: 'audit-reports', label: 'Audit Reports', icon: ClipboardList },

@@ -480,6 +480,7 @@ export interface TenantAccount {
   unit_id: string | null
   apartmentowner_id: string | null
   status: string
+  contract_status: string | null
   move_in_date: string | null
   created_at: string
   apartment_name?: string
@@ -574,4 +575,9 @@ export async function createManagerApartmentLog(log: {
   metadata?: Record<string, unknown>
 }): Promise<ManagerApartmentLog> {
   return api.post<ManagerApartmentLog>('/apartment-logs', log)
+}
+
+// ── Lease Expiry Check ──────────────────────────
+export async function checkLeaseExpiry(ownerId: string): Promise<{ checked: number; notified: number }> {
+  return api.post<{ checked: number; notified: number }>(`/tenants/check-lease-expiry?apartmentowner_id=${ownerId}`, {})
 }

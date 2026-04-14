@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { Sun, Moon, User, Menu } from 'lucide-react'
+import { Sun, Moon, Menu } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 
 interface ManagerTopBarProps {

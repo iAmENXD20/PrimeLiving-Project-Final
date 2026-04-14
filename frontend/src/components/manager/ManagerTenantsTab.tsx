@@ -15,6 +15,7 @@ import {
   getManagedApartments,
   type TenantAccount,
 } from '../../lib/managerApi'
+import { getTenantIdPhotos } from '../../lib/ownerApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import TablePagination from '@/components/ui/table-pagination'
 import { TableSkeleton } from '@/components/ui/skeleton'
@@ -48,6 +49,9 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
   const [tenantToDelete, setTenantToDelete] = useState<TenantAccount | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [viewTenant, setViewTenant] = useState<TenantAccount | null>(null)
+  const [unitDataMap, setUnitDataMap] = useState<Map<string, { name: string; monthly_rent: number; branch: string; address: string }>>(new Map())
+  const [tenantIdPhotos, setTenantIdPhotos] = useState<{ id_type: string; id_type_other: string | null; front_url: string | null; back_url: string | null } | null>(null)
+  const [tenantIdPhotosLoading, setTenantIdPhotosLoading] = useState(false)
   const [page, setPage] = useState(1)
   const pageSize = 10
   const tenantEmailValidation = useEmailValidation(form.email)
@@ -59,6 +63,20 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
   useEffect(() => {
     loadData()
   }, [managerId])
+
+  // Fetch ID photos when viewing a tenant
+  useEffect(() => {
+    if (viewTenant && (viewTenant.status === 'pending_verification' || viewTenant.status === 'active')) {
+      setTenantIdPhotosLoading(true)
+      setTenantIdPhotos(null)
+      getTenantIdPhotos(viewTenant.id)
+        .then(res => setTenantIdPhotos(res))
+        .catch(() => setTenantIdPhotos(null))
+        .finally(() => setTenantIdPhotosLoading(false))
+    } else {
+      setTenantIdPhotos(null)
+    }
+  }, [viewTenant?.id, viewTenant?.status])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -91,6 +109,18 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
       if (apartments?.[0]?.apartmentowner_id) {
         ownerIdRef.current = apartments[0].apartmentowner_id
       }
+      // Build unit data map for tenant detail view
+      const map = new Map<string, { name: string; monthly_rent: number; branch: string; address: string }>()
+      for (const u of apartments || []) {
+        const addrParts = [u.apartment_address_street, u.apartment_address_barangay, u.apartment_address_city, u.apartment_address_province, u.apartment_address_region].filter(Boolean)
+        map.set(u.id, {
+          name: u.name || 'Unknown',
+          monthly_rent: u.monthly_rent || 0,
+          branch: u.apartment_name || 'Unassigned',
+          address: addrParts.join(', ') || '—',
+        })
+      }
+      setUnitDataMap(map)
     } catch (err) {
       console.error('Failed to load tenants:', err)
     } finally {
@@ -301,7 +331,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
             <table className="w-full text-base">
               <thead>
                 <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                  {['No.', 'Name', 'Email', 'Phone', 'Unit/Room', 'Status', 'Action'].map((h) => (
+                  {['No.', 'Name', 'Email', 'Phone', 'Unit/Room', 'Status', 'Contract', 'Action'].map((h) => (
                     <th key={h} className={`text-left py-3.5 px-4 font-medium ${h === 'No.' ? 'w-16 text-center' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {h}
                     </th>
@@ -311,7 +341,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={7} className="py-3 px-4">
+                    <td colSpan={8} className="py-3 px-4">
                       <TableSkeleton rows={5} />
                     </td>
                   </tr>
@@ -356,6 +386,19 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                           }`}
                         >
                           {tenant.status === 'pending_verification' ? 'Awaiting Approval' : tenant.status === 'pending' ? 'Pending' : tenant.status}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
+                            tenant.contract_status === 'renewed'
+                              ? 'bg-emerald-500/15 text-emerald-400'
+                              : tenant.contract_status === 'expiring'
+                              ? 'bg-amber-500/15 text-amber-400'
+                              : 'bg-gray-500/15 text-gray-400'
+                          }`}
+                        >
+                          {tenant.contract_status || 'active'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 relative">
@@ -408,7 +451,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                 {!loading && filtered.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
                     >
                       No tenants found
@@ -721,56 +764,130 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
       />
 
       {/* View Tenant Detail Modal */}
-      {viewTenant && createPortal(
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 animate-in fade-in duration-200"
-          onClick={() => setViewTenant(null)}
-        >
+      {viewTenant && (() => {
+        const unitInfo = viewTenant.unit_id ? unitDataMap.get(viewTenant.unit_id) : null
+        const statusLabel = viewTenant.status === 'pending_verification' ? 'Awaiting Approval' : viewTenant.status === 'pending' ? 'Pending Invite' : viewTenant.status
+        return createPortal(
           <div
-            className={`rounded-2xl p-6 max-w-lg w-full mx-4 animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            onClick={() => setViewTenant(null)}
           >
-            <div className="flex items-center justify-between mb-5">
-              <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Tenant Information
-              </h4>
-              <button onClick={() => setViewTenant(null)} className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
-                <X className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-              </button>
-            </div>
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+            <div
+              className={`relative w-full max-w-md rounded-xl shadow-2xl max-h-[90vh] flex flex-col ${isDark ? 'bg-[#111D32] border border-white/10' : 'bg-white border border-gray-200'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 pt-6 pb-3 flex-shrink-0">
+                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  Tenant Details
+                </h3>
+                <button
+                  onClick={() => setViewTenant(null)}
+                  className={`p-1 rounded transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-            <div className={`rounded-xl border p-4 space-y-3 text-sm ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
-              {[
-                ['Tenant ID', viewTenant.id],
-                ['Name', `${viewTenant.first_name} ${viewTenant.last_name}`],
-                ['Email', viewTenant.email || '—'],
-                ['Phone', viewTenant.phone || '—'],
-                ['Unit/Room', viewTenant.apartment_name || '—'],
-                ['Status', viewTenant.status === 'pending_verification' ? 'Awaiting Approval' : viewTenant.status === 'pending' ? 'Pending' : viewTenant.status],
-                ['Move-in Date', viewTenant.move_in_date ? new Date(viewTenant.move_in_date + 'T00:00:00').toLocaleDateString() : '—'],
-                ['Created', new Date(viewTenant.created_at).toLocaleDateString()],
-              ].map(([label, value]) => (
-                <div key={label} className="flex items-start gap-2">
-                  <span className={`font-semibold min-w-[100px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{label}:</span>
-                  <span className={`${isDark ? 'text-gray-200' : 'text-gray-800'} ${label === 'Tenant ID' ? 'font-mono text-xs break-all' : ''}`}>{value}</span>
+              <div className="overflow-y-auto flex-1 px-6 pb-6">
+                <div className="space-y-4">
+                  {[
+                    { label: 'Name', value: `${viewTenant.first_name} ${viewTenant.last_name}`.trim() },
+                    { label: 'Phone', value: viewTenant.phone || '—' },
+                    { label: 'Branch', value: unitInfo?.branch || viewTenant.apartment_name || '—' },
+                    { label: 'Address', value: unitInfo?.address || '—' },
+                    { label: 'Unit', value: unitInfo?.name || '—' },
+                    { label: 'Monthly Rent', value: unitInfo?.monthly_rent ? `₱${unitInfo.monthly_rent.toLocaleString()}` : '—' },
+                    { label: 'Status', value: statusLabel },
+                  ].map((item) => (
+                    <div key={item.label} className={`flex justify-between items-start gap-4 py-2 border-b ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
+                      <span className={`text-sm shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.label}</span>
+                      {item.label === 'Status' ? (
+                        <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${
+                          viewTenant.status === 'active'
+                            ? 'bg-emerald-500/15 text-emerald-400'
+                            : viewTenant.status === 'pending_verification'
+                              ? 'bg-amber-500/15 text-amber-400'
+                              : viewTenant.status === 'pending'
+                                ? 'bg-red-500/15 text-red-400'
+                                : viewTenant.status === 'inactive'
+                                  ? 'bg-red-500/15 text-red-400'
+                                  : 'bg-gray-500/15 text-gray-400'
+                        }`}>
+                          {item.value}
+                        </span>
+                      ) : (
+                        <span className={`text-sm font-medium text-right max-w-[60%] break-words ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.value}</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            <div className="flex justify-end mt-5">
-              <button
-                onClick={() => setViewTenant(null)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isDark ? 'bg-[#1E293B] text-gray-300 hover:bg-[#2a3a52]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Close
-              </button>
+                {/* ID Verification Section */}
+                {(viewTenant.status === 'pending_verification' || viewTenant.status === 'active') && (
+                  <div className="mt-5">
+                    <h4 className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      ID Verification
+                    </h4>
+                    {tenantIdPhotosLoading ? (
+                      <div className={`text-sm text-center py-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading ID photos...</div>
+                    ) : tenantIdPhotos ? (
+                      <div className="space-y-3">
+                        {tenantIdPhotos.id_type && (
+                          <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>ID Type: </span>
+                            {tenantIdPhotos.id_type === 'Other' && tenantIdPhotos.id_type_other
+                              ? tenantIdPhotos.id_type_other
+                              : tenantIdPhotos.id_type}
+                          </p>
+                        )}
+                        <div className="grid grid-cols-2 gap-3">
+                          {tenantIdPhotos.front_url && (
+                            <div>
+                              <p className={`text-xs mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Front</p>
+                              <a href={tenantIdPhotos.front_url} target="_blank" rel="noopener noreferrer">
+                                <img
+                                  src={tenantIdPhotos.front_url}
+                                  alt="ID Front"
+                                  className={`w-full rounded-lg border object-cover aspect-[3/2] cursor-pointer hover:opacity-80 transition-opacity ${isDark ? 'border-white/10' : 'border-gray-200'}`}
+                                />
+                              </a>
+                            </div>
+                          )}
+                          {tenantIdPhotos.back_url && (
+                            <div>
+                              <p className={`text-xs mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Back</p>
+                              <a href={tenantIdPhotos.back_url} target="_blank" rel="noopener noreferrer">
+                                <img
+                                  src={tenantIdPhotos.back_url}
+                                  alt="ID Back"
+                                  className={`w-full rounded-lg border object-cover aspect-[3/2] cursor-pointer hover:opacity-80 transition-opacity ${isDark ? 'border-white/10' : 'border-gray-200'}`}
+                                />
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                        {!tenantIdPhotos.front_url && !tenantIdPhotos.back_url && (
+                          <p className={`text-sm text-center py-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No ID photos uploaded</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className={`text-sm text-center py-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Unable to load ID photos</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-6">
+                  <Button variant="outline" className="w-full" onClick={() => setViewTenant(null)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body
+        )
+      })()}
     </>
   )
 }

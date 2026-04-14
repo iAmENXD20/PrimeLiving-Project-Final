@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Wrench, PhilippinePeso, CheckCircle2, AlertTriangle, MapPin, Building2, Clock, Eye, X } from 'lucide-react'
+import { Wrench, PhilippinePeso, CheckCircle2, AlertTriangle, MapPin, Building2, Clock, Eye, X, RefreshCw } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import {
   getTenantDashboardStats,
   getTenantApartmentInfo,
   getTenantMaintenanceRequests,
   getTenantPayments,
+  renewTenantContract,
   type TenantMaintenanceRequest,
   type TenantPayment,
 } from '../../lib/tenantApi'
@@ -20,11 +21,13 @@ interface TenantOverviewTabProps {
   apartmentId: string | null
   tenantName?: string
   ownerId?: string | null
+  contractStatus?: string | null
+  onRenewed?: () => void
 }
 
 type HistoryItem = { id: string; type: 'maintenance' | 'payment'; description: string; detail: string; date: string; badge: string; badgeColor: string; extra?: Record<string, string>; photo_url?: string | null }
 
-export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, ownerId }: TenantOverviewTabProps) {
+export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, ownerId, contractStatus, onRenewed }: TenantOverviewTabProps) {
   const { isDark } = useTheme()
   const [stats, setStats] = useState({ pendingMaintenance: 0, resolvedMaintenance: 0, totalPaid: 0, pendingPayments: 0 })
   const [apartmentInfo, setApartmentInfo] = useState<{ name: string; address: string; monthly_rent: number; apartmentowner_id: string } | null>(null)
@@ -34,6 +37,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<HistoryItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
+  const [renewing, setRenewing] = useState(false)
   const pageSize = 10
 
   useEffect(() => {
@@ -78,6 +82,18 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
   }`
+
+  async function handleRenew() {
+    setRenewing(true)
+    try {
+      await renewTenantContract(tenantId)
+      onRenewed?.()
+    } catch (err) {
+      console.error('Failed to renew contract:', err)
+    } finally {
+      setRenewing(false)
+    }
+  }
 
   const statCards = [
     { label: 'Pending Maintenance Request', value: stats.pendingMaintenance, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/15' },
@@ -140,6 +156,41 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
           <span className="text-sm font-medium">{apartmentAddress || '-'}</span>
         </div>
       </div>
+
+      {/* Contract Renewal Banner */}
+      {contractStatus === 'expiring' && (
+        <div className={`rounded-xl p-4 border flex items-center justify-between gap-4 ${isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <p className={`text-sm font-semibold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>Your contract is expiring soon</p>
+              <p className={`text-xs mt-0.5 ${isDark ? 'text-amber-400/70' : 'text-amber-600'}`}>Would you like to renew your lease?</p>
+            </div>
+          </div>
+          <button
+            onClick={handleRenew}
+            disabled={renewing}
+            className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${renewing ? 'animate-spin' : ''}`} />
+            {renewing ? 'Renewing...' : 'Renew Contract'}
+          </button>
+        </div>
+      )}
+
+      {contractStatus === 'renewed' && (
+        <div className={`rounded-xl p-4 border flex items-center gap-3 ${isDark ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'}`}>
+          <div className="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <p className={`text-sm font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>Contract Renewed</p>
+            <p className={`text-xs mt-0.5 ${isDark ? 'text-emerald-400/70' : 'text-emerald-600'}`}>Your lease has been successfully renewed.</p>
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div className="space-y-4">

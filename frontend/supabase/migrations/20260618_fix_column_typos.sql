@@ -83,15 +83,8 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- ── 8. Sync manager apartment_id from apartments.manager_id ─
-UPDATE apartment_managers 
-SET apartment_id = a.id 
-FROM apartments a 
-WHERE a.manager_id = apartment_managers.id 
-  AND apartment_managers.apartment_id IS NULL;
-
 -- Done!
-SELECT 'Migration complete: all column typos fixed and manager assignments synced' AS result;
+SELECT 'Migration complete: all column typos fixed' AS result;
 
 
 

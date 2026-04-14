@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
 import ManagerSidebar from '../components/manager/ManagerSidebar'
 import ManagerTopBar from '../components/manager/ManagerTopBar'
-import { getCurrentManager, getManagerNotifications, getManagerDashboardStats } from '../lib/managerApi'
+import { getCurrentManager, getManagerNotifications, getManagerDashboardStats, checkLeaseExpiry } from '../lib/managerApi'
 import { supabase } from '../lib/supabase'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
 import { CardsSkeleton } from '../components/ui/skeleton'
@@ -62,6 +62,12 @@ export default function ManagerDashboard() {
     const interval = setInterval(fetchPendingCount, 30000)
     return () => clearInterval(interval)
   }, [manager?.id])
+
+  // Check for expiring leases on load
+  useEffect(() => {
+    if (!manager?.ownerId) return
+    checkLeaseExpiry(manager.ownerId).catch(() => { /* silent */ })
+  }, [manager?.ownerId])
 
   const fetchManagerNotifications = useCallback(async () => {
     if (!manager?.id || !manager.ownerId) return []
@@ -167,7 +173,7 @@ export default function ManagerDashboard() {
       />
 
       {/* Main content area */}
-      <div className="lg:ml-60 flex flex-col min-h-screen">
+      <div className="lg:ml-64 flex flex-col min-h-screen">
         <ManagerTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           managerName={manager?.name}

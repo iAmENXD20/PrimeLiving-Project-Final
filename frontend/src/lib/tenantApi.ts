@@ -13,6 +13,9 @@ export interface TenantProfile {
   apartmentowner_id: string | null
   status: string
   move_in_date: string
+  contract_status: string | null
+  renewal_date: string | null
+  renewal_count: number
   created_at: string
   updated_at: string
 }
@@ -370,4 +373,9 @@ export async function uploadOccupantIdPhoto(file: File, tenantId: string): Promi
   if (error) throw error
   const { data } = supabase.storage.from('documents').getPublicUrl(path)
   return data.publicUrl
+}
+
+// ── Lease Renewal ───────────────────────────────
+export async function renewTenantContract(tenantId: string): Promise<void> {
+  await api.put(`/tenants/${tenantId}/renew`, {})
 }

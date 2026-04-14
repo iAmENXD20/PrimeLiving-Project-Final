@@ -3,15 +3,12 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Eye, EyeOff, Lock, ShieldCheck, MapPin } from 'lucide-react'
+import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
-import { getOwnerApartmentAddress, updateOwnerApartmentAddress } from '@/lib/ownerApi'
-import { PROVINCE_LIST, getCitiesByProvince, PH_PROVINCES } from '@/lib/phLocations'
-import AutocompleteInput from '@/components/ui/AutocompleteInput'
 
 function formatPhoneTo63(phone: string): string {
   if (!phone) return ''
@@ -20,23 +17,6 @@ function formatPhoneTo63(phone: string): string {
   if (digits.startsWith('0')) return `+63 ${digits.slice(1)}`
   if (digits.startsWith('9') && digits.length === 10) return `+63 ${digits}`
   return phone
-}
-
-// Get cities based on exact or partial province match, or all cities if empty
-function getCitySuggestions(province: string): string[] {
-  if (!province) {
-    // Return all cities from all provinces
-    const all = new Set<string>()
-    Object.values(PH_PROVINCES).forEach((cities) => cities.forEach((c) => all.add(c)))
-    return Array.from(all).sort()
-  }
-  // Try exact match first
-  const exact = getCitiesByProvince(province)
-  if (exact.length > 0) return exact
-  // Partial match: find first province that matches input
-  const lower = province.toLowerCase()
-  const match = PROVINCE_LIST.find((p) => p.toLowerCase().startsWith(lower))
-  return match ? getCitiesByProvince(match) : []
 }
 
 const passwordSchema = z
@@ -70,9 +50,7 @@ export default function OwnerAccountTab({ ownerId }: OwnerAccountTabProps) {
   const [unitsCount, setUnitsCount] = useState(0)
   const [activeManagersCount, setActiveManagersCount] = useState(0)
   const [activeTenantsCount, setActiveTenantsCount] = useState(0)
-  const [addrFields, setAddrFields] = useState({ street: '', barangay: '', city: '', province: '' })
-  const [addressSaving, setAddressSaving] = useState(false)
-  const [addressErrors, setAddressErrors] = useState<Record<string, string>>({})
+
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -94,18 +72,6 @@ export default function OwnerAccountTab({ ownerId }: OwnerAccountTabProps) {
       setUnitsCount(unitsRes.count || 0)
       setActiveManagersCount(managersRes.count || 0)
       setActiveTenantsCount(tenantsRes.count || 0)
-    })
-    getOwnerApartmentAddress(ownerId).then((addr) => {
-      if (addr) {
-        // Parse "street, barangay, city, province zip" back into fields
-        const parts = addr.split(', ')
-        if (parts.length >= 4) {
-          const province = parts[3] || ''
-          setAddrFields({ street: parts[0] || '', barangay: parts[1] || '', city: parts[2] || '', province })
-        } else {
-          setAddrFields({ street: addr, barangay: '', city: '', province: '' })
-        }
-      }
     })
   }, [ownerId])
 
@@ -237,57 +203,8 @@ export default function OwnerAccountTab({ ownerId }: OwnerAccountTabProps) {
       </div>
 
       {/* Apartment Address */}
-      <div className={`${sectionClass} opacity-0 animate-fade-up-delay-1 relative z-10 overflow-visible`}>
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
-            <MapPin className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Apartment Address
-            </h3>
-            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              Your apartment building address
-            </p>
-          </div>
-        </div>
-
-        {addrFields.street || addrFields.barangay || addrFields.city || addrFields.province ? (
-          <div className={infoGridClass}>
-            <div>
-              <Label className={`text-sm ${labelClass}`}>Street / Building</Label>
-              <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                {addrFields.street || '—'}
-              </p>
-            </div>
-            <div>
-              <Label className={`text-sm ${labelClass}`}>Barangay</Label>
-              <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                {addrFields.barangay || '—'}
-              </p>
-            </div>
-            <div>
-              <Label className={`text-sm ${labelClass}`}>Province</Label>
-              <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                {addrFields.province || '—'}
-              </p>
-            </div>
-            <div>
-              <Label className={`text-sm ${labelClass}`}>City / Municipality</Label>
-              <p className={`mt-1 text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                {addrFields.city || '—'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            No address set yet.
-          </p>
-        )}
-      </div>
-
       {/* Change Password */}
-      <div className={`${sectionClass} opacity-0 animate-fade-up-delay-2`}>
+      <div className={`${sectionClass} opacity-0 animate-fade-up-delay-1`}>
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
             <Lock className="w-5 h-5 text-primary" />
