@@ -13,11 +13,11 @@ interface ManagerManageApartmentTabProps {
 
 export default function ManagerManageApartmentTab({ managerId, managerName }: ManagerManageApartmentTabProps) {
   const { isDark } = useTheme()
-  const [activeSubTab, setActiveSubTab] = useState<'units' | 'tenants' | 'announcements' | 'logs'>('units')
+  const [activeSubTab, setActiveSubTab] = useState<'units' | 'tenants' | 'announcements' | 'logs'>('tenants')
 
   const subTabs = [
-    { id: 'units' as const, label: 'Units', icon: Building2 },
     { id: 'tenants' as const, label: 'Tenants', icon: Users },
+    { id: 'units' as const, label: 'Units', icon: Building2 },
     { id: 'announcements' as const, label: 'Announcements', icon: Megaphone },
     { id: 'logs' as const, label: 'Activity Logs', icon: ClipboardList },
   ]

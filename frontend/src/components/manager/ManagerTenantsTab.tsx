@@ -232,26 +232,27 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
   return (
     <>
       <div className="flex flex-col flex-1 min-h-0 gap-6 animate-fade-up">
-        {/* Header with Search + Add Button */}
+        {/* Header with Search + Status Filter + Add Button */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search
-              className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
-            />
-            <input
-              type="text"
-              placeholder="Search tenants..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className={`w-full pl-10 pr-4 py-3 rounded-lg text-base border focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                isDark
-                  ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
-                  : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-              }`}
-            />
-          </div>
-          {/* Status Filter */}
-          <div className="relative" ref={statusFilterRef}>
+          <div className="flex items-center gap-2 flex-1">
+            <div className="relative flex-1 max-w-sm">
+              <Search
+                className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+              />
+              <input
+                type="text"
+                placeholder="Search tenants..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={`w-full pl-10 pr-4 py-3 rounded-lg text-base border focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                  isDark
+                    ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                    : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                }`}
+              />
+            </div>
+            {/* Status Filter */}
+            <div className="relative" ref={statusFilterRef}>
             <button
               onClick={() => setStatusFilterOpen(!statusFilterOpen)}
               className={`inline-flex items-center gap-2 px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
@@ -282,6 +283,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                 ))}
               </div>
             )}
+          </div>
           </div>
           <button
             onClick={openAddModal}
