@@ -21,7 +21,7 @@ interface ManagerPaymentsTabProps {
   managerId: string
 }
 
-const STATUS_OPTIONS = ['all', 'paid', 'pending', 'overdue'] as const
+const STATUS_OPTIONS = ['all', 'paid', 'pending', 'pending_verification', 'verified', 'overdue'] as const
 
 type StatusFilter = (typeof STATUS_OPTIONS)[number]
 
@@ -30,10 +30,24 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-const statusBadge: Record<Payment['status'], { bg: string; text: string }> = {
-  paid: { bg: 'bg-green-400/15', text: 'text-green-500' },
-  pending: { bg: 'bg-yellow-400/15', text: 'text-yellow-500' },
-  overdue: { bg: 'bg-red-400/15', text: 'text-red-400' },
+const statusBadge: Record<Payment['status'], { bg: string; text: string; label: string }> = {
+  paid: { bg: 'bg-green-400/15', text: 'text-green-500', label: 'Paid' },
+  pending: { bg: 'bg-yellow-400/15', text: 'text-yellow-500', label: 'Unpaid' },
+  overdue: { bg: 'bg-red-400/15', text: 'text-red-400', label: 'Overdue' },
+}
+
+const verificationBadges: Record<string, { bg: string; text: string; label: string }> = {
+  pending_verification: { bg: 'bg-blue-400/15', text: 'text-blue-500', label: 'Pending Review' },
+  verified: { bg: 'bg-amber-400/15', text: 'text-amber-500', label: 'Awaiting Approval' },
+}
+
+const filterLabel: Record<string, string> = {
+  all: 'All',
+  paid: 'Paid',
+  pending: 'Unpaid',
+  pending_verification: 'Pending Review',
+  verified: 'Awaiting Approval',
+  overdue: 'Overdue',
 }
 
 export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProps) {
@@ -179,7 +193,11 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
   const selectedRecordPayment = recordDuePayments.find((payment) => payment.id === recordForm.paymentId) || null
 
   const filtered = monthFiltered.filter((p) => {
-    if (filter !== 'all' && p.status !== filter) return false
+    if (filter === 'pending_verification') {
+      if (p.verification_status !== 'pending_verification') return false
+    } else if (filter === 'verified') {
+      if (p.verification_status !== 'verified') return false
+    } else if (filter !== 'all' && p.status !== filter) return false
     if (search) {
       const q = search.toLowerCase()
       return (
@@ -431,7 +449,7 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
             <button
               key={s}
               onClick={() => setFilter(s)}
-              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors capitalize ${
+              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 filter === s
                   ? 'bg-primary text-white'
                   : isDark
@@ -439,7 +457,7 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
                   : 'bg-gray-100 text-gray-500 hover:text-gray-700 border border-gray-200'
               }`}
             >
-              {s}
+              {filterLabel[s] || s}
             </button>
           ))}
         </div>
@@ -463,7 +481,8 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
             </thead>
             <tbody>
               {paginated.map((p) => {
-                const badge = statusBadge[p.status]
+                const vBadge = p.verification_status ? verificationBadges[p.verification_status] : null
+                const badge = vBadge || statusBadge[p.status]
                 return (
                   <tr key={p.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
                     <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.tenant_name}</td>
@@ -471,8 +490,8 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
                     <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{Number(p.amount).toLocaleString()}</td>
                     <td className={`py-3 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{new Date(p.payment_date).toLocaleDateString()}</td>
                     <td className="py-3 px-4">
-                      <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize ${badge.bg} ${badge.text}`}>
-                        {p.status}
+                      <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${badge.bg} ${badge.text}`}>
+                        {badge.label}
                       </span>
                     </td>
                     <td className={`py-3 px-4 max-w-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{p.description || '—'}</td>

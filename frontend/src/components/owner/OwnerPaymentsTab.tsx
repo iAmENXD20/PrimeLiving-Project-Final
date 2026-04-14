@@ -29,7 +29,7 @@ interface OwnerPaymentsTabProps {
   ownerId: string
 }
 
-const STATUS_OPTIONS = ['all', 'paid', 'unpaid', 'pending_verification', 'late_payment', 'overdue'] as const
+const STATUS_OPTIONS = ['all', 'paid', 'unpaid', 'pending_verification', 'verified', 'overdue'] as const
 type StatusFilter = (typeof STATUS_OPTIONS)[number]
 
 const statusBadge: Record<OwnerPayment['status'], { bg: string; text: string; label: string }> = {
@@ -39,13 +39,14 @@ const statusBadge: Record<OwnerPayment['status'], { bg: string; text: string; la
 }
 
 const verificationBadge = { bg: 'bg-blue-400/15', text: 'text-blue-500', label: 'Pending Verification' }
+const verifiedBadge = { bg: 'bg-amber-400/15', text: 'text-amber-500', label: 'Awaiting Approval' }
 
 const filterLabel: Record<string, string> = {
   all: 'All',
   paid: 'Paid',
   unpaid: 'Unpaid',
   pending_verification: 'Pending Verification',
-  late_payment: 'Late Payment',
+  verified: 'Awaiting Approval',
   overdue: 'Overdue',
 }
 
@@ -243,6 +244,10 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
     // Status filter
     if (filter === 'pending_verification') {
       if (p.verification_status !== 'pending_verification') return false
+    } else if (filter === 'verified') {
+      if (p.verification_status !== 'verified') return false
+    } else if (filter === 'unpaid') {
+      if (p.status !== 'pending') return false
     } else if (filter !== 'all' && p.status !== filter) return false
     // Branch filter
     if (branchFilter !== 'all' && p.apartment_name !== branchFilter) return false
@@ -893,7 +898,11 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
               </thead>
               <tbody>
                 {paginated.map((p) => {
-                  const badge = p.verification_status === 'pending_verification' ? verificationBadge : statusBadge[p.status]
+                  const badge = p.verification_status === 'pending_verification'
+                    ? verificationBadge
+                    : p.verification_status === 'verified'
+                    ? verifiedBadge
+                    : statusBadge[p.status]
                   return (
                     <tr key={p.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
                       <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.tenant_name}</td>
@@ -1211,14 +1220,27 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
                   : '—'],
                 ['Description', selectedPayment.description || '—'],
                 ['Date', new Date(selectedPayment.payment_date).toLocaleDateString()],
-                ['Status', selectedPayment.verification_status === 'pending_verification' ? 'Pending Verification' : selectedPayment.status.charAt(0).toUpperCase() + selectedPayment.status.slice(1)],
+                ['Status', (() => {
+                  const vs = selectedPayment.verification_status
+                  const s = selectedPayment.status
+                  if (vs === 'pending_verification') return 'Pending Verification'
+                  if (vs === 'verified') return 'Awaiting Approval'
+                  if (vs === 'approved' || s === 'paid') return 'Paid'
+                  if (vs === 'rejected') return 'Rejected'
+                  if (s === 'overdue') return 'Overdue'
+                  if (s === 'pending') return 'Unpaid'
+                  return s.charAt(0).toUpperCase() + s.slice(1)
+                })()],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between text-sm">
                   <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>{label}</span>
                   <span className={`font-medium ${
                     label === 'Status'
                       ? selectedPayment.verification_status === 'pending_verification' ? 'text-blue-500'
-                      : selectedPayment.status === 'paid' ? 'text-green-500' : selectedPayment.status === 'overdue' ? 'text-red-400' : 'text-yellow-500'
+                      : selectedPayment.verification_status === 'verified' ? 'text-amber-500'
+                      : selectedPayment.verification_status === 'rejected' ? 'text-red-400'
+                      : selectedPayment.status === 'paid' || selectedPayment.verification_status === 'approved' ? 'text-green-500'
+                      : selectedPayment.status === 'overdue' ? 'text-red-400' : 'text-yellow-500'
                       : isDark ? 'text-white' : 'text-gray-900'
                   }`}>{value}</span>
                 </div>
@@ -1240,14 +1262,20 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
               >
                 Close
               </button>
-              {(selectedPayment.status === 'pending' || selectedPayment.status === 'overdue' || selectedPayment.verification_status === 'pending_verification') && (
+              {selectedPayment.verification_status === 'verified' && (
                 <button
-                  onClick={() => {
-                    setPayments(prev =>
-                      prev.map(p => p.id === selectedPayment.id ? { ...p, status: 'paid' as const, verification_status: 'approved' as const } : p)
-                    )
-                    setSelectedPayment(null)
-                    toast.success(`Payment from ${selectedPayment.tenant_name} approved`)
+                  onClick={async () => {
+                    try {
+                      await approveVerifiedPayment(selectedPayment.id)
+                      setPayments(prev =>
+                        prev.map(p => p.id === selectedPayment.id ? { ...p, status: 'paid' as const, verification_status: 'approved' as const } : p)
+                      )
+                      setPendingApprovals(prev => prev.filter(a => a.id !== selectedPayment.id))
+                      setSelectedPayment(null)
+                      toast.success(`Payment from ${selectedPayment.tenant_name} approved`)
+                    } catch (err: any) {
+                      toast.error(err?.message || 'Failed to approve payment')
+                    }
                   }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors"
                 >

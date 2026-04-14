@@ -194,13 +194,24 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
     }
   }, [])
 
-  const statusColor = (s: string) => {
-    switch (s) {
-      case 'paid': return 'bg-emerald-500/15 text-emerald-400'
-      case 'pending': return 'bg-yellow-500/15 text-yellow-400'
-      case 'overdue': return 'bg-red-500/15 text-red-400'
-      default: return 'bg-gray-500/15 text-gray-400'
-    }
+  const statusColor = (s: string, vs: string | null) => {
+    if (vs === 'pending_verification') return 'bg-blue-500/15 text-blue-400'
+    if (vs === 'verified') return 'bg-amber-500/15 text-amber-400'
+    if (vs === 'approved' || s === 'paid') return 'bg-emerald-500/15 text-emerald-400'
+    if (vs === 'rejected') return 'bg-red-500/15 text-red-400'
+    if (s === 'overdue') return 'bg-red-500/15 text-red-400'
+    if (s === 'pending') return 'bg-yellow-500/15 text-yellow-400'
+    return 'bg-gray-500/15 text-gray-400'
+  }
+
+  const statusLabel = (s: string, vs: string | null) => {
+    if (vs === 'pending_verification') return 'Pending Review'
+    if (vs === 'verified') return 'Awaiting Approval'
+    if (vs === 'approved' || s === 'paid') return 'Paid'
+    if (vs === 'rejected') return 'Rejected'
+    if (s === 'overdue') return 'Overdue'
+    if (s === 'pending') return 'Unpaid'
+    return s
   }
 
   // Receipt upload handler
@@ -671,8 +682,8 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
                       ₱{Number(payment.amount).toLocaleString()}
                     </td>
                     <td className="py-3 px-3">
-                      <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor(payment.status)}`}>
-                        {payment.status}
+                      <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor(payment.status, payment.verification_status ?? null)}`}>
+                        {statusLabel(payment.status, payment.verification_status ?? null)}
                       </span>
                     </td>
                   </tr>
@@ -706,7 +717,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
           <table className="w-full text-base">
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                {['Date', 'Description', 'Amount', 'Mode', 'Status', 'Verification'].map((h) => (
+                {['Date', 'Description', 'Amount', 'Mode', 'Status'].map((h) => (
                   <th key={h} className={`text-left py-3.5 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {h}
                   </th>
@@ -716,7 +727,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
             <tbody>
               {payments.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={6} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <td colSpan={5} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     No payment records yet
                   </td>
                 </tr>
@@ -741,41 +752,9 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
                     {p.payment_mode === 'cash' ? 'Cash' : p.payment_mode === 'gcash' ? 'GCash' : p.payment_mode === 'maya' ? 'Maya' : p.payment_mode === 'bank_transfer' ? 'Bank Transfer' : '—'}
                   </td>
                   <td className="py-3.5 px-4">
-                    {(() => {
-                      const isWaitingVerification = p.verification_status === 'pending_verification'
-                      const isAwaitingApproval = p.verification_status === 'verified'
-                      const displayStatus = isWaitingVerification ? 'waiting verification' : isAwaitingApproval ? 'awaiting approval' : p.status
-                      return (
-                    <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor(p.status)}`}>
-                      {displayStatus}
+                    <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor(p.status, p.verification_status)}`}>
+                      {statusLabel(p.status, p.verification_status)}
                     </span>
-                      )
-                    })()}
-                  </td>
-                  <td className="py-3.5 px-4">
-                    {p.verification_status === 'pending_verification' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full bg-yellow-500/15 text-yellow-400">
-                        <Clock className="w-3 h-3" /> Pending Review
-                      </span>
-                    )}
-                    {p.verification_status === 'verified' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full bg-amber-500/15 text-amber-400">
-                        <Clock className="w-3 h-3" /> Awaiting Approval
-                      </span>
-                    )}
-                    {p.verification_status === 'approved' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full bg-emerald-500/15 text-emerald-400">
-                        <CheckCircle2 className="w-3 h-3" /> Approved
-                      </span>
-                    )}
-                    {p.verification_status === 'rejected' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-500/15 text-red-400">
-                        <XCircle className="w-3 h-3" /> Rejected
-                      </span>
-                    )}
-                    {!p.verification_status && (
-                      <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>—</span>
-                    )}
                   </td>
                 </tr>
               ))}

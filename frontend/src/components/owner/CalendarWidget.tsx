@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 
-interface RentDeadline {
+interface BillingDeadline {
+  tenantName: string
   unitName: string
-  dueDay: number
+  dueDate: string   // ISO date string (e.g. period_to)
+  status: string     // payment status
 }
 
 interface CalendarWidgetProps {
-  deadlines: RentDeadline[]
+  deadlines: BillingDeadline[]
   className?: string
 }
 
@@ -56,11 +58,16 @@ export default function CalendarWidget({ deadlines, className }: CalendarWidgetP
     currentMonth === today.getMonth() &&
     currentYear === today.getFullYear()
 
-  // Get deadlines that fall on a specific day
+  // Get deadlines that fall on a specific day of the currently displayed month
   const getDeadlinesForDay = (day: number) => {
     return deadlines.filter((d) => {
-      const effectiveDay = Math.min(d.dueDay, daysInMonth)
-      return effectiveDay === day
+      if (!d.dueDate) return false
+      const due = new Date(d.dueDate)
+      return (
+        due.getDate() === day &&
+        due.getMonth() === currentMonth &&
+        due.getFullYear() === currentYear
+      )
     })
   }
 
@@ -98,7 +105,7 @@ export default function CalendarWidget({ deadlines, className }: CalendarWidgetP
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-red-400" />
-            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Rent Deadline</span>
+            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Billing Due</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-primary" />
@@ -209,9 +216,11 @@ export default function CalendarWidget({ deadlines, className }: CalendarWidgetP
                       : 'bg-white border-gray-200 text-gray-700'
                   }`}
                 >
-                  <p className="font-semibold text-red-400 mb-0.5">Rent Due</p>
+                  <p className="font-semibold text-red-400 mb-0.5">Billing Due</p>
                   {dayDeadlines.map((d) => (
-                    <p key={d.unitName}>{d.unitName}</p>
+                    <p key={d.tenantName + d.unitName}>
+                      {d.tenantName} — {d.unitName}
+                    </p>
                   ))}
                 </div>
               )}

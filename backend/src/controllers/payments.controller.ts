@@ -502,8 +502,12 @@ export async function updatePayment(
     const { id } = req.params;
     const { status, verification_status, ...safeUpdates } = req.body;
 
-    // Block status/verification_status changes through generic update — must use /verify or /approve routes
-    const updates = safeUpdates;
+    // Allow status changes except setting to 'paid' (must use /approve route).
+    // verification_status is always blocked — must use /verify or /approve routes.
+    const updates: Record<string, unknown> = { ...safeUpdates };
+    if (status && status !== 'paid') {
+      updates.status = status;
+    }
 
     const { data, error } = await supabaseAdmin
       .from("payments")

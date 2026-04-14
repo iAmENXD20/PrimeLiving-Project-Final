@@ -258,6 +258,8 @@ export async function uploadDocument(
     const safeFileName = file_name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const objectPath = `${apartmentowner_id}/${Date.now()}_${safeFileName}`;
 
+    console.log("[DOC UPLOAD] Uploading to storage:", objectPath);
+
     const { error: uploadError } = await supabaseAdmin.storage
       .from(DOCUMENTS_BUCKET)
       .upload(objectPath, parsed.buffer, {
@@ -279,9 +281,7 @@ export async function uploadDocument(
       return;
     }
 
-    const { data, error } = await supabaseAdmin
-      .from("documents")
-      .insert({
+    const insertPayload = {
         apartmentowner_id,
         unit_id: unit_id || null,
         tenant_id: tenant_id || null,
@@ -290,15 +290,22 @@ export async function uploadDocument(
         file_url: objectPath,
         file_type,
         description: description || null,
-      })
+    };
+    console.log("[DOC UPLOAD] Insert payload:", JSON.stringify(insertPayload));
+
+    const { data, error } = await supabaseAdmin
+      .from("documents")
+      .insert(insertPayload)
       .select()
       .single();
 
     if (error) {
+      console.error("[DOC UPLOAD] Insert error:", error.message, error.code, error.details, error.hint);
       await supabaseAdmin.storage.from(DOCUMENTS_BUCKET).remove([objectPath]);
       sendError(res, error.message, 500);
       return;
     }
+    console.log("[DOC UPLOAD] Insert success:", data.id);
 
     sendSuccess(
       res,

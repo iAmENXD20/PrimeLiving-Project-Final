@@ -350,33 +350,14 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
         {/* Right: Calendar */}
         <CalendarWidget
           className="h-full"
-          deadlines={(() => {
-            const realDeadlines = units
-              .filter((u) => u.tenant_id && u.payment_due_day)
-              .map((u) => ({ unitName: u.name, dueDay: u.payment_due_day! }))
-            if (realDeadlines.length > 0) return realDeadlines
-            return [
-              { unitName: 'Apt 1 - Unit 1A', dueDay: 5 },
-              { unitName: 'Apt 1 - Unit 2B', dueDay: 5 },
-              { unitName: 'Apt 1 - Unit 3C', dueDay: 10 },
-              { unitName: 'Apt 2 - Unit 1', dueDay: 10 },
-              { unitName: 'Apt 2 - Unit 2', dueDay: 15 },
-              { unitName: 'Apt 2 - Unit 5', dueDay: 15 },
-              { unitName: 'Apt 3 - Unit 1', dueDay: 20 },
-              { unitName: 'Apt 3 - Unit 3', dueDay: 20 },
-              { unitName: 'Apt 3 - Unit 6', dueDay: 25 },
-              { unitName: 'Apt 4 - Unit 1', dueDay: 5 },
-              { unitName: 'Apt 4 - Unit 2', dueDay: 10 },
-              { unitName: 'Apt 4 - Unit 5', dueDay: 20 },
-              { unitName: 'Apt 5 - Unit 1', dueDay: 5 },
-              { unitName: 'Apt 5 - Unit 3', dueDay: 15 },
-              { unitName: 'Apt 5 - Unit 6', dueDay: 25 },
-              { unitName: 'Apt 6 - Unit 1', dueDay: 5 },
-              { unitName: 'Apt 6 - Unit 2', dueDay: 10 },
-              { unitName: 'Apt 6 - Unit 4', dueDay: 15 },
-              { unitName: 'Apt 1 - Unit 7G', dueDay: 28 },
-            ]
-          })()}
+          deadlines={allPayments
+            .filter((p) => p.period_to && p.tenant_name && p.tenant_name !== '\u2014')
+            .map((p) => ({
+              tenantName: p.tenant_name || 'Tenant',
+              unitName: p.apartment_name || 'Unit',
+              dueDate: p.period_to!,
+              status: p.status,
+            }))}
         />
       </div>
 
