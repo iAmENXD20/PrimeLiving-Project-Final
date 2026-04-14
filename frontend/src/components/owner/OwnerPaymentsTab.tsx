@@ -891,13 +891,13 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
             <table className="w-full text-base">
               <thead className={`sticky top-0 z-10 ${isDark ? 'bg-navy-card' : 'bg-white'}`}>
                 <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                  {['Names', 'Apartment Branch', 'Amount', 'Date', 'Status', 'Action'].map((h) => (
+                  {['No.', 'Names', 'Unit', 'Amount', 'Date', 'Status', 'Action'].map((h) => (
                     <th key={h} className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {paginated.map((p) => {
+                {paginated.map((p, idx) => {
                   const badge = p.verification_status === 'pending_verification'
                     ? verificationBadge
                     : p.verification_status === 'verified'
@@ -905,6 +905,7 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
                     : statusBadge[p.status]
                   return (
                     <tr key={p.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                      <td className={`py-3 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{(page - 1) * pageSize + idx + 1}</td>
                       <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.tenant_name}</td>
                       <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{p.apartment_name}</td>
                       <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{Number(p.amount).toLocaleString()}</td>

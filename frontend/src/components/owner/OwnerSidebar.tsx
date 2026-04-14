@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, Wrench, PhilippinePeso, FileText, Settings, LogOut, X, ClipboardList, Users } from 'lucide-react'
+import { LayoutDashboard, Building2, Wrench, PhilippinePeso, Settings, LogOut, X, ClipboardList, Users, ScrollText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { supabase } from '../../lib/supabase'
@@ -16,9 +16,9 @@ const navItems = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'manage-apartment', label: 'User Management', icon: Users },
   { id: 'units', label: 'Manage My Apartment', icon: Building2 },
-  { id: 'maintenance', label: 'Maintenance', icon: Wrench },
+  { id: 'maintenance', label: 'Maintenance History', icon: Wrench },
   { id: 'payments', label: 'Payment History', icon: PhilippinePeso },
-  { id: 'documents', label: 'Documents', icon: FileText },
+  { id: 'activity-logs', label: 'Activity Logs', icon: ScrollText },
   { id: 'audit-reports', label: 'Audit Reports', icon: ClipboardList },
   { id: 'account', label: 'Account Settings', icon: Settings },
 ]
@@ -75,7 +75,7 @@ export default function OwnerSidebar({ activeTab, onTabChange, isOpen, onClose, 
             <button
               key={item.id}
               onClick={() => onTabChange(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-base font-medium transition-all duration-200 ${
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-base font-medium transition-all duration-200 whitespace-nowrap ${
                 isActive
                   ? isDark
                     ? 'bg-primary/15 text-primary'
@@ -85,13 +85,15 @@ export default function OwnerSidebar({ activeTab, onTabChange, isOpen, onClose, 
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
-              <Icon className="w-[18px] h-[18px]" />
+              <span className="relative">
+                <Icon className="w-[18px] h-[18px]" />
+                {item.id === 'maintenance' && (pendingMaintenanceCount ?? 0) > 0 && (
+                  <span className="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold rounded-full bg-red-500 text-white">
+                    {pendingMaintenanceCount}
+                  </span>
+                )}
+              </span>
               {item.label}
-              {item.id === 'maintenance' && (pendingMaintenanceCount ?? 0) > 0 && (
-                <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold rounded-full bg-red-500 text-white">
-                  {pendingMaintenanceCount}
-                </span>
-              )}
             </button>
           )
         })}

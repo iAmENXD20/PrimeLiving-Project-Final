@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Building2, Eye, EyeOff, ArrowLeft, Sun, Moon, X, Mail, ShieldAlert } from 'lucide-react'
+import { Building2, Eye, EyeOff, Sun, Moon, X, Mail, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -196,17 +196,6 @@ export default function LoginPage() {
         </button>
 
         <div className="w-full max-w-md">
-          {/* Back to home (mobile) */}
-          <Link
-            to="/"
-            className={`inline-flex items-center gap-1.5 text-sm mb-8 transition-colors duration-200 ${
-              isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
-            }`}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
-          </Link>
-
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2.5 mb-8">
             <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">

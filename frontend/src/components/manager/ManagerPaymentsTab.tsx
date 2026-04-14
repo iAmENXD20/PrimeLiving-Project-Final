@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, PhilippinePeso, Eye, Calendar, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Clock, CheckCircle2, XCircle, X, Receipt, Plus } from 'lucide-react'
+import { Search, PhilippinePeso, Eye, Calendar, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Clock, CheckCircle2, XCircle, X, Receipt, Plus, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import {
@@ -9,10 +9,13 @@ import {
   approveCashPayment,
   rejectCashPayment,
   settleCashBilling,
+  createPayment,
   getManagerTenants,
+  getManagerUnits,
   generateMonthlyBillings,
   type Payment,
   type TenantAccount,
+  type UnitWithTenant,
 } from '../../lib/managerApi'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
@@ -21,7 +24,7 @@ interface ManagerPaymentsTabProps {
   managerId: string
 }
 
-const STATUS_OPTIONS = ['all', 'paid', 'pending', 'pending_verification', 'verified', 'overdue'] as const
+const STATUS_OPTIONS = ['all', 'paid', 'pending', 'verified', 'overdue', 'late'] as const
 
 type StatusFilter = (typeof STATUS_OPTIONS)[number]
 
@@ -38,7 +41,7 @@ const statusBadge: Record<Payment['status'], { bg: string; text: string; label: 
 
 const verificationBadges: Record<string, { bg: string; text: string; label: string }> = {
   pending_verification: { bg: 'bg-blue-400/15', text: 'text-blue-500', label: 'Pending Review' },
-  verified: { bg: 'bg-amber-400/15', text: 'text-amber-500', label: 'Awaiting Approval' },
+  verified: { bg: 'bg-amber-400/15', text: 'text-amber-500', label: 'Awaiting Verification' },
 }
 
 const filterLabel: Record<string, string> = {
@@ -46,8 +49,9 @@ const filterLabel: Record<string, string> = {
   paid: 'Paid',
   pending: 'Unpaid',
   pending_verification: 'Pending Review',
-  verified: 'Awaiting Approval',
+  verified: 'Awaiting Verification',
   overdue: 'Overdue',
+  late: 'Late Payment',
 }
 
 export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProps) {
@@ -68,7 +72,8 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
   // Record cash payment modal
   const [showRecordModal, setShowRecordModal] = useState(false)
   const [tenants, setTenants] = useState<TenantAccount[]>([])
-  const [recordForm, setRecordForm] = useState({ tenantId: '', paymentId: '', description: '', paymentMode: 'cash' as 'gcash' | 'maya' | 'cash' | 'bank_transfer' })
+  const [units, setUnits] = useState<UnitWithTenant[]>([])
+  const [recordForm, setRecordForm] = useState({ tenantId: '', paymentId: '', leasePeriodKey: '', description: '', paymentMode: 'cash' as 'gcash' | 'maya' | 'cash' | 'bank_transfer', paymentType: 'on_time' as 'on_time' | 'advance' | 'late' })
   const [recordLoading, setRecordLoading] = useState(false)
 
   // Custom dropdown states for Record Cash Payment modal
@@ -85,6 +90,8 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
   const [selectedYear, setSelectedYear] = useState(now.getFullYear())
   const [monthPickerOpen, setMonthPickerOpen] = useState(false)
   const monthPickerRef = useRef<HTMLDivElement>(null)
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
+  const filterDropdownRef = useRef<HTMLDivElement>(null)
 
   async function load() {
     try {
@@ -119,9 +126,83 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
     }
   }
 
+  async function loadUnits() {
+    try {
+      const data = await getManagerUnits(managerId)
+      setUnits(data)
+    } catch (err) {
+      console.error('Failed to load units:', err)
+    }
+  }
+
   const handleRecordCashPayment = async () => {
-    if (!recordForm.tenantId || !recordForm.paymentId) {
-      toast.error('Please select a tenant and billing period')
+    if (!recordForm.tenantId) {
+      toast.error('Please select a tenant')
+      return
+    }
+
+    // Lease-based payment flow
+    if (hasLeasePeriods && recordForm.leasePeriodKey) {
+      const period = leaseBillingPeriods.find(p => p.key === recordForm.leasePeriodKey)
+      if (!period) {
+        toast.error('Invalid billing period')
+        return
+      }
+
+      // If there's an existing pending/overdue payment, settle it
+      if (period.existingPayment && (period.existingPayment.status === 'pending' || period.existingPayment.status === 'overdue')) {
+        setRecordLoading(true)
+        try {
+          await settleCashBilling(period.existingPayment.id, recordForm.description || undefined, recordForm.paymentMode)
+          toast.success('Payment recorded — awaiting owner approval')
+          setShowRecordModal(false)
+          setRecordForm({ tenantId: '', paymentId: '', leasePeriodKey: '', description: '', paymentMode: 'cash', paymentType: 'on_time' })
+          await load()
+        } catch (err) {
+          console.error('Failed to record payment:', err)
+          toast.error('Failed to record payment')
+        } finally {
+          setRecordLoading(false)
+        }
+        return
+      }
+
+      // If already paid, can't pay again
+      if (period.existingPayment?.status === 'paid') {
+        toast.error('This billing period is already paid')
+        return
+      }
+
+      // No existing payment — create a new one (advance payment)
+      const selectedTenant = tenants.find(t => t.id === recordForm.tenantId)
+      const unit = selectedTenant?.unit_id ? units.find(u => u.id === selectedTenant.unit_id) : null
+      setRecordLoading(true)
+      try {
+        await createPayment({
+          apartmentowner_id: unit?.apartmentowner_id || '',
+          tenant_id: recordForm.tenantId,
+          unit_id: unit?.id || null,
+          amount: unit?.monthly_rent || 0,
+          payment_date: new Date().toISOString(),
+          status: 'paid',
+          description: recordForm.description || `${recordForm.paymentType === 'advance' ? 'Advance' : recordForm.paymentType === 'late' ? 'Late' : ''} payment for ${period.label}`.trim(),
+        })
+        toast.success('Payment recorded successfully')
+        setShowRecordModal(false)
+        setRecordForm({ tenantId: '', paymentId: '', leasePeriodKey: '', description: '', paymentMode: 'cash', paymentType: 'on_time' })
+        await load()
+      } catch (err) {
+        console.error('Failed to create payment:', err)
+        toast.error('Failed to create payment')
+      } finally {
+        setRecordLoading(false)
+      }
+      return
+    }
+
+    // Legacy flow: existing pending/overdue payment
+    if (!recordForm.paymentId) {
+      toast.error('Please select a billing period')
       return
     }
 
@@ -136,7 +217,7 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
       await settleCashBilling(recordForm.paymentId, recordForm.description || undefined, recordForm.paymentMode)
       toast.success('Payment recorded — awaiting owner approval')
       setShowRecordModal(false)
-      setRecordForm({ tenantId: '', paymentId: '', description: '', paymentMode: 'cash' })
+      setRecordForm({ tenantId: '', paymentId: '', leasePeriodKey: '', description: '', paymentMode: 'cash', paymentType: 'on_time' })
       await load()
     } catch (err) {
       console.error('Failed to record payment:', err)
@@ -146,7 +227,7 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
     }
   }
 
-  useEffect(() => { load(); loadVerifications(); loadTenants() }, [managerId])
+  useEffect(() => { load(); loadVerifications(); loadTenants(); loadUnits() }, [managerId])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -161,6 +242,9 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
       }
       if (paymentModeDropdownRef.current && !paymentModeDropdownRef.current.contains(e.target as Node)) {
         setIsPaymentModeOpen(false)
+      }
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target as Node)) {
+        setFilterDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -190,13 +274,73 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
     ))
     : []
 
-  const selectedRecordPayment = recordDuePayments.find((payment) => payment.id === recordForm.paymentId) || null
+  // Generate lease-based billing periods when tenant is selected
+  const leaseBillingPeriods = (() => {
+    if (!recordForm.tenantId) return []
+    const selectedTenant = tenants.find(t => t.id === recordForm.tenantId)
+    const unit = selectedTenant?.unit_id ? units.find(u => u.id === selectedTenant.unit_id) : null
+    if (!unit?.lease_start || !unit?.lease_end) return []
+
+    const start = new Date(unit.lease_start + 'T00:00:00')
+    const end = new Date(unit.lease_end + 'T00:00:00')
+    const periods: { key: string; from: string; to: string; label: string; existingPayment: Payment | null; type: 'advance' | 'on_time' | 'late' }[] = []
+    const today = new Date()
+    const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
+    while (cursor <= end) {
+      const periodFrom = new Date(cursor)
+      const periodTo = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0) // last day of month
+      const key = `${periodFrom.getFullYear()}-${String(periodFrom.getMonth() + 1).padStart(2, '0')}`
+      const label = `${MONTHS[periodFrom.getMonth()]} ${periodFrom.getFullYear()}`
+
+      // Check if there's already a payment for this period
+      const existing = payments.find(p =>
+        p.tenant_id === recordForm.tenantId &&
+        p.period_from &&
+        new Date(p.period_from + 'T00:00:00').getFullYear() === periodFrom.getFullYear() &&
+        new Date(p.period_from + 'T00:00:00').getMonth() === periodFrom.getMonth()
+      ) || null
+
+      // Determine type
+      let type: 'advance' | 'on_time' | 'late' = 'on_time'
+      if (periodFrom > currentMonth) type = 'advance'
+      else if (periodFrom < currentMonth) type = 'late'
+
+      periods.push({
+        key,
+        from: periodFrom.toISOString().split('T')[0],
+        to: periodTo.toISOString().split('T')[0],
+        label,
+        existingPayment: existing || null,
+        type,
+      })
+      cursor.setMonth(cursor.getMonth() + 1)
+    }
+    return periods
+  })()
+
+  // Use lease periods if available, otherwise fall back to existing due payments
+  const hasLeasePeriods = leaseBillingPeriods.length > 0
+
+  const selectedRecordPayment = recordForm.paymentId
+    ? (recordDuePayments.find((payment) => payment.id === recordForm.paymentId) || null)
+    : null
+
+  // Get selected lease period
+  const selectedLeasePeriod = recordForm.leasePeriodKey
+    ? leaseBillingPeriods.find(p => p.key === recordForm.leasePeriodKey) || null
+    : null
 
   const filtered = monthFiltered.filter((p) => {
     if (filter === 'pending_verification') {
       if (p.verification_status !== 'pending_verification') return false
     } else if (filter === 'verified') {
       if (p.verification_status !== 'verified') return false
+    } else if (filter === 'late') {
+      const dueDate = (p as any).due_date ? new Date((p as any).due_date) : null
+      if (!dueDate || p.status === 'paid') return false
+      if (dueDate >= new Date()) return false
     } else if (filter !== 'all' && p.status !== filter) return false
     if (search) {
       const q = search.toLowerCase()
@@ -257,7 +401,7 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
       {/* Header + Month/Year Picker */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Payments</h2>
+          <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment History</h2>
           <p className={`text-base mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             View tenant payment records and history
           </p>
@@ -428,9 +572,9 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
         </div>
       )}
 
-      {/* Search + Filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      {/* Search + Filter + Download */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative flex-1 max-w-md">
           <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
           <input
             type="text"
@@ -444,23 +588,75 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
             } focus:outline-none`}
           />
         </div>
-        <div className="flex gap-2">
-          {STATUS_OPTIONS.map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                filter === s
-                  ? 'bg-primary text-white'
-                  : isDark
-                  ? 'bg-[#111D32] text-gray-400 hover:text-white border border-[#1E293B]'
-                  : 'bg-gray-100 text-gray-500 hover:text-gray-700 border border-gray-200'
-              }`}
-            >
-              {filterLabel[s] || s}
-            </button>
-          ))}
+        {/* Status Filter Dropdown */}
+        <div className="relative" ref={filterDropdownRef}>
+          <button
+            onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap ${
+              isDark
+                ? 'bg-[#111D32] border-[#1E293B] text-gray-300 hover:bg-white/5'
+                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {filterLabel[filter] || 'All'}
+            <ChevronDown className={`w-4 h-4 transition-transform ${filterDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {filterDropdownOpen && (
+            <div className={`absolute right-0 z-30 mt-1 w-48 rounded-lg border shadow-lg py-1 ${
+              isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
+            }`}>
+              {STATUS_OPTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => { setFilter(s); setFilterDropdownOpen(false); setPage(1) }}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                    filter === s
+                      ? (isDark ? 'bg-primary/20 text-primary font-medium' : 'bg-primary/10 text-primary font-medium')
+                      : (isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50')
+                  }`}
+                >
+                  {filterLabel[s] || s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+        {/* Download Button */}
+        <button
+          onClick={() => {
+            if (filtered.length === 0) { toast.error('No records to download'); return }
+            const headers = ['Name', 'Unit', 'Amount', 'Date', 'Status', 'Description']
+            const rows = filtered.map((p) => {
+              const vBadge = p.verification_status ? verificationBadges[p.verification_status] : null
+              const badge = vBadge || statusBadge[p.status]
+              return [
+                p.tenant_name,
+                p.apartment_name,
+                Number(p.amount).toLocaleString(),
+                new Date(p.payment_date).toLocaleDateString(),
+                badge.label,
+                p.description || '',
+              ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')
+            })
+            const csv = [headers.join(','), ...rows].join('\n')
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `payment-history-${new Date().toISOString().slice(0, 10)}.csv`
+            a.click()
+            URL.revokeObjectURL(url)
+            toast.success('Payment records downloaded')
+          }}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap ${
+            isDark
+              ? 'bg-[#111D32] border-[#1E293B] text-gray-300 hover:bg-white/5'
+              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <Download className="w-4 h-4" />
+          Download
+        </button>
       </div>
 
       {/* Loading */}
@@ -474,17 +670,18 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
           <table className="w-full text-base">
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                {['Names', 'Unit', 'Amount', 'Date', 'Status', 'Description', ''].map((h) => (
+                {['No.', 'Names', 'Unit', 'Amount', 'Date', 'Status', 'Action'].map((h) => (
                   <th key={h} className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {paginated.map((p) => {
+              {paginated.map((p, idx) => {
                 const vBadge = p.verification_status ? verificationBadges[p.verification_status] : null
                 const badge = vBadge || statusBadge[p.status]
                 return (
                   <tr key={p.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                    <td className={`py-3 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{(page - 1) * pageSize + idx + 1}</td>
                     <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.tenant_name}</td>
                     <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{p.apartment_name}</td>
                     <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{Number(p.amount).toLocaleString()}</td>
@@ -494,7 +691,6 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
                         {badge.label}
                       </span>
                     </td>
-                    <td className={`py-3 px-4 max-w-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{p.description || '—'}</td>
                     <td className="py-3 px-4">
                       <button
                         onClick={() => setPreviewVerification(p)}
@@ -678,7 +874,7 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
                         type="button"
                         key={t.id}
                         onClick={() => {
-                          setRecordForm(f => ({ ...f, tenantId: t.id, paymentId: '' }))
+                          setRecordForm(f => ({ ...f, tenantId: t.id, paymentId: '', leasePeriodKey: '', paymentType: 'on_time' as const }))
                           setIsTenantOpen(false)
                         }}
                         className={`w-full text-left px-4 py-2 text-sm transition-colors ${
@@ -697,7 +893,47 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
                 </div>
               </div>
 
-              {/* Billing Period (Pending/Overdue) */}
+              {/* Contract Duration & Lease Period (read-only, from unit) */}
+              {recordForm.tenantId && (() => {
+                const selectedTenant = tenants.find(t => t.id === recordForm.tenantId)
+                const unit = selectedTenant?.unit_id ? units.find(u => u.id === selectedTenant.unit_id) : null
+                const duration = unit?.contract_duration
+                const leaseStart = unit?.lease_start
+                const leaseEnd = unit?.lease_end
+                const fieldClass = `w-full px-3 py-2.5 rounded-lg border text-sm ${
+                  isDark
+                    ? 'bg-[#0A1628] border-[#1E293B] text-white'
+                    : 'bg-gray-50 border-gray-200 text-gray-900'
+                }`
+                return (duration || leaseStart || leaseEnd) ? (
+                  <div className="space-y-3">
+                    {duration && (
+                      <div>
+                        <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Contract Duration
+                        </label>
+                        <div className={fieldClass}>
+                          {duration} {duration === 1 ? 'month' : 'months'}
+                        </div>
+                      </div>
+                    )}
+                    {(leaseStart || leaseEnd) && (
+                      <div>
+                        <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Lease Period
+                        </label>
+                        <div className={fieldClass}>
+                          {leaseStart ? new Date(leaseStart).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}
+                          {' — '}
+                          {leaseEnd ? new Date(leaseEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null
+              })()}
+
+              {/* Billing Period */}
               <div>
                 <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Billing Period
@@ -706,29 +942,37 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
                   <button
                     type="button"
                     onClick={() => {
-                      if (recordForm.tenantId && recordDuePayments.length > 0) setIsBillingOpen(!isBillingOpen)
+                      if (!recordForm.tenantId) return
+                      if (hasLeasePeriods ? leaseBillingPeriods.length > 0 : recordDuePayments.length > 0) setIsBillingOpen(!isBillingOpen)
                     }}
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
                       isDark
                         ? 'bg-[#111D32] border-[#1E293B] text-white hover:border-primary/40'
                         : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
-                    } ${(!recordForm.tenantId || recordDuePayments.length === 0) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    } ${(!recordForm.tenantId || (hasLeasePeriods ? leaseBillingPeriods.length === 0 : recordDuePayments.length === 0)) ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
-                    <span className={!recordForm.paymentId ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
-                      {recordForm.paymentId
+                    <span className={!(recordForm.leasePeriodKey || recordForm.paymentId) ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}>
+                      {hasLeasePeriods && recordForm.leasePeriodKey
                         ? (() => {
-                            const p = recordDuePayments.find((payment) => payment.id === recordForm.paymentId)
-                            if (!p) return 'Select billing period'
-                            const periodLabelText = p.period_from && p.period_to
-                              ? `${new Date(p.period_from + 'T00:00:00').toLocaleDateString()} - ${new Date(p.period_to + 'T00:00:00').toLocaleDateString()}`
-                              : new Date(p.payment_date).toLocaleDateString()
-                            return `${periodLabelText} • ₱${Number(p.amount).toLocaleString()} • ${p.status}`
+                            const lp = leaseBillingPeriods.find(p => p.key === recordForm.leasePeriodKey)
+                            if (!lp) return 'Select billing period'
+                            const statusLabel = lp.existingPayment?.status === 'paid' ? '✓ Paid' : lp.existingPayment?.status === 'overdue' ? 'Overdue' : lp.existingPayment ? 'Pending' : 'Available'
+                            return `${lp.label} • ${statusLabel} • ${lp.type.charAt(0).toUpperCase() + lp.type.slice(1).replace('_', ' ')}`
                           })()
-                        : !recordForm.tenantId
-                          ? 'Select tenant first'
-                          : recordDuePayments.length === 0
-                            ? 'No pending/overdue billings'
-                            : 'Select billing period'}
+                        : recordForm.paymentId
+                          ? (() => {
+                              const p = recordDuePayments.find((payment) => payment.id === recordForm.paymentId)
+                              if (!p) return 'Select billing period'
+                              const periodLabelText = p.period_from && p.period_to
+                                ? `${new Date(p.period_from + 'T00:00:00').toLocaleDateString()} - ${new Date(p.period_to + 'T00:00:00').toLocaleDateString()}`
+                                : new Date(p.payment_date).toLocaleDateString()
+                              return `${periodLabelText} • ₱${Number(p.amount).toLocaleString()} • ${p.status}`
+                            })()
+                          : !recordForm.tenantId
+                            ? 'Select tenant first'
+                            : (hasLeasePeriods ? leaseBillingPeriods.length === 0 : recordDuePayments.length === 0)
+                              ? 'No billing periods available'
+                              : 'Select billing period'}
                     </span>
                     <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isBillingOpen ? 'rotate-180' : ''}`} />
                   </button>
@@ -738,80 +982,116 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
                       isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
                     }`}
                   >
-                    {recordDuePayments.map((payment) => {
-                      const periodLabelText = payment.period_from && payment.period_to
-                        ? `${new Date(payment.period_from + 'T00:00:00').toLocaleDateString()} - ${new Date(payment.period_to + 'T00:00:00').toLocaleDateString()}`
-                        : new Date(payment.payment_date).toLocaleDateString()
-                      return (
-                        <button
-                          type="button"
-                          key={payment.id}
-                          onClick={() => {
-                            setRecordForm(f => ({ ...f, paymentId: payment.id }))
-                            setIsBillingOpen(false)
-                          }}
-                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                            recordForm.paymentId === payment.id
-                              ? 'bg-primary text-white font-medium'
-                              : isDark
-                                ? 'text-gray-300 hover:bg-white/5'
-                                : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          {periodLabelText} • ₱{Number(payment.amount).toLocaleString()} • {payment.status}
-                        </button>
-                      )
-                    })}
+                    {hasLeasePeriods ? (
+                      leaseBillingPeriods.map((period) => {
+                        const isPaid = period.existingPayment?.status === 'paid'
+                        const statusLabel = isPaid ? '✓ Paid' : period.existingPayment?.status === 'overdue' ? 'Overdue' : period.existingPayment ? 'Pending' : 'Available'
+                        const typeLabel = period.type === 'advance' ? 'Advance' : period.type === 'late' ? 'Late' : 'On Time'
+                        const statusColor = isPaid
+                          ? 'text-green-500'
+                          : period.existingPayment?.status === 'overdue'
+                            ? 'text-red-500'
+                            : period.existingPayment
+                              ? 'text-yellow-500'
+                              : 'text-blue-400'
+                        return (
+                          <button
+                            type="button"
+                            key={period.key}
+                            disabled={isPaid}
+                            onClick={() => {
+                              if (isPaid) return
+                              setRecordForm(f => ({
+                                ...f,
+                                leasePeriodKey: period.key,
+                                paymentId: period.existingPayment?.id || '',
+                                paymentType: period.type,
+                              }))
+                              setIsBillingOpen(false)
+                            }}
+                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between ${
+                              isPaid
+                                ? 'opacity-40 cursor-not-allowed'
+                                : recordForm.leasePeriodKey === period.key
+                                  ? 'bg-primary text-white font-medium'
+                                  : isDark
+                                    ? 'text-gray-300 hover:bg-white/5'
+                                    : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span>{period.label}</span>
+                            <span className={`text-xs font-medium ${recordForm.leasePeriodKey === period.key && !isPaid ? 'text-white' : statusColor}`}>
+                              {statusLabel} · {typeLabel}
+                            </span>
+                          </button>
+                        )
+                      })
+                    ) : (
+                      recordDuePayments.map((payment) => {
+                        const periodLabelText = payment.period_from && payment.period_to
+                          ? `${new Date(payment.period_from + 'T00:00:00').toLocaleDateString()} - ${new Date(payment.period_to + 'T00:00:00').toLocaleDateString()}`
+                          : new Date(payment.payment_date).toLocaleDateString()
+                        return (
+                          <button
+                            type="button"
+                            key={payment.id}
+                            onClick={() => {
+                              setRecordForm(f => ({ ...f, paymentId: payment.id, leasePeriodKey: '' }))
+                              setIsBillingOpen(false)
+                            }}
+                            className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                              recordForm.paymentId === payment.id
+                                ? 'bg-primary text-white font-medium'
+                                : isDark
+                                  ? 'text-gray-300 hover:bg-white/5'
+                                  : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            {periodLabelText} • ₱{Number(payment.amount).toLocaleString()} • {payment.status}
+                          </button>
+                        )
+                      })
+                    )}
                   </div>
                   )}
                 </div>
               </div>
 
               {/* Payment Type */}
+              {hasLeasePeriods && recordForm.leasePeriodKey && (
+                <div>
+                  <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Payment Type
+                  </label>
+                  <div
+                    className={`w-full px-3 py-2.5 rounded-lg border text-sm font-medium ${
+                      isDark ? 'bg-[#0A1628] border-[#1E293B]' : 'bg-gray-50 border-gray-200'
+                    } ${
+                      recordForm.paymentType === 'advance'
+                        ? 'text-blue-400'
+                        : recordForm.paymentType === 'late'
+                          ? 'text-red-400'
+                          : isDark ? 'text-green-400' : 'text-green-600'
+                    }`}
+                  >
+                    {recordForm.paymentType === 'advance' ? '⏩ Advance Payment' : recordForm.paymentType === 'late' ? '⚠️ Late Payment' : '✅ On Time'}
+                  </div>
+                </div>
+              )}
+
+              {/* Mode of Payment (fixed to Cash) */}
               <div>
                 <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Payment Mode
+                  Mode of Payment
                 </label>
-                <div ref={paymentModeDropdownRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsPaymentModeOpen(!isPaymentModeOpen)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
-                      isDark
-                        ? 'bg-[#111D32] border-[#1E293B] text-white hover:border-primary/40'
-                        : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
-                    }`}
-                  >
-                    <span>
-                      {recordForm.paymentMode === 'gcash' ? 'GCash' : recordForm.paymentMode === 'maya' ? 'Maya' : recordForm.paymentMode === 'cash' ? 'Cash' : 'Bank Transfer'}
-                    </span>
-                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPaymentModeOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {isPaymentModeOpen && (
-                  <div
-                    className={`absolute left-0 top-full mt-1 z-50 w-full rounded-lg border shadow-lg overflow-hidden ${
-                      isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
-                    }`}
-                  >
-                    {([['cash', 'Cash'], ['gcash', 'GCash'], ['maya', 'Maya'], ['bank_transfer', 'Bank Transfer']] as const).map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => {
-                          setRecordForm(f => ({ ...f, paymentMode: value }))
-                          setIsPaymentModeOpen(false)
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                          recordForm.paymentMode === value
-                            ? 'bg-primary text-white font-medium'
-                            : isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  )}
+                <div
+                  className={`w-full px-3 py-2.5 rounded-lg border text-sm ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white'
+                      : 'bg-gray-50 border-gray-200 text-gray-900'
+                  }`}
+                >
+                  Cash
                 </div>
               </div>
 

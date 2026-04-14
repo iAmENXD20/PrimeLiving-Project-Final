@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wrench, Building2, PhilippinePeso, Bell, Settings, LogOut, X } from 'lucide-react'
+import { LayoutDashboard, Wrench, Building2, PhilippinePeso, FileText, Bell, Settings, LogOut, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { supabase } from '../../lib/supabase'
@@ -8,6 +8,7 @@ interface ManagerSidebarProps {
   onTabChange: (tab: string) => void
   isOpen: boolean
   onClose: () => void
+  managerName?: string
   pendingMaintenanceCount?: number
   notificationCount?: number
 }
@@ -16,15 +17,20 @@ const navItems = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'maintenance', label: 'Maintenance', icon: Wrench },
   { id: 'manage-apartment', label: 'Manage Apartment', icon: Building2 },
-  { id: 'payments', label: 'Payments', icon: PhilippinePeso },
+  { id: 'payments', label: 'Payment History', icon: PhilippinePeso },
+  { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'settings', label: 'Account Settings', icon: Settings },
 ]
 
-export default function ManagerSidebar({ activeTab, onTabChange, isOpen, onClose, pendingMaintenanceCount = 0, notificationCount = 0 }: ManagerSidebarProps) {
+export default function ManagerSidebar({ activeTab, onTabChange, isOpen, onClose, managerName, pendingMaintenanceCount = 0, notificationCount = 0 }: ManagerSidebarProps) {
   const { isDark } = useTheme()
   const navigate = useNavigate()
   const unreadCount = Number.isFinite(notificationCount) ? Math.max(0, Math.floor(notificationCount)) : 0
+
+  const initials = managerName
+    ? managerName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : ''
 
   const handleLogout = async () => {
     await supabase.auth.signOut({ scope: 'local' })
@@ -39,12 +45,17 @@ export default function ManagerSidebar({ activeTab, onTabChange, isOpen, onClose
           : 'bg-white border-gray-200'
       } ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
     >
-      {/* Logo + Close button */}
+      {/* Profile + Close button */}
       <div className="flex items-center justify-between px-5 py-5">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-            <Building2 className="w-5 h-5 text-white" />
+          <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center">
+            <span className="text-sm font-bold text-white leading-none">{initials}</span>
           </div>
+          {managerName && (
+            <span className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {managerName}
+            </span>
+          )}
         </div>
         <button
           onClick={onClose}

@@ -45,19 +45,6 @@ export default function ManagerTopBar({ onMenuToggle, managerName }: ManagerTopB
         >
           {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
-
-        <div className="flex items-center gap-2 px-3 py-1.5">
-          <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center ${
-              isDark ? 'bg-[#1E293B]' : 'bg-gray-100'
-            }`}
-          >
-            <User className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-          </div>
-          <span className={`text-sm font-medium hidden sm:block ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            {managerName || 'Apartment Manager'}
-          </span>
-        </div>
       </div>
     </header>
   )

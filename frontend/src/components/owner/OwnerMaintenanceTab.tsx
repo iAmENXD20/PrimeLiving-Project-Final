@@ -11,7 +11,7 @@ import {
 import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
-const STATUSES = ['all', 'pending', 'in_progress', 'resolved', 'closed'] as const
+const STATUSES = ['all', 'pending', 'in_progress', 'resolved'] as const
 type StatusFilter = (typeof STATUSES)[number]
 
 const PRIORITIES = ['all', 'low', 'medium', 'high', 'urgent'] as const
@@ -21,7 +21,6 @@ const statusColor: Record<string, string> = {
   pending: 'bg-yellow-500/15 text-yellow-500',
   in_progress: 'bg-blue-400/15 text-blue-400',
   resolved: 'bg-green-400/15 text-green-500',
-  closed: 'bg-gray-400/15 text-gray-400',
 }
 
 const priorityColor: Record<string, string> = {
@@ -148,7 +147,7 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
     <div className="space-y-6 animate-fade-up">
       {/* Header */}
       <div>
-        <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Maintenance Requests</h2>
+        <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Maintenance Request History</h2>
         <p className={`text-base mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
           Monitor maintenance requests from your tenants. The manager handles all actions.
         </p>

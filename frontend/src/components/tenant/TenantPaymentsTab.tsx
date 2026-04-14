@@ -39,6 +39,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
   const paymentModeRef = useRef<HTMLDivElement>(null)
   const [isBillingMenuOpen, setIsBillingMenuOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [paymentDescription, setPaymentDescription] = useState('')
   const [duePage, setDuePage] = useState(1)
   const [historyPage, setHistoryPage] = useState(1)
   const pageSize = 10
@@ -287,7 +288,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
         receipt_url: receiptUrl,
         period_from: selectedDue.period_from,
         period_to: selectedDue.period_to,
-        description: `Tenant payment proof submitted for ${selectedDue.period_from} to ${selectedDue.period_to}`,
+        description: paymentDescription.trim() || `Tenant payment proof submitted for ${selectedDue.period_from} to ${selectedDue.period_to}`,
         payment_mode: selectedPaymentMode,
       })
 
@@ -315,6 +316,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
     localStorage.removeItem(RECEIPT_KEY)
     setReceiptUrl(null)
     setSelectedDuePaymentId('')
+    setPaymentDescription('')
     if (receiptInputRef.current) receiptInputRef.current.value = ''
     setSubmitting(false)
   }
@@ -628,6 +630,24 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
                   </button>
                 )}
               </div>
+
+            {/* Description (Optional) */}
+            <div>
+              <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Description <span className={`text-xs font-normal ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>(optional)</span>
+              </label>
+              <textarea
+                value={paymentDescription}
+                onChange={(e) => setPaymentDescription(e.target.value)}
+                placeholder="Add a note about this payment..."
+                rows={2}
+                className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-all resize-none ${
+                  isDark
+                    ? 'bg-[#111D32] border-[#1E293B] text-white placeholder-gray-500 focus:border-primary/40'
+                    : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-primary/40'
+                } focus:outline-none focus:ring-1 focus:ring-primary/20`}
+              />
+            </div>
 
             {/* Submit Button */}
             <button

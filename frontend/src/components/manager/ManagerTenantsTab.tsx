@@ -1,4 +1,4 @@
-import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, ChevronDown } from 'lucide-react'
+import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail, ChevronDown, Eye } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
@@ -47,6 +47,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
   const [emailCooldown, setEmailCooldown] = useState(0)
   const [tenantToDelete, setTenantToDelete] = useState<TenantAccount | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [viewTenant, setViewTenant] = useState<TenantAccount | null>(null)
   const [page, setPage] = useState(1)
   const pageSize = 10
   const tenantEmailValidation = useEmailValidation(form.email)
@@ -300,7 +301,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
             <table className="w-full text-base">
               <thead>
                 <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                  {['No.', 'Name', 'Email', 'Phone', 'Unit', 'Status', ''].map((h) => (
+                  {['No.', 'Name', 'Email', 'Phone', 'Unit/Room', 'Status', 'Action'].map((h) => (
                     <th key={h} className={`text-left py-3.5 px-4 font-medium ${h === 'No.' ? 'w-16 text-center' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {h}
                     </th>
@@ -358,14 +359,25 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                         </span>
                       </td>
                       <td className="py-3.5 px-4 relative">
-                        <button
-                          onClick={() => setOpenMenu(openMenu === tenant.id ? null : tenant.id)}
-                          className={`p-2 rounded-lg transition-colors ${
-                            isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
-                          }`}
-                        >
-                          <MoreHorizontal className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setViewTenant(tenant)}
+                            title="View tenant details"
+                            className={`p-2 rounded-lg transition-colors ${
+                              isDark ? 'hover:bg-white/10 text-gray-400 hover:text-primary' : 'hover:bg-gray-100 text-gray-500 hover:text-primary'
+                            }`}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setOpenMenu(openMenu === tenant.id ? null : tenant.id)}
+                            className={`p-2 rounded-lg transition-colors ${
+                              isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                            }`}
+                          >
+                            <MoreHorizontal className="w-4 h-4" />
+                          </button>
+                        </div>
                         {openMenu === tenant.id && (
                           <div
                             className={`absolute right-4 top-14 z-20 w-36 rounded-lg border shadow-lg py-1 ${
@@ -707,6 +719,58 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
           if (tenantToDelete) handleDelete(tenantToDelete.id)
         }}
       />
+
+      {/* View Tenant Detail Modal */}
+      {viewTenant && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 animate-in fade-in duration-200"
+          onClick={() => setViewTenant(null)}
+        >
+          <div
+            className={`rounded-2xl p-6 max-w-lg w-full mx-4 animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Tenant Information
+              </h4>
+              <button onClick={() => setViewTenant(null)} className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
+                <X className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+              </button>
+            </div>
+
+            <div className={`rounded-xl border p-4 space-y-3 text-sm ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
+              {[
+                ['Tenant ID', viewTenant.id],
+                ['Name', `${viewTenant.first_name} ${viewTenant.last_name}`],
+                ['Email', viewTenant.email || '—'],
+                ['Phone', viewTenant.phone || '—'],
+                ['Unit/Room', viewTenant.apartment_name || '—'],
+                ['Status', viewTenant.status === 'pending_verification' ? 'Awaiting Approval' : viewTenant.status === 'pending' ? 'Pending' : viewTenant.status],
+                ['Move-in Date', viewTenant.move_in_date ? new Date(viewTenant.move_in_date + 'T00:00:00').toLocaleDateString() : '—'],
+                ['Created', new Date(viewTenant.created_at).toLocaleDateString()],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-start gap-2">
+                  <span className={`font-semibold min-w-[100px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{label}:</span>
+                  <span className={`${isDark ? 'text-gray-200' : 'text-gray-800'} ${label === 'Tenant ID' ? 'font-mono text-xs break-all' : ''}`}>{value}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end mt-5">
+              <button
+                onClick={() => setViewTenant(null)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isDark ? 'bg-[#1E293B] text-gray-300 hover:bg-[#2a3a52]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   )
 }

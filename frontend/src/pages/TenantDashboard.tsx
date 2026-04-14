@@ -194,6 +194,7 @@ export default function TenantDashboard() {
         onTabChange={handleTabChange}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        tenantName={tenant ? `${tenant.first_name} ${tenant.last_name}`.trim() : undefined}
         notificationCount={notificationCount}
       />
 

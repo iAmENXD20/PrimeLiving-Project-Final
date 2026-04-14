@@ -277,7 +277,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
         <div className={`${cardClass} flex flex-col min-h-0`}>
           <div className="flex items-center gap-2 mb-3">
             <Clock className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>History</h3>
+            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Recent Histories</h3>
           </div>
 
           {historyItems.length === 0 && !loading && (

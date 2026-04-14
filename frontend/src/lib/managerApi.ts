@@ -137,6 +137,9 @@ export interface UnitWithTenant {
   id: string
   name: string
   monthly_rent: number
+  contract_duration: number | null
+  lease_start: string | null
+  lease_end: string | null
   apartmentowner_id: string | null
   manager_id: string | null
   status: string
@@ -162,9 +165,23 @@ export async function getManagedApartments(managerId: string) {
 // ── Update a unit (name, rent) ─────────────────────────────
 export async function updateManagerUnit(
   unitId: string,
-  updates: { name?: string; monthly_rent?: number },
+  updates: { name?: string; monthly_rent?: number; contract_duration?: number | null; lease_start?: string | null; lease_end?: string | null },
 ) {
   await api.put(`/apartments/${unitId}`, updates)
+}
+
+// ── Unit Occupants ─────────────────────────────────────────
+export interface UnitOccupant {
+  id: string
+  unit_id: string
+  tenant_id: string
+  full_name: string
+  id_photo_url: string | null
+  created_at: string
+}
+
+export async function getUnitOccupants(unitId: string): Promise<UnitOccupant[]> {
+  return api.get<UnitOccupant[]>(`/apartments/occupants/${unitId}`)
 }
 
 // ── Assign or update tenant on a unit ──────────────────────

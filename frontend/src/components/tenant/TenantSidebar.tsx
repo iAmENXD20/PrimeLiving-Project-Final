@@ -8,6 +8,7 @@ interface TenantSidebarProps {
   onTabChange: (tab: string) => void
   isOpen: boolean
   onClose: () => void
+  tenantName?: string
   notificationCount?: number
 }
 
@@ -20,10 +21,14 @@ const navItems = [
   { id: 'account', label: 'Account Settings', icon: Settings },
 ]
 
-export default function TenantSidebar({ activeTab, onTabChange, isOpen, onClose, notificationCount = 0 }: TenantSidebarProps) {
+export default function TenantSidebar({ activeTab, onTabChange, isOpen, onClose, tenantName, notificationCount = 0 }: TenantSidebarProps) {
   const { isDark } = useTheme()
   const navigate = useNavigate()
   const unreadCount = Number.isFinite(notificationCount) ? Math.max(0, Math.floor(notificationCount)) : 0
+
+  const initials = tenantName
+    ? tenantName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : ''
 
   const handleLogout = async () => {
     await supabase.auth.signOut({ scope: 'local' })
@@ -38,12 +43,17 @@ export default function TenantSidebar({ activeTab, onTabChange, isOpen, onClose,
           : 'bg-white border-gray-200'
       } ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
     >
-      {/* Logo + Close button */}
+      {/* Profile + Close button */}
       <div className="flex items-center justify-between px-5 py-5">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-            <Building2 className="w-5 h-5 text-white" />
+          <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center">
+            <span className="text-sm font-bold text-white leading-none">{initials}</span>
           </div>
+          {tenantName && (
+            <span className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {tenantName}
+            </span>
+          )}
         </div>
         <button
           onClick={onClose}

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, Filter, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Filter, ChevronDown, X, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { toast } from 'sonner'
 import { getManagerMaintenanceRequests, updateMaintenanceStatus, type MaintenanceRequest } from '../../lib/managerApi'
@@ -58,6 +58,8 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
   const [photoModalIndex, setPhotoModalIndex] = useState(0)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [requestToClose, setRequestToClose] = useState<MaintenanceRequest | null>(null)
+  const [selectedRequest, setSelectedRequest] = useState<MaintenanceRequest | null>(null)
+  const [statusChangeLoading, setStatusChangeLoading] = useState(false)
   const [page, setPage] = useState(1)
   const pageSize = 10
   const statusRef = useRef<HTMLDivElement>(null)
@@ -291,7 +293,7 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
           <table className="w-full text-base bg-transparent">
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B] bg-[#0F1B30]' : 'border-gray-200 bg-white'}`}>
-                {['Title', 'Names', 'Photo', 'Priority', 'Status', 'Actions', 'Date'].map((h) => (
+                {['No.', 'Names', 'Description', 'Photo', 'Priority', 'Status', 'Date', 'View'].map((h) => (
                   <th key={h} className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {h}
                   </th>
@@ -299,15 +301,18 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
               </tr>
             </thead>
             <tbody>
-              {paginated.map((req) => (
+              {paginated.map((req, idx) => (
                 <tr key={req.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B] hover:bg-white/[0.02]' : 'border-gray-100 hover:bg-gray-50'}`}>
+                  <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {(page - 1) * pageSize + idx + 1}
+                  </td>
+                  <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{req.tenant_name}</td>
                   <td className="py-3 px-4">
                     <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{req.title}</p>
                     <p className={`text-sm mt-0.5 truncate max-w-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                       {req.description}
                     </p>
                   </td>
-                  <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{req.tenant_name}</td>
                   <td className="py-3 px-4">
                     {(() => {
                       const urls = parsePhotoUrls(req.photo_url)
@@ -340,55 +345,17 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
                       {req.status.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="py-3 px-4">
-                    <div className="flex flex-wrap gap-2">
-                      {req.status === 'pending' && (
-                        <>
-                          <button
-                            onClick={() => handleStatusChange(req.id, 'in_progress')}
-                            disabled={updatingId === req.id}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
-                          >
-                            Start
-                          </button>
-                          <button
-                            onClick={() => handleStatusChange(req.id, 'closed')}
-                            disabled={updatingId === req.id}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-500/15 text-gray-400 hover:bg-gray-500/25 transition-colors disabled:opacity-50"
-                          >
-                            Close
-                          </button>
-                        </>
-                      )}
-
-                      {req.status === 'in_progress' && (
-                        <>
-                          <button
-                            onClick={() => handleStatusChange(req.id, 'resolved')}
-                            disabled={updatingId === req.id}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
-                          >
-                            Resolve
-                          </button>
-                          <button
-                            onClick={() => handleStatusChange(req.id, 'closed')}
-                            disabled={updatingId === req.id}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-500/15 text-gray-400 hover:bg-gray-500/25 transition-colors disabled:opacity-50"
-                          >
-                            Close
-                          </button>
-                        </>
-                      )}
-
-                      {(req.status === 'resolved' || req.status === 'closed') && (
-                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                          No further action
-                        </span>
-                      )}
-                    </div>
-                  </td>
                   <td className={`py-3 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {new Date(req.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="py-3 px-4">
+                    <button
+                      onClick={() => setSelectedRequest(req)}
+                      className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                      title="View details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -469,6 +436,137 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
                 ))}
               </div>
             )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Maintenance Request Detail Modal */}
+      {selectedRequest && createPortal(
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/65 animate-in fade-in duration-200"
+          onClick={() => setSelectedRequest(null)}
+        >
+          <div
+            className={`rounded-2xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111D32]' : 'bg-white'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Maintenance Request Details
+              </h4>
+              <button onClick={() => setSelectedRequest(null)} className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
+                <X className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Title */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Title</label>
+                <p className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedRequest.title}</p>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Description</label>
+                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{selectedRequest.description}</p>
+              </div>
+
+              {/* Tenant */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Tenant</label>
+                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{selectedRequest.tenant_name || '—'}</p>
+              </div>
+
+              {/* Branch */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Branch</label>
+                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{selectedRequest.apartment_name || '—'}</p>
+              </div>
+
+              {/* Priority */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Priority</label>
+                <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${priorityColor[selectedRequest.priority] || ''}`}>
+                  {selectedRequest.priority}
+                </span>
+              </div>
+
+              {/* Photo */}
+              {(() => {
+                const urls = parsePhotoUrls(selectedRequest.photo_url)
+                return urls.length > 0 ? (
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Photos</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {urls.map((url, i) => (
+                        <button key={i} type="button" onClick={() => { setSelectedRequest(null); openPhotoModal(urls, i) }}>
+                          <img
+                            src={url}
+                            alt={`Evidence ${i + 1}`}
+                            className={`w-16 h-16 object-cover rounded-lg border hover:opacity-80 transition-opacity ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              })()}
+
+              {/* Date */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Date Submitted</label>
+                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{new Date(selectedRequest.created_at).toLocaleDateString()}</p>
+              </div>
+
+              {/* Status with Change */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Status</label>
+                <div className="flex items-center gap-3">
+                  <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor[selectedRequest.status] || ''}`}>
+                    {selectedRequest.status.replace('_', ' ')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Status Change Buttons */}
+              {selectedRequest.status !== 'resolved' && selectedRequest.status !== 'closed' && (
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Update Status</label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRequest.status === 'pending' && (
+                      <button
+                        onClick={async () => {
+                          setStatusChangeLoading(true)
+                          await performStatusChange(selectedRequest.id, 'in_progress')
+                          setSelectedRequest({ ...selectedRequest, status: 'in_progress' })
+                          setStatusChangeLoading(false)
+                        }}
+                        disabled={statusChangeLoading}
+                        className="px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
+                      >
+                        Start (In Progress)
+                      </button>
+                    )}
+                    {(selectedRequest.status === 'pending' || selectedRequest.status === 'in_progress') && (
+                      <button
+                        onClick={async () => {
+                          setStatusChangeLoading(true)
+                          await performStatusChange(selectedRequest.id, 'resolved')
+                          setSelectedRequest({ ...selectedRequest, status: 'resolved' })
+                          setStatusChangeLoading(false)
+                        }}
+                        disabled={statusChangeLoading}
+                        className="px-3 py-1.5 rounded-lg text-sm font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
+                      >
+                        Resolve
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>,
         document.body

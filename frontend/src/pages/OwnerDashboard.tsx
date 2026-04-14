@@ -10,8 +10,8 @@ const OwnerManageApartmentTab = lazy(() => import('../components/owner/OwnerMana
 const OwnerAccountTab = lazy(() => import('../components/owner/OwnerAccountTab'))
 const OwnerMaintenanceTab = lazy(() => import('../components/owner/OwnerMaintenanceTab'))
 const OwnerPaymentsTab = lazy(() => import('../components/owner/OwnerPaymentsTab'))
-const OwnerDocumentsTab = lazy(() => import('../components/owner/OwnerDocumentsTab'))
 const OwnerApartmentLogsTab = lazy(() => import('../components/owner/OwnerApartmentLogsTab'))
+const OwnerAuditReportsTab = lazy(() => import('../components/owner/OwnerAuditReportsTab'))
 
 export default function OwnerDashboard() {
   const { isDark } = useTheme()
@@ -80,10 +80,10 @@ export default function OwnerDashboard() {
         return <OwnerMaintenanceTab ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
       case 'payments':
         return <OwnerPaymentsTab ownerId={owner.id} />
-      case 'documents':
-        return <OwnerDocumentsTab ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
-      case 'audit-reports':
+      case 'activity-logs':
         return <OwnerApartmentLogsTab ownerId={owner.id} />
+      case 'audit-reports':
+        return <OwnerAuditReportsTab ownerId={owner.id} />
       case 'account':
         return <OwnerAccountTab ownerId={owner.id} />
       default:

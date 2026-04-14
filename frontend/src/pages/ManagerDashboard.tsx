@@ -13,6 +13,7 @@ const ManagerMaintenanceTab = lazy(() => import('../components/manager/ManagerMa
 const ManagerManageApartmentTab = lazy(() => import('../components/manager/ManagerManageApartmentTab'))
 const ManagerSettingsTab = lazy(() => import('../components/manager/ManagerSettingsTab'))
 const ManagerPaymentsTab = lazy(() => import('../components/manager/ManagerPaymentsTab'))
+const ManagerDocumentsTab = lazy(() => import('../components/manager/ManagerDocumentsTab'))
 const ManagerNotificationsTab = lazy(() => import('../components/manager/ManagerNotificationsTab'))
 
 export default function ManagerDashboard() {
@@ -122,19 +123,21 @@ export default function ManagerDashboard() {
 
     switch (activeTab) {
       case 'overview':
-        return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} />
+        return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
       case 'maintenance':
         return <ManagerMaintenanceTab managerId={manager.id} />
       case 'manage-apartment':
         return <ManagerManageApartmentTab managerId={manager.id} managerName={manager.name} />
       case 'payments':
         return <ManagerPaymentsTab managerId={manager.id} />
+      case 'documents':
+        return <ManagerDocumentsTab managerId={manager.id} />
       case 'notifications':
         return <ManagerNotificationsTab managerId={manager.id} ownerId={manager.ownerId || ''} onRead={refreshNotificationCount} />
       case 'settings':
         return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} ownerId={manager.ownerId} />
       default:
-        return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} />
+        return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
     }
   }
 
@@ -158,6 +161,7 @@ export default function ManagerDashboard() {
         onTabChange={handleTabChange}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        managerName={manager?.name}
         pendingMaintenanceCount={pendingMaintenanceCount}
         notificationCount={notificationCount}
       />

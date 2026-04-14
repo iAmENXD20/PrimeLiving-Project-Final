@@ -1,4 +1,4 @@
-import { ChevronDown, UserMinus, X } from 'lucide-react'
+import { ChevronDown, UserMinus, X, Users, Eye } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
@@ -15,8 +15,10 @@ import {
   updateManagerUnit,
   assignExistingTenantToUnit,
   removeTenantFromUnit,
+  getUnitOccupants,
   type UnitWithTenant,
   type TenantAccount,
+  type UnitOccupant,
 } from '../../lib/managerApi'
 
 interface ManagerApartmentsTabProps {
@@ -33,11 +35,14 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
   // Edit modal
   const [selectedUnit, setSelectedUnit] = useState<UnitWithTenant | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [editForm, setEditForm] = useState({ name: '', tenantId: '', monthlyRent: '', billingStartAt: todayDate })
+  const [editForm, setEditForm] = useState({ name: '', tenantId: '', monthlyRent: '', billingStartAt: todayDate, contractDuration: '', leaseStart: '', leaseEnd: '' })
   const [emptyingUnitId, setEmptyingUnitId] = useState<string | null>(null)
   const [unitToEmpty, setUnitToEmpty] = useState<UnitWithTenant | null>(null)
   const [isTenantDropdownOpen, setIsTenantDropdownOpen] = useState(false)
   const tenantDropdownRef = useRef<HTMLDivElement>(null)
+  const [occupants, setOccupants] = useState<UnitOccupant[]>([])
+  const [loadingOccupants, setLoadingOccupants] = useState(false)
+  const [viewingIdPhoto, setViewingIdPhoto] = useState<string | null>(null)
 
   useEffect(() => {
     loadUnits()
@@ -84,8 +89,21 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
       tenantId: unit.tenant_id || '',
       monthlyRent: unit.monthly_rent?.toString() || '',
       billingStartAt: assignedTenant?.move_in_date?.slice(0, 10) || todayDate,
+      contractDuration: unit.contract_duration?.toString() || '',
+      leaseStart: unit.lease_start?.slice(0, 10) || '',
+      leaseEnd: unit.lease_end?.slice(0, 10) || '',
     })
     setShowEditModal(true)
+
+    // Load occupants for this unit
+    setOccupants([])
+    if (unit.tenant_id) {
+      setLoadingOccupants(true)
+      getUnitOccupants(unit.id)
+        .then(setOccupants)
+        .catch(() => setOccupants([]))
+        .finally(() => setLoadingOccupants(false))
+    }
   }
 
   async function handleEditUnit() {
@@ -95,6 +113,9 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
       await updateManagerUnit(selectedUnit.id, {
         name: editForm.name,
         monthly_rent: Number(editForm.monthlyRent) || 0,
+        contract_duration: editForm.contractDuration ? Number(editForm.contractDuration) : null,
+        lease_start: editForm.leaseStart || null,
+        lease_end: editForm.leaseEnd || null,
       })
 
       const hadTenant = !!selectedUnit.tenant_id
@@ -304,6 +325,31 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                         {unit.monthly_rent ? `₱${unit.monthly_rent.toLocaleString()}` : '—'}
                       </span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Contract Duration</span>
+                      <span className={`ml-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {unit.contract_duration ? `${unit.contract_duration} month${unit.contract_duration > 1 ? 's' : ''}` : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Lease Duration</span>
+                      <span className={`ml-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {unit.lease_start && unit.lease_end ? (() => {
+                          const start = new Date(unit.lease_start!)
+                          const end = new Date(unit.lease_end!)
+                          const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth())
+                          return `${months} month${months !== 1 ? 's' : ''}`
+                        })() : '—'}
+                      </span>
+                    </div>
+                    {unit.lease_start && unit.lease_end && (
+                      <div className="flex justify-between">
+                        <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Lease Period</span>
+                        <span className={`ml-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {new Date(unit.lease_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {new Date(unit.lease_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+                    )}
 
                     {isOccupied && (
                       <div className="pt-2 flex justify-end">
@@ -343,13 +389,13 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/65 animate-in fade-in duration-200" onClick={() => setShowEditModal(false)} />
           <div
-            className={`relative w-full max-w-md rounded-xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${
+            className={`relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${
               isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
             }`}
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Edit Unit
+                Edit Unit Information
               </h3>
               <button
                 onClick={() => setShowEditModal(false)}
@@ -364,9 +410,9 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                 <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Unit Name</Label>
                 <Input
                   value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  placeholder="Unit 1"
-                  className={`mt-2 ${inputClass}`}
+                  readOnly
+                  disabled
+                  className={`mt-2 ${inputClass} opacity-60 cursor-not-allowed`}
                 />
               </div>
               <div>
@@ -442,6 +488,51 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                   className={`mt-2 ${inputClass}`}
                 />
               </div>
+              <div>
+                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Contract Duration (months)</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={editForm.contractDuration}
+                  onChange={(e) => setEditForm({ ...editForm, contractDuration: e.target.value })}
+                  placeholder="e.g. 6, 12"
+                  className={`mt-2 ${inputClass}`}
+                />
+              </div>
+              <div>
+                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Lease Period</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>From</span>
+                    <Input
+                      type="date"
+                      value={editForm.leaseStart}
+                      onChange={(e) => setEditForm({ ...editForm, leaseStart: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>To</span>
+                    <Input
+                      type="date"
+                      value={editForm.leaseEnd}
+                      min={editForm.leaseStart || undefined}
+                      onChange={(e) => setEditForm({ ...editForm, leaseEnd: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+                {editForm.leaseStart && editForm.leaseEnd && (
+                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Duration: {(() => {
+                      const s = new Date(editForm.leaseStart)
+                      const e = new Date(editForm.leaseEnd)
+                      const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth())
+                      return `${months} month${months !== 1 ? 's' : ''}`
+                    })()}
+                  </p>
+                )}
+              </div>
               {editForm.tenantId && (
                 <div>
                   <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Billing Start Date</Label>
@@ -452,6 +543,46 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                     className="mt-2"
                     upward
                   />
+                </div>
+              )}
+
+              {/* Occupants / Co-Residents */}
+              {editForm.tenantId && (
+                <div>
+                  <Label className={`flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <Users className="w-4 h-4" />
+                    Occupants / Co-Residents
+                  </Label>
+                  <div className={`mt-2 rounded-lg border p-3 space-y-2 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
+                    {loadingOccupants ? (
+                      <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Loading occupants...</p>
+                    ) : occupants.length === 0 ? (
+                      <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No occupants registered by tenant</p>
+                    ) : (
+                      occupants.map((occ) => (
+                        <div
+                          key={occ.id}
+                          className={`flex items-center justify-between py-2 px-3 rounded-lg ${isDark ? 'bg-[#111C32]' : 'bg-white'}`}
+                        >
+                          <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                            {occ.full_name}
+                          </span>
+                          {occ.id_photo_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setViewingIdPhoto(occ.id_photo_url)}
+                              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              View ID
+                            </button>
+                          ) : (
+                            <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No ID uploaded</span>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -488,6 +619,27 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
           if (unitToEmpty) handleEmptyUnit(unitToEmpty)
         }}
       />
+
+      {/* ID Photo Viewer Modal */}
+      {viewingIdPhoto && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setViewingIdPhoto(null)} />
+          <div className="relative max-w-lg w-full">
+            <button
+              onClick={() => setViewingIdPhoto(null)}
+              className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-white text-gray-900 flex items-center justify-center shadow-lg hover:bg-gray-100"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <img
+              src={viewingIdPhoto}
+              alt="Occupant ID"
+              className="w-full rounded-xl shadow-2xl"
+            />
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   )
 }
