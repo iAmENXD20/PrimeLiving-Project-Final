@@ -201,7 +201,7 @@ export default function TenantDashboard() {
       />
 
       {/* Main content area */}
-      <div className="lg:ml-60 flex flex-col min-h-screen">
+      <div className="lg:ml-64 flex flex-col min-h-screen">
         <TenantTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           tenantName={tenant ? `${tenant.first_name} ${tenant.last_name}`.trim() : undefined}

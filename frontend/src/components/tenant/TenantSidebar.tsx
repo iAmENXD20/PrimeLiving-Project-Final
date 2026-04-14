@@ -14,7 +14,7 @@ interface TenantSidebarProps {
 
 const navItems = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'maintenance', label: 'Maintenance', icon: Wrench },
+  { id: 'maintenance', label: 'Request Maintenance', icon: Wrench },
   { id: 'payments', label: 'Payments', icon: PhilippinePeso },
   { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'notifications', label: 'Notifications', icon: Bell },
@@ -37,7 +37,7 @@ export default function TenantSidebar({ activeTab, onTabChange, isOpen, onClose,
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen w-64 lg:w-60 flex flex-col z-30 border-r transition-transform duration-300 ${
+      className={`fixed left-0 top-0 h-screen w-64 lg:w-64 flex flex-col z-30 border-r transition-transform duration-300 ${
         isDark
           ? 'bg-[#0A1628] border-[#1E293B]'
           : 'bg-white border-gray-200'

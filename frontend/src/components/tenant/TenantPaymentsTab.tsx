@@ -34,7 +34,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
   // Payment form state
   const [tenantName, setTenantName] = useState('')
   const [selectedDuePaymentId, setSelectedDuePaymentId] = useState('')
-  const [selectedPaymentMode, setSelectedPaymentMode] = useState<'gcash' | 'maya' | 'cash' | 'bank_transfer'>('gcash')
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<'gcash' | 'maya' | 'bank_transfer'>('gcash')
   const [isPaymentModeOpen, setIsPaymentModeOpen] = useState(false)
   const paymentModeRef = useRef<HTMLDivElement>(null)
   const [isBillingMenuOpen, setIsBillingMenuOpen] = useState(false)
@@ -338,7 +338,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
       </div>
 
       {/* Summary Cards – Full Width */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className={cardClass}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-yellow-500/15 flex items-center justify-center">
@@ -358,6 +358,27 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
             <div>
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Overdue</p>
               <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{totalOverdue.toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+        {/* Next Payment */}
+        <div className={cardClass}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/15 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Next Payment</p>
+              {normalizedDuePayments.length > 0 ? (
+                <>
+                  <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{Number(normalizedDuePayments[0].amount).toLocaleString()}</p>
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    Due: {new Date(normalizedDuePayments[0].payment_date).toLocaleDateString()}
+                  </p>
+                </>
+              ) : (
+                <p className={`text-lg font-bold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>—</p>
+              )}
             </div>
           </div>
         </div>
@@ -523,7 +544,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
                         : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
                     }`}
                   >
-                    <span>{selectedPaymentMode === 'gcash' ? 'GCash' : selectedPaymentMode === 'maya' ? 'Maya' : selectedPaymentMode === 'cash' ? 'Cash' : 'Bank Transfer'}</span>
+                    <span>{selectedPaymentMode === 'gcash' ? 'GCash' : selectedPaymentMode === 'maya' ? 'Maya' : 'Bank Transfer'}</span>
                     <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPaymentModeOpen ? 'rotate-180' : ''}`} />
                   </button>
                   <div
@@ -533,7 +554,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
                         : 'opacity-0 scale-y-0 pointer-events-none'
                     } ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}
                   >
-                    {([['gcash', 'GCash'], ['maya', 'Maya'], ['cash', 'Cash'], ['bank_transfer', 'Bank Transfer']] as const).map(([value, label]) => (
+                    {([['gcash', 'GCash'], ['maya', 'Maya'], ['bank_transfer', 'Bank Transfer']] as const).map(([value, label]) => (
                       <button
                         key={value}
                         type="button"

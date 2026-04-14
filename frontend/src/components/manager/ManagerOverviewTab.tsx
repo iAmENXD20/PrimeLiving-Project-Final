@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, AlertTriangle, MapPin, CheckCircle, XCircle, Wrench, PhilippinePeso, Clock, Eye, X } from 'lucide-react'
+import { Users, AlertTriangle, MapPin, Building2, CheckCircle, XCircle, Wrench, PhilippinePeso, Clock, Eye, X } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
-import { getManagerDashboardStats, getManagerMaintenanceRequests, getPayments, type MaintenanceRequest, type Payment } from '../../lib/managerApi'
-import { getOwnerApartmentAddress } from '../../lib/ownerApi'
+import { getManagerDashboardStats, getManagerMaintenanceRequests, getPayments, getManagedApartments, type MaintenanceRequest, type Payment } from '../../lib/managerApi'
+import { getOwnerApartmentAddress, getOwnerApartmentName } from '../../lib/ownerApi'
 import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 import CalendarWidget from '../owner/CalendarWidget'
@@ -22,6 +22,7 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
   const [recentRequests, setRecentRequests] = useState<MaintenanceRequest[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<HistoryItem | null>(null)
+  const [apartmentBranch, setApartmentBranch] = useState<string | null>(null)
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -30,16 +31,37 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
   useEffect(() => {
     async function load() {
       try {
-        const [s, requests, addr, paymentData] = await Promise.all([
+        const [s, requests, units, paymentData] = await Promise.all([
           getManagerDashboardStats(managerId),
           getManagerMaintenanceRequests(managerId),
-          ownerId ? getOwnerApartmentAddress(ownerId) : Promise.resolve(null),
+          getManagedApartments(managerId),
           getPayments(managerId),
         ])
         setStats(s)
         setRecentRequests(requests)
-        setApartmentAddress(addr)
         setPayments(paymentData)
+
+        // Get apartment branch + address from the manager's first unit
+        const firstUnit = units?.[0]
+        if (firstUnit) {
+          setApartmentBranch(firstUnit.apartment_name || firstUnit.name || null)
+          const addrParts = [
+            firstUnit.apartment_address_street,
+            firstUnit.apartment_address_barangay,
+            firstUnit.apartment_address_city,
+            firstUnit.apartment_address_province,
+          ].filter(Boolean)
+          setApartmentAddress(addrParts.length > 0 ? addrParts.join(', ') : null)
+        }
+        // Fallback to owner-level data
+        if (!apartmentBranch && ownerId) {
+          const name = await getOwnerApartmentName(ownerId)
+          if (name) setApartmentBranch(name)
+        }
+        if (!apartmentAddress && ownerId) {
+          const addr = await getOwnerApartmentAddress(ownerId)
+          if (addr) setApartmentAddress(addr)
+        }
       } catch (err) {
         console.error('Failed to load manager overview:', err)
       } finally {
@@ -143,9 +165,25 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
       {/* Header */}
       <div>
         <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Hello, {managerName?.split(' ')[0] || 'Manager'}!</h2>
-        <div className={`flex items-center gap-2 mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-          <MapPin className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium">{apartmentAddress || '-'}</span>
+        <div className={`mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+          {apartmentBranch && (
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">{apartmentBranch}</span>
+            </div>
+          )}
+          {apartmentAddress && (
+            <div className="flex items-center gap-2 mt-1">
+              <MapPin className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">{apartmentAddress}</span>
+            </div>
+          )}
+          {!apartmentBranch && !apartmentAddress && (
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">-</span>
+            </div>
+          )}
         </div>
       </div>
 

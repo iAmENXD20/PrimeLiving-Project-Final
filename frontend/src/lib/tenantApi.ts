@@ -123,11 +123,22 @@ export async function getTenantApartmentInfo(apartmentId: string) {
   try {
     const data = await api.get<any>(`/apartments/${apartmentId}`)
     if (!data) return null
+    const addressParts = [
+      data.apartment_address_street,
+      data.apartment_address_barangay,
+      data.apartment_address_city,
+      data.apartment_address_province,
+    ].filter(Boolean)
     return {
       name: data.name,
       address: data.address,
+      apartment_name: data.apartment_name || null,
+      apartment_address: addressParts.length > 0 ? addressParts.join(', ') : null,
       monthly_rent: data.monthly_rent,
       apartmentowner_id: data.apartmentowner_id,
+      lease_start: data.lease_start || null,
+      lease_end: data.lease_end || null,
+      contract_duration: data.contract_duration || null,
     }
   } catch {
     return null
@@ -345,6 +356,10 @@ export interface UnitOccupant {
   unit_id: string
   tenant_id: string
   full_name: string
+  first_name: string
+  last_name: string
+  sex: string | null
+  phone: string | null
   id_photo_url: string | null
   created_at: string
   updated_at: string
@@ -354,8 +369,11 @@ export async function getUnitOccupants(unitId: string): Promise<UnitOccupant[]> 
   return api.get<UnitOccupant[]>(`/apartments/occupants/${unitId}`)
 }
 
-export async function addUnitOccupant(data: { unit_id: string; tenant_id: string; full_name: string; id_photo_url?: string }): Promise<UnitOccupant> {
-  return api.post<UnitOccupant>('/apartments/occupants', data)
+export async function addUnitOccupant(data: { unit_id: string; tenant_id: string; first_name: string; last_name: string; sex?: string; phone?: string; full_name?: string; id_photo_url?: string }): Promise<UnitOccupant> {
+  return api.post<UnitOccupant>('/apartments/occupants', {
+    ...data,
+    full_name: data.full_name || `${data.first_name} ${data.last_name}`.trim(),
+  })
 }
 
 export async function updateUnitOccupant(id: string, updates: { full_name?: string; id_photo_url?: string }): Promise<UnitOccupant> {

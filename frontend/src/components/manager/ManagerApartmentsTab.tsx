@@ -564,9 +564,18 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                           key={occ.id}
                           className={`flex items-center justify-between py-2 px-3 rounded-lg ${isDark ? 'bg-[#111C32]' : 'bg-white'}`}
                         >
-                          <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                            {occ.full_name}
-                          </span>
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                              {occ.first_name && occ.last_name
+                                ? `${occ.first_name} ${occ.last_name}`
+                                : occ.full_name}
+                            </span>
+                            {(occ.sex || occ.phone) && (
+                              <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {[occ.sex, occ.phone].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                          </div>
                           {occ.id_photo_url ? (
                             <button
                               type="button"

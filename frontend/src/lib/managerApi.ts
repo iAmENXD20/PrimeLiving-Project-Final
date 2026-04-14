@@ -176,6 +176,10 @@ export interface UnitOccupant {
   unit_id: string
   tenant_id: string
   full_name: string
+  first_name: string
+  last_name: string
+  sex: string | null
+  phone: string | null
   id_photo_url: string | null
   created_at: string
 }

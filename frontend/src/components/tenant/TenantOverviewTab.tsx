@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Wrench, PhilippinePeso, CheckCircle2, AlertTriangle, MapPin, Building2, Clock, Eye, X, RefreshCw } from 'lucide-react'
+import { Wrench, PhilippinePeso, CheckCircle2, AlertTriangle, MapPin, Building2, Clock, Eye, X, RefreshCw, Bell } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import {
   getTenantDashboardStats,
   getTenantApartmentInfo,
   getTenantMaintenanceRequests,
   getTenantPayments,
+  getTenantNotifications,
   renewTenantContract,
   type TenantMaintenanceRequest,
   type TenantPayment,
+  type TenantNotification,
 } from '../../lib/tenantApi'
 import { getOwnerApartmentName, getOwnerApartmentAddress } from '../../lib/ownerApi'
 import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
@@ -30,10 +32,12 @@ type HistoryItem = { id: string; type: 'maintenance' | 'payment'; description: s
 export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, ownerId, contractStatus, onRenewed }: TenantOverviewTabProps) {
   const { isDark } = useTheme()
   const [stats, setStats] = useState({ pendingMaintenance: 0, resolvedMaintenance: 0, totalPaid: 0, pendingPayments: 0 })
-  const [apartmentInfo, setApartmentInfo] = useState<{ name: string; address: string; monthly_rent: number; apartmentowner_id: string } | null>(null)
+  const [apartmentInfo, setApartmentInfo] = useState<{ name: string; address: string; apartment_name: string | null; apartment_address: string | null; monthly_rent: number; apartmentowner_id: string; lease_start: string | null; lease_end: string | null; contract_duration: number | null } | null>(null)
+  const [apartmentBranch, setApartmentBranch] = useState<string | null>(null)
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [recentMaintenance, setRecentMaintenance] = useState<TenantMaintenanceRequest[]>([])
   const [payments, setPayments] = useState<TenantPayment[]>([])
+  const [notifications, setNotifications] = useState<TenantNotification[]>([])
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<HistoryItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -43,32 +47,44 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
   useEffect(() => {
     async function load() {
       try {
-        const [s, requests, paymentData] = await Promise.all([
+        const [s, requests, paymentData, notifs] = await Promise.all([
           getTenantDashboardStats(tenantId, apartmentId),
           getTenantMaintenanceRequests(tenantId),
           getTenantPayments(tenantId),
+          getTenantNotifications(tenantId, ownerId),
         ])
         setStats(s)
         setRecentMaintenance(requests)
         setPayments(paymentData)
+        setNotifications(notifs)
 
         if (apartmentId) {
           const info = await getTenantApartmentInfo(apartmentId)
           setApartmentInfo(info)
-          const fallbackClientId = info?.apartmentowner_id || ownerId || null
-          const [fallbackAddress, fallbackApartmentName] = fallbackClientId
-            ? await Promise.all([
-                getOwnerApartmentAddress(fallbackClientId),
-                getOwnerApartmentName(fallbackClientId),
-              ])
-            : [null, null]
-          setApartmentAddress(fallbackAddress || info?.address || info?.name || fallbackApartmentName || null)
+          setApartmentBranch(info?.name || null)
+          setApartmentAddress(info?.apartment_address || info?.address || null)
+          if (!info?.apartment_address && !info?.address) {
+            // Fallback: try owner-level apartment address
+            const fallbackClientId = info?.apartmentowner_id || ownerId || null
+            if (fallbackClientId) {
+              const fallbackAddress = await getOwnerApartmentAddress(fallbackClientId)
+              if (fallbackAddress) setApartmentAddress(fallbackAddress)
+            }
+          }
+          if (!info?.apartment_name && !info?.name) {
+            const fallbackClientId = info?.apartmentowner_id || ownerId || null
+            if (fallbackClientId) {
+              const fallbackName = await getOwnerApartmentName(fallbackClientId)
+              if (fallbackName) setApartmentBranch(fallbackName)
+            }
+          }
         } else if (ownerId) {
           const [fallbackAddress, fallbackApartmentName] = await Promise.all([
             getOwnerApartmentAddress(ownerId),
             getOwnerApartmentName(ownerId),
           ])  
-          setApartmentAddress(fallbackAddress || fallbackApartmentName || null)
+          setApartmentBranch(fallbackApartmentName || null)
+          setApartmentAddress(fallbackAddress || null)
         }
       } catch (err) {
         console.error('Failed to load tenant overview:', err)
@@ -101,47 +117,31 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
     { label: 'Pending Payments', value: stats.pendingPayments, icon: PhilippinePeso, color: 'text-red-400', bg: 'bg-red-500/15' },
   ]
 
-  // Build unified history from maintenance + payments
-  const historyItems: HistoryItem[] = [
-    ...recentMaintenance.map((m) => ({
-      id: m.id,
-      type: 'maintenance' as const,
-      description: `${tenantName || 'You'} submitted a request`,
-      detail: m.title,
-      date: m.created_at,
-      badge: m.status.replace('_', ' '),
-      badgeColor: m.status === 'resolved' || m.status === 'closed'
+  // Build history from notifications
+  const historyItems: HistoryItem[] = notifications.map((n) => {
+    const isPayment = n.type === 'payment'
+    const isMaintenance = n.type === 'maintenance'
+    return {
+      id: n.id,
+      type: isPayment ? 'payment' as const : 'maintenance' as const,
+      description: n.title,
+      detail: n.message,
+      date: n.created_at,
+      badge: n.type,
+      badgeColor: isPayment
         ? 'bg-emerald-500/15 text-emerald-400'
-        : m.status === 'in_progress'
-        ? 'bg-blue-500/15 text-blue-400'
-        : 'bg-yellow-500/15 text-yellow-400',
-      photo_url: m.photo_url ?? null,
-    })),
-    ...payments.map((p) => ({
-      id: p.id,
-      type: 'payment' as const,
-      description: `${tenantName || 'You'} rent payment`,
-      detail: `₱${Number(p.amount).toLocaleString()}`,
-      date: p.created_at,
-      badge: p.status,
-      badgeColor: p.status === 'paid'
-        ? 'bg-emerald-500/15 text-emerald-400'
-        : p.status === 'overdue'
-        ? 'bg-red-500/15 text-red-400'
-        : 'bg-yellow-500/15 text-yellow-400',
-      extra: {
-        ...(p.payment_mode ? { 'Payment Mode': p.payment_mode } : {}),
-        ...(p.period_from && p.period_to ? { 'Period': `${new Date(p.period_from).toLocaleDateString()} — ${new Date(p.period_to).toLocaleDateString()}` } : {}),
-      },
-    })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        : isMaintenance
+        ? 'bg-orange-500/15 text-orange-400'
+        : 'bg-blue-500/15 text-blue-400',
+    }
+  })
 
   const totalPages = Math.max(1, Math.ceil(historyItems.length / pageSize))
   const paginatedHistory = historyItems.slice((page - 1) * pageSize, page * pageSize)
 
   useEffect(() => {
     setPage(1)
-  }, [recentMaintenance.length, payments.length])
+  }, [notifications.length])
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages)
@@ -151,9 +151,25 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
     <div className="gap-6 animate-fade-up flex flex-col flex-1 min-h-0">
       <div>
         <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Hello, {tenantName?.split(' ')[0] || 'Tenant'}!</h2>
-        <div className={`flex items-center gap-2 mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-          <MapPin className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium">{apartmentAddress || '-'}</span>
+        <div className={`mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+          {apartmentBranch && (
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">{apartmentBranch}</span>
+            </div>
+          )}
+          {apartmentAddress && (
+            <div className="flex items-center gap-2 mt-1">
+              <MapPin className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">{apartmentAddress}</span>
+            </div>
+          )}
+          {!apartmentBranch && !apartmentAddress && (
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">-</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -199,27 +215,22 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
         </div>
       )}
 
-      {/* Apartment Info */}
-      {apartmentInfo && (
-        <div className={cardClass}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/15 flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-blue-400" />
-            </div>
-            <div>
-              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {apartmentInfo.name}
-              </h3>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Monthly Rent: ₱{Number(apartmentInfo.monthly_rent).toLocaleString()}
-              </p>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Apartment Info */}
+        {apartmentInfo && (
+          <div className={cardClass}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-500/15 flex items-center justify-center">
+                <Building2 className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{apartmentInfo.name}</p>
+                <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{Number(apartmentInfo.monthly_rent).toLocaleString()}</p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        )}
         {statCards.map((s) => {
           const Icon = s.icon
           return (
@@ -265,11 +276,13 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
                   {(page - 1) * pageSize + idx + 1}
                 </span>
                 <div className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                  item.type === 'payment' ? 'bg-emerald-500/15' : 'bg-orange-500/15'
+                  item.type === 'payment' ? 'bg-emerald-500/15' : item.type === 'maintenance' ? 'bg-orange-500/15' : 'bg-blue-500/15'
                 }`}>
                   {item.type === 'payment'
                     ? <PhilippinePeso className="w-4 h-4 text-emerald-400" />
-                    : <Wrench className="w-4 h-4 text-orange-400" />
+                    : item.type === 'maintenance'
+                    ? <Wrench className="w-4 h-4 text-orange-400" />
+                    : <Bell className="w-4 h-4 text-blue-400" />
                   }
                 </div>
                 <div className="flex-1 min-w-0">
@@ -312,14 +325,45 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
         {/* Right: Calendar */}
         <CalendarWidget
           className="h-full"
-          deadlines={payments
-            .filter((p) => p.period_to)
-            .map((p) => ({
-              tenantName: tenantName || 'You',
-              unitName: apartmentInfo?.name || 'Unit',
-              dueDate: p.period_to!,
-              status: p.status,
-            }))}
+          deadlines={(() => {
+            // Generate monthly billing dates from lease period
+            if (apartmentInfo?.lease_start) {
+              const start = new Date(apartmentInfo.lease_start)
+              const end = apartmentInfo.lease_end ? new Date(apartmentInfo.lease_end) : new Date(start.getFullYear() + 1, start.getMonth(), start.getDate())
+              const paidDates = new Set(
+                payments
+                  .filter((p) => p.status === 'paid' && p.period_to)
+                  .map((p) => new Date(p.period_to!).toISOString().split('T')[0])
+              )
+              const billingDates: { tenantName: string; unitName: string; dueDate: string; status: string }[] = []
+              const current = new Date(start)
+              // First payment due is one month after lease start
+              current.setMonth(current.getMonth() + 1)
+              while (current <= end) {
+                const dateStr = current.toISOString().split('T')[0]
+                const isPaid = paidDates.has(dateStr) || payments.some(
+                  (p) => p.status === 'paid' && p.period_to && new Date(p.period_to).getMonth() === current.getMonth() && new Date(p.period_to).getFullYear() === current.getFullYear()
+                )
+                billingDates.push({
+                  tenantName: tenantName || 'You',
+                  unitName: apartmentInfo?.name || 'Unit',
+                  dueDate: dateStr,
+                  status: isPaid ? 'paid' : current < new Date() ? 'overdue' : 'pending',
+                })
+                current.setMonth(current.getMonth() + 1)
+              }
+              return billingDates
+            }
+            // Fallback: use existing payment period_to dates
+            return payments
+              .filter((p) => p.period_to)
+              .map((p) => ({
+                tenantName: tenantName || 'You',
+                unitName: apartmentInfo?.name || 'Unit',
+                dueDate: p.period_to!,
+                status: p.status,
+              }))
+          })()}
         />
       </div>
 

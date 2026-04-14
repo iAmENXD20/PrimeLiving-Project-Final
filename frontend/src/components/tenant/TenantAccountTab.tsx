@@ -69,7 +69,10 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
   const [occupants, setOccupants] = useState<UnitOccupant[]>([])
   const [occupantsLoading, setOccupantsLoading] = useState(false)
   const [addingOccupant, setAddingOccupant] = useState(false)
-  const [newOccupantName, setNewOccupantName] = useState('')
+  const [newOccFirstName, setNewOccFirstName] = useState('')
+  const [newOccLastName, setNewOccLastName] = useState('')
+  const [newOccSex, setNewOccSex] = useState('')
+  const [newOccPhone, setNewOccPhone] = useState('')
   const [newOccupantIdFile, setNewOccupantIdFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -333,9 +336,15 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                             No ID
                           </div>
                         )}
-                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {occ.full_name}
-                        </span>
+                        <div>
+                          <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {occ.first_name ? `${occ.first_name} ${occ.last_name || ''}`.trim() : occ.full_name}
+                          </span>
+                          <div className={`flex items-center gap-3 text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {occ.sex && <span>{occ.sex}</span>}
+                            {occ.phone && <span>{occ.phone}</span>}
+                          </div>
+                        </div>
                       </div>
                       <button
                         onClick={async () => {
@@ -361,14 +370,49 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                 <div className={`rounded-lg border p-4 ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
                   <p className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Add Occupant</p>
                   <div className="space-y-3">
-                    <div>
-                      <Label className={`text-sm ${labelClass}`}>Full Name</Label>
-                      <Input
-                        className={`mt-1 ${inputClass}`}
-                        value={newOccupantName}
-                        onChange={(e) => setNewOccupantName(e.target.value)}
-                        placeholder="Enter occupant's full name"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label className={`text-sm ${labelClass}`}>First Name</Label>
+                        <Input
+                          className={`mt-1 ${inputClass}`}
+                          value={newOccFirstName}
+                          onChange={(e) => setNewOccFirstName(e.target.value)}
+                          placeholder="First name"
+                        />
+                      </div>
+                      <div>
+                        <Label className={`text-sm ${labelClass}`}>Last Name</Label>
+                        <Input
+                          className={`mt-1 ${inputClass}`}
+                          value={newOccLastName}
+                          onChange={(e) => setNewOccLastName(e.target.value)}
+                          placeholder="Last name"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label className={`text-sm ${labelClass}`}>Sex</Label>
+                        <select
+                          className={`mt-1 w-full rounded-md border px-3 py-2 text-sm ${inputClass}`}
+                          value={newOccSex}
+                          onChange={(e) => setNewOccSex(e.target.value)}
+                        >
+                          <option value="">Select</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label className={`text-sm ${labelClass}`}>Contact Number</Label>
+                        <Input
+                          className={`mt-1 ${inputClass}`}
+                          value={newOccPhone}
+                          onChange={(e) => setNewOccPhone(e.target.value)}
+                          placeholder="09XXXXXXXXX"
+                          maxLength={11}
+                        />
+                      </div>
                     </div>
                     <div>
                       <Label className={`text-sm ${labelClass}`}>Valid ID (photo)</Label>
@@ -401,9 +445,9 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                     </div>
                     <Button
                       className="gap-2"
-                      disabled={addingOccupant || !newOccupantName.trim()}
+                      disabled={addingOccupant || !newOccFirstName.trim()}
                       onClick={async () => {
-                        if (!tenantId || !unitId || !newOccupantName.trim()) return
+                        if (!tenantId || !unitId || !newOccFirstName.trim()) return
                         setAddingOccupant(true)
                         try {
                           let photoUrl: string | undefined
@@ -413,11 +457,17 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                           const occ = await addUnitOccupant({
                             unit_id: unitId,
                             tenant_id: tenantId,
-                            full_name: newOccupantName.trim(),
+                            first_name: newOccFirstName.trim(),
+                            last_name: newOccLastName.trim(),
+                            sex: newOccSex || undefined,
+                            phone: newOccPhone || undefined,
                             id_photo_url: photoUrl,
                           })
                           setOccupants(prev => [...prev, occ])
-                          setNewOccupantName('')
+                          setNewOccFirstName('')
+                          setNewOccLastName('')
+                          setNewOccSex('')
+                          setNewOccPhone('')
                           setNewOccupantIdFile(null)
                           if (fileInputRef.current) fileInputRef.current.value = ''
                           toast.success('Occupant added')

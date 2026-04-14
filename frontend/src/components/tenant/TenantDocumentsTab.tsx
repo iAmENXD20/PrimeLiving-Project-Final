@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, FileText, Download } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Search, FileText, Download, Eye, X } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { getTenantDocuments, type TenantDocument } from '../../lib/tenantApi'
 import { TableSkeleton } from '@/components/ui/skeleton'
@@ -16,6 +17,7 @@ export default function TenantDocumentsTab({ tenantId, ownerId }: TenantDocument
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [viewingDoc, setViewingDoc] = useState<TenantDocument | null>(null)
   const pageSize = 10
 
   useEffect(() => {
@@ -66,7 +68,7 @@ export default function TenantDocumentsTab({ tenantId, ownerId }: TenantDocument
         </p>
       </div>
 
-      <div className="relative">
+      <div className="relative max-w-sm">
         <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
         <input
           type="text"
@@ -90,7 +92,7 @@ export default function TenantDocumentsTab({ tenantId, ownerId }: TenantDocument
           <table className="w-full text-sm">
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                {['File Name', 'Unit', 'Description', 'Date', ''].map((h) => (
+                {['No.', 'File Name', 'Unit', 'Description', 'Date', 'Action'].map((h) => (
                   <th key={h} className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {h}
                   </th>
@@ -98,8 +100,11 @@ export default function TenantDocumentsTab({ tenantId, ownerId }: TenantDocument
               </tr>
             </thead>
             <tbody>
-              {paginated.map((doc) => (
+              {paginated.map((doc, idx) => (
                 <tr key={doc.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                  <td className={`py-3 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {(page - 1) * pageSize + idx + 1}
+                  </td>
                   <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-red-400 flex-shrink-0" />
@@ -116,25 +121,35 @@ export default function TenantDocumentsTab({ tenantId, ownerId }: TenantDocument
                     {new Date(doc.created_at).toLocaleDateString()}
                   </td>
                   <td className="py-3 px-4">
-                    <a
-                      href={doc.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Open document"
-                      className={`inline-flex items-center gap-2 px-2 py-1 rounded-lg text-sm transition-colors ${
-                        isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-600 hover:text-primary hover:bg-primary/10'
-                      }`}
-                    >
-                      <Download className="w-4 h-4" />
-                      Open
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setViewingDoc(doc)}
+                        title="View document"
+                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm transition-colors ${
+                          isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-600 hover:text-primary hover:bg-primary/10'
+                        }`}
+                      >
+                        <Eye className="w-4 h-4" />
+                        View
+                      </button>
+                      <a
+                        href={doc.file_url}
+                        download
+                        title="Download document"
+                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm transition-colors ${
+                          isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-600 hover:text-primary hover:bg-primary/10'
+                        }`}
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                    </div>
                   </td>
                 </tr>
               ))}
 
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className={`py-16 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <td colSpan={6} className={`py-16 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     <FileText className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
                     <p className="text-base font-medium">
                       {documents.length === 0 ? 'No documents assigned yet' : 'No matching documents'}
@@ -156,6 +171,65 @@ export default function TenantDocumentsTab({ tenantId, ownerId }: TenantDocument
           onPageChange={setPage}
           isDark={isDark}
         />
+      )}
+
+      {/* Document Viewer Modal */}
+      {viewingDoc && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setViewingDoc(null)}>
+          <div
+            className={`relative w-full max-w-4xl mx-4 rounded-2xl shadow-2xl overflow-hidden ${isDark ? 'bg-[#0B1426] border border-[#1E293B]' : 'bg-white border border-gray-200'}`}
+            style={{ height: '85vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <FileText className="w-5 h-5 text-red-400 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{viewingDoc.file_name}</p>
+                  {viewingDoc.description && (
+                    <p className={`text-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{viewingDoc.description}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={viewingDoc.file_url}
+                  download
+                  className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                  title="Download"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
+                <button
+                  onClick={() => setViewingDoc(null)}
+                  className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            {/* Content */}
+            <div className="w-full" style={{ height: 'calc(85vh - 65px)' }}>
+              {viewingDoc.file_url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) ? (
+                <div className="flex items-center justify-center w-full h-full p-4 overflow-auto">
+                  <img
+                    src={viewingDoc.file_url}
+                    alt={viewingDoc.file_name}
+                    className="max-w-full max-h-full object-contain rounded"
+                  />
+                </div>
+              ) : (
+                <iframe
+                  src={viewingDoc.file_url}
+                  title={viewingDoc.file_name}
+                  className="w-full h-full border-0"
+                />
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )

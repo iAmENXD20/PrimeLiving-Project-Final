@@ -233,12 +233,6 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
 
       <div>
         <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Hello, {ownerName?.split(' ')[0] || 'Owner'}!</h2>
-        {apartmentAddress && (
-          <div className={`flex items-center gap-2 mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-            <MapPin className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium">{apartmentAddress}</span>
-          </div>
-        )}
       </div>
 
       {loading && (
