@@ -24,6 +24,7 @@ import {
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
+import { supabase } from '@/lib/supabase'
 
 interface OwnerPaymentsTabProps {
   ownerId: string
@@ -86,6 +87,7 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
   const [accountNumber, setAccountNumber] = useState('')
   const [accountHolder, setAccountHolder] = useState('')
   const [editingBank, setEditingBank] = useState(false)
+  const [savingBank, setSavingBank] = useState(false)
 
   // Stats month/year filter
   const [statsMonth, setStatsMonth] = useState(new Date().getMonth())
@@ -120,13 +122,21 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
   async function load() {
     setLoading(true)
     try {
-      const [paymentsResult, qrResult] = await Promise.allSettled([
+      const [paymentsResult, qrResult, ownerResult] = await Promise.allSettled([
         getOwnerPayments(ownerId),
         getPaymentQrUrl(ownerId),
+        supabase.from('apartment_owners').select('payment_info').eq('id', ownerId).single(),
       ])
 
       if (qrResult.status === 'fulfilled') {
         setQrUrl(qrResult.value)
+      }
+
+      if (ownerResult.status === 'fulfilled' && ownerResult.value.data?.payment_info) {
+        const info = ownerResult.value.data.payment_info
+        setBankName(info.bank_name || '')
+        setAccountNumber(info.account_number || '')
+        setAccountHolder(info.account_holder || '')
       }
 
       if (paymentsResult.status !== 'fulfilled') {
@@ -1089,12 +1099,33 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
             </div>
           </div>
           <button
-            onClick={() => setEditingBank(!editingBank)}
+            onClick={async () => {
+              if (editingBank) {
+                setSavingBank(true)
+                try {
+                  const { error } = await supabase.from('apartment_owners').update({
+                    payment_info: {
+                      bank_name: bankName.trim(),
+                      account_number: accountNumber.trim(),
+                      account_holder: accountHolder.trim(),
+                    },
+                  }).eq('id', ownerId)
+                  if (error) throw error
+                  toast.success('Payment details saved!')
+                } catch (err: any) {
+                  toast.error(err?.message || 'Failed to save payment details')
+                } finally {
+                  setSavingBank(false)
+                }
+              }
+              setEditingBank(!editingBank)
+            }}
+            disabled={savingBank}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               isDark ? 'bg-[#1E293B] text-white hover:bg-[#2a3a52]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            {editingBank ? 'Done' : 'Edit'}
+            {savingBank ? 'Saving...' : editingBank ? 'Save' : 'Edit'}
           </button>
         </div>
 

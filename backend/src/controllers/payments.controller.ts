@@ -1310,19 +1310,36 @@ export async function getPaymentQrByTenant(
       return;
     }
 
-    await ensurePaymentQrBucket();
-    const objectPath = `${resolvedapartmentownerId}/payment-qr`;
+    // Fetch owner payment_info in parallel with QR
+    const [ownerResult, qrResult] = await Promise.all([
+      supabaseAdmin
+        .from("apartment_owners")
+        .select("payment_info")
+        .eq("id", resolvedapartmentownerId)
+        .maybeSingle(),
+      (async () => {
+        await ensurePaymentQrBucket();
+        const objectPath = `${resolvedapartmentownerId}/payment-qr`;
+        return supabaseAdmin.storage
+          .from(PAYMENT_QR_BUCKET)
+          .createSignedUrl(objectPath, 60 * 60);
+      })(),
+    ]);
 
-    const { data: signedData, error: signedError } = await supabaseAdmin.storage
-      .from(PAYMENT_QR_BUCKET)
-      .createSignedUrl(objectPath, 60 * 60);
+    const paymentInfo = ownerResult.data?.payment_info || {};
+    const qrUrl = qrResult.data?.signedUrl || null;
 
-    if (signedError) {
-      sendError(res, "QR code not found", 404);
+    if (!qrUrl && (!paymentInfo || Object.keys(paymentInfo).length === 0)) {
+      sendError(res, "No payment info found", 404);
       return;
     }
 
-    sendSuccess(res, { tenant_id: tenantId, apartmentowner_id: resolvedapartmentownerId, qr_url: signedData.signedUrl });
+    sendSuccess(res, {
+      tenant_id: tenantId,
+      apartmentowner_id: resolvedapartmentownerId,
+      qr_url: qrUrl,
+      payment_info: paymentInfo,
+    });
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Users, PhilippinePeso, Wrench, Building2, MapPin, UserCog, CreditCard, Clock, Eye, X } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
@@ -146,17 +146,17 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
     ? 'All Time'
     : `${monthOptions.find((m) => m.value === selectedMonth)?.label} ${selectedYear}`
 
-  const statCards = [
+  const statCards = useMemo(() => [
     { label: 'Total Income', value: (stats.totalRevenue || 0).toLocaleString(), icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: `${monthOptions.find((m) => m.value === today.getMonth() + 1)?.label} ${today.getFullYear()}` },
     { label: 'Paid Tenants', value: `${paidTenantCount || 0}/${stats.activeTenants || 0}`, icon: CreditCard, color: 'text-cyan-400', bg: 'bg-cyan-500/15', subtitle: monthOptions.find((m) => m.value === today.getMonth() + 1)?.label },
     { label: 'Pending Maintenance', value: stats.pendingMaintenance || 0, icon: Wrench, color: 'text-red-400', bg: 'bg-red-500/15' },
     { label: 'Active Tenants', value: stats.activeTenants || 0, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
     { label: 'Apartments', value: stats.apartments || 0, icon: Building2, color: 'text-blue-400', bg: 'bg-blue-500/15' },
     { label: 'Apartment Managers', value: managerCount || 0, icon: UserCog, color: 'text-violet-400', bg: 'bg-violet-500/15' },
-  ]
+  ], [stats, paidTenantCount, managerCount])
 
   // Build unified history from maintenance requests + payments
-  const realHistory: HistoryItem[] = [
+  const realHistory: HistoryItem[] = useMemo(() => [
     ...recentMaintenance.map((m) => ({
       id: `m-${m.id}`,
       type: 'maintenance' as const,
@@ -208,7 +208,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
         extra: { 'Performed by': log.actor_name },
       }
     }),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [recentMaintenance, allPayments, activityLogs, tenantNameMap])
 
   const historyItems = realHistory
 

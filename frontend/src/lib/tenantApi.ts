@@ -362,6 +362,23 @@ export async function getOwnerPaymentQrUrl(ownerId?: string | null, apartmentId?
   return localStorage.getItem(`${QR_CACHE_KEY}_${cacheKey}`) || null
 }
 
+export interface OwnerPaymentDetails {
+  qr_url: string | null
+  payment_info: { bank_name?: string; account_number?: string; account_holder?: string } | null
+}
+
+export async function getOwnerPaymentDetails(tenantId: string): Promise<OwnerPaymentDetails> {
+  try {
+    const res = await api.get<{ qr_url: string | null; payment_info?: Record<string, string> }>(`/payments/qr/by-tenant/${tenantId}`)
+    return {
+      qr_url: res.qr_url || null,
+      payment_info: res.payment_info || null,
+    }
+  } catch {
+    return { qr_url: null, payment_info: null }
+  }
+}
+
 // ── Unit Occupants ──────────────────────────────────────────
 export interface UnitOccupant {
   id: string

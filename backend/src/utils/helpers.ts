@@ -14,6 +14,12 @@ export function sendSuccess<T>(
     data,
     message,
   };
+
+  // Cache-Control: allow browsers to cache GET responses briefly
+  if (res.req?.method === "GET") {
+    res.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
+  }
+
   res.status(statusCode).json(response);
 }
 
@@ -64,7 +70,7 @@ export async function getManagerScope(managerId: string): Promise<{ apartmentIds
 
   if (apartmentIds.length === 0) {
     const result = { apartmentIds: [], unitIds: [] };
-    managerScopeCache.set(managerId, { data: result, expires: Date.now() + 30_000 });
+    managerScopeCache.set(managerId, { data: result, expires: Date.now() + 300_000 });
     return result;
   }
 
@@ -76,7 +82,7 @@ export async function getManagerScope(managerId: string): Promise<{ apartmentIds
   const unitIds = (units || []).map((u: any) => u.id);
 
   const result = { apartmentIds, unitIds };
-  managerScopeCache.set(managerId, { data: result, expires: Date.now() + 30_000 });
+  managerScopeCache.set(managerId, { data: result, expires: Date.now() + 300_000 });
 
   // Cleanup stale entries periodically
   if (managerScopeCache.size > 100) {

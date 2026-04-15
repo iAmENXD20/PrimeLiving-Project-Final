@@ -10,6 +10,7 @@ import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 import { formatPhone } from '@/lib/utils'
 import AddressSelector, { type StructuredAddress } from '@/components/ui/AddressSelector'
+import { supabase } from '@/lib/supabase'
 import {
   getOwnerUnits,
   getOwnerTenants,
@@ -160,6 +161,23 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     loadUnits()
     loadManagers()
     loadTenants()
+
+    // Real-time: auto-refresh when manager or tenant status changes
+    const channel = supabase
+      .channel('user-management-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}` },
+        () => { loadManagers() }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}` },
+        () => { loadTenants() }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [ownerId])
 
   useEffect(() => {

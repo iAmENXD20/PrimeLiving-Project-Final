@@ -278,7 +278,7 @@ export async function updateOwner(
     const { id } = req.params;
 
     // Whitelist allowed fields to prevent overwriting auth_user_id, id, etc.
-    const allowedFields = ["first_name", "last_name", "email", "phone", "status", "updated_at"];
+    const allowedFields = ["first_name", "last_name", "email", "phone", "status", "updated_at", "payment_info"];
     const updates: Record<string, any> = {};
     for (const key of allowedFields) {
       if (req.body[key] !== undefined) {

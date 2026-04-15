@@ -116,22 +116,9 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Quick theme transition */
-body,
-main,
-aside,
-header,
-nav,
-div,
-button,
-input,
-table,
-th,
-td,
-span,
-p,
-h1, h2, h3, h4 {
-  transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+/* Theme transitions — only on layout containers, not every element */
+body, main, aside, header, nav {
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 /* Scroll-triggered fade up animation */

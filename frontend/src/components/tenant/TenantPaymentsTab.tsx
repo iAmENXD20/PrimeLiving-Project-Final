@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { PhilippinePeso, QrCode, CreditCard, Upload, Trash2, Receipt, Eye, FileText, X, CheckCircle2, Clock, XCircle, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
-import { getTenantPayments, getTenantDueSchedule, getOwnerPaymentQrUrl, getCurrentTenant, submitCashPaymentVerification, type TenantPayment, type TenantDueScheduleItem } from '../../lib/tenantApi'
+import { getTenantPayments, getTenantDueSchedule, getOwnerPaymentQrUrl, getOwnerPaymentDetails, getCurrentTenant, submitCashPaymentVerification, type TenantPayment, type TenantDueScheduleItem } from '../../lib/tenantApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
@@ -21,6 +21,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
   const [loading, setLoading] = useState(true)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [showQrModal, setShowQrModal] = useState(false)
+  const [paymentInfo, setPaymentInfo] = useState<{ bank_name?: string; account_number?: string; account_holder?: string } | null>(null)
 
   // Receipt upload state
   const RECEIPT_KEY = `receipt_${tenantId}`
@@ -72,10 +73,10 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
   useEffect(() => {
     async function load() {
       try {
-        const [paymentsResult, duesResult, qrResult, tenantResult] = await Promise.allSettled([
+        const [paymentsResult, duesResult, paymentDetailsResult, tenantResult] = await Promise.allSettled([
           getTenantPayments(tenantId),
           getTenantDueSchedule(tenantId),
-          getOwnerPaymentQrUrl(ownerId, apartmentId, tenantId),
+          getOwnerPaymentDetails(tenantId),
           getCurrentTenant(),
         ])
 
@@ -93,11 +94,12 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
           setDuePayments([])
         }
 
-        if (qrResult.status === 'fulfilled') {
-          setQrUrl(qrResult.value)
+        if (paymentDetailsResult.status === 'fulfilled') {
+          setQrUrl(paymentDetailsResult.value.qr_url)
+          setPaymentInfo(paymentDetailsResult.value.payment_info)
         } else {
-          console.error('Failed to load payment QR:', qrResult.reason)
           setQrUrl(null)
+          setPaymentInfo(null)
         }
 
         if (tenantResult.status === 'fulfilled' && tenantResult.value?.first_name) {
@@ -433,6 +435,36 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
               <p className={`text-xs mt-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                 Your landlord hasn't uploaded a payment QR yet
               </p>
+            </div>
+          )}
+
+          {/* Bank Transfer Details from Owner */}
+          {paymentInfo && (paymentInfo.bank_name || paymentInfo.account_number || paymentInfo.account_holder) && (
+            <div className={`mt-5 pt-5 border-t ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <Receipt className="w-4 h-4 text-purple-400" />
+                <h4 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Bank Transfer Details</h4>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {paymentInfo.bank_name && (
+                  <div className={`p-2.5 rounded-lg ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
+                    <p className={`text-[10px] font-medium uppercase tracking-wide ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Bank Name</p>
+                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{paymentInfo.bank_name}</p>
+                  </div>
+                )}
+                {paymentInfo.account_number && (
+                  <div className={`p-2.5 rounded-lg ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
+                    <p className={`text-[10px] font-medium uppercase tracking-wide ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Account Number</p>
+                    <p className={`text-sm font-semibold font-mono ${isDark ? 'text-white' : 'text-gray-900'}`}>{paymentInfo.account_number}</p>
+                  </div>
+                )}
+                {paymentInfo.account_holder && (
+                  <div className={`p-2.5 rounded-lg ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
+                    <p className={`text-[10px] font-medium uppercase tracking-wide ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Account Holder</p>
+                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{paymentInfo.account_holder}</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
