@@ -586,13 +586,6 @@ export default function InviteConfirmPage() {
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 Redirecting to login in <span className="font-semibold">{countdown}</span> second{countdown !== 1 ? 's' : ''}...
               </p>
-              <Button
-                type="button"
-                onClick={() => navigate('/login')}
-                className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3"
-              >
-                Go to Login Now
-              </Button>
             </div>
           )}
           </div>

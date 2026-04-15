@@ -171,6 +171,10 @@ export async function createTenant(
     const normalizedEmail =
       typeof email === "string" ? email.trim().toLowerCase() : null;
 
+    // Sanitize empty strings to null for UUID fields
+    const safeUnitId = unit_id || null;
+    const safeOwnerId = apartmentowner_id || null;
+
     let authUserId: string | null = null;
 
     if (normalizedEmail) {
@@ -239,8 +243,8 @@ export async function createTenant(
         phone,
         sex: sex || null,
         age: age || null,
-        unit_id,
-        apartmentowner_id,
+        unit_id: safeUnitId,
+        apartmentowner_id: safeOwnerId,
         status: create_auth_account ? "pending" : "active",
         move_in_date: new Date().toISOString().split("T")[0],
       })
