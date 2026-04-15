@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 import { sendSmsToMany } from "../utils/sms";
+import { sendEmail, maintenanceRequestEmailHtml } from "../utils/email";
 import { createNotification, createNotifications } from "../utils/notifications";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 
@@ -155,42 +156,47 @@ export async function createMaintenanceRequest(
       return;
     }
 
-    const [{ data: managersByOwner }, { data: tenant }] = await Promise.all([
-      supabaseAdmin
-        .from("apartment_managers")
-        .select("id, phone")
-        .eq("apartmentowner_id", apartmentowner_id)
-        .eq("status", "active"),
-      supabaseAdmin
-        .from("tenants")
-        .select("first_name, last_name")
-        .eq("id", tenant_id)
-        .maybeSingle(),
-    ]);
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("first_name, last_name")
+      .eq("id", tenant_id)
+      .maybeSingle();
 
     const tenantName = tenant ? `${tenant.first_name} ${tenant.last_name}`.trim() || "tenant" : "tenant";
 
-    let managers = managersByOwner || [];
+    let managers: Array<{ id: string; phone: string | null; email: string | null }> = [];
 
-    if (managers.length === 0 && unit_id) {
-      const { data: apartment } = await supabaseAdmin
+    // Priority 1: Get the manager specifically assigned to this unit
+    if (unit_id) {
+      const { data: unitData } = await supabaseAdmin
         .from("units")
         .select("manager_id")
         .eq("id", unit_id)
         .maybeSingle();
 
-      if (apartment?.manager_id) {
-        const { data: managerByApartment } = await supabaseAdmin
+      if (unitData?.manager_id) {
+        const { data: assignedManager } = await supabaseAdmin
           .from("apartment_managers")
-          .select("id, phone")
-          .eq("id", apartment.manager_id)
+          .select("id, phone, email")
+          .eq("id", unitData.manager_id)
           .eq("status", "active")
           .maybeSingle();
 
-        if (managerByApartment) {
-          managers = [managerByApartment];
+        if (assignedManager) {
+          managers = [assignedManager];
         }
       }
+    }
+
+    // Fallback: If no assigned manager, notify all active managers under the owner
+    if (managers.length === 0) {
+      const { data: managersByOwner } = await supabaseAdmin
+        .from("apartment_managers")
+        .select("id, phone, email")
+        .eq("apartmentowner_id", apartmentowner_id)
+        .eq("status", "active");
+
+      managers = managersByOwner || [];
     }
 
     await sendSmsToMany(
@@ -210,6 +216,46 @@ export async function createMaintenanceRequest(
         message: `${tenantName} submitted: ${title}`,
       }))
     );
+
+    // Fetch unit name for email context
+    let unitName: string | undefined;
+    if (unit_id) {
+      const { data: unitData } = await supabaseAdmin
+        .from("units")
+        .select("unit_name")
+        .eq("id", unit_id)
+        .maybeSingle();
+      unitName = unitData?.unit_name || undefined;
+    }
+
+    // Send email notification to managers
+    const managerEmails = (managers || []).map((m: any) => m.email).filter(Boolean);
+    if (managerEmails.length > 0) {
+      sendEmail({
+        to: managerEmails,
+        subject: `🔧 New Maintenance Request: ${title}`,
+        html: maintenanceRequestEmailHtml({
+          tenantName,
+          title,
+          description,
+          priority,
+          unit: unitName,
+        }),
+      });
+    }
+
+    // Log activity for apartment_logs
+    logActivity({
+      apartmentowner_id,
+      actor_id: req.user?.id || null,
+      actor_name: tenantName,
+      actor_role: "tenant",
+      action: "maintenance_request_created",
+      entity_type: "maintenance",
+      entity_id: data.id,
+      description: `${tenantName} submitted maintenance request: ${title}`,
+      metadata: { title, priority, status: "pending", maintenance_id },
+    });
 
     sendSuccess(res, data, "Maintenance request created successfully", 201);
   } catch (err: any) {

@@ -28,6 +28,8 @@ export const env = {
   EMAIL_VERIFICATION_API_URL:
     process.env.EMAIL_VERIFICATION_API_URL || "https://emailvalidation.abstractapi.com/v1/",
   EMAIL_VERIFICATION_REQUIRED: process.env.EMAIL_VERIFICATION_REQUIRED || "false",
+  SMTP_USER: process.env.SMTP_USER || "",
+  SMTP_PASS: process.env.SMTP_PASS || "",
 };
 
 // Validate required env vars

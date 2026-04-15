@@ -1,4 +1,5 @@
-import { Sun, Moon, User, Menu } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Sun, Moon, User, Menu, Clock } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 
 interface TenantTopBarProps {
@@ -8,6 +9,12 @@ interface TenantTopBarProps {
 
 export default function TenantTopBar({ onMenuToggle, tenantName }: TenantTopBarProps) {
   const { isDark, toggleTheme } = useTheme()
+  const [now, setNow] = useState(new Date())
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   return (
     <header
@@ -36,6 +43,14 @@ export default function TenantTopBar({ onMenuToggle, tenantName }: TenantTopBarP
       </div>
 
       <div className="flex items-center gap-4">
+        <div className={`flex items-center gap-1.5 text-xs font-medium tabular-nums ${
+          isDark ? 'text-gray-400' : 'text-gray-500'
+        }`}>
+          <Clock className="w-3.5 h-3.5" />
+          <span>{now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+          <span className="mx-0.5">·</span>
+          <span>{now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+        </div>
         <button
           onClick={toggleTheme}
           className={`p-2 rounded-lg transition-colors ${

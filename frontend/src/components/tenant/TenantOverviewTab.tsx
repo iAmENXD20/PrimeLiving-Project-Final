@@ -196,107 +196,178 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
         </div>
       </div>
 
-      {/* Contract Renewal Banner */}
-      {contractStatus === 'expiring' && (
-        <div className={`rounded-xl border overflow-hidden ${isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
-          <div className="p-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-amber-400" />
-              </div>
-              <div>
-                <p className={`text-sm font-semibold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>Your contract is expiring soon</p>
-                <p className={`text-xs mt-0.5 ${isDark ? 'text-amber-400/70' : 'text-amber-600'}`}>
-                  Review your contract details and decide whether to renew or end your lease.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowContractDetails(!showContractDetails)}
-              className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isDark ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-              }`}
-            >
-              <Eye className="w-4 h-4" />
-              {showContractDetails ? 'Hide Details' : 'View Details'}
-            </button>
-          </div>
+      {/* Contract Progress Tracker */}
+      {apartmentInfo?.lease_start && apartmentInfo?.lease_end && (
+        (() => {
+          const start = new Date(apartmentInfo.lease_start!)
+          const end = new Date(apartmentInfo.lease_end!)
+          const now = new Date()
+          const totalMonths = apartmentInfo.contract_duration || Math.max(1, Math.round((end.getTime() - start.getTime()) / (30.44 * 24 * 60 * 60 * 1000)))
+          const monthsElapsed = Math.max(0, Math.min(totalMonths, Math.floor((now.getTime() - start.getTime()) / (30.44 * 24 * 60 * 60 * 1000))))
+          const isNearEnd = totalMonths - monthsElapsed <= 1 && contractStatus !== 'end_contract' && contractStatus !== 'renewed'
+          const isEnding = contractStatus === 'end_contract'
+          const isRenewed = contractStatus === 'renewed'
+          const isExpiring = contractStatus === 'expiring'
+          const progressPct = Math.min(100, (monthsElapsed / totalMonths) * 100)
 
-          {showContractDetails && apartmentInfo && (
-            <div className={`px-4 pb-4 border-t ${isDark ? 'border-amber-500/20' : 'border-amber-200'}`}>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
-                <div>
-                  <p className={`text-xs font-medium ${isDark ? 'text-amber-400/60' : 'text-amber-600/70'}`}>Unit</p>
-                  <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{apartmentInfo.name}</p>
+          // Generate month labels
+          const months: { label: string; idx: number }[] = []
+          for (let i = 0; i <= totalMonths; i++) {
+            const d = new Date(start)
+            d.setMonth(d.getMonth() + i)
+            months.push({ label: d.toLocaleDateString('en-US', { month: 'short', year: i === 0 || i === totalMonths || d.getMonth() === 0 ? 'numeric' : undefined }), idx: i })
+          }
+
+          // Show max ~12 step markers; if more months, show subset
+          const showEvery = totalMonths > 12 ? Math.ceil(totalMonths / 12) : 1
+
+          return (
+            <div className={`rounded-xl border overflow-hidden ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'}`}>
+              <div className="p-5">
+                {/* Header row */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                      isRenewed ? 'bg-emerald-500/15' : isEnding ? 'bg-red-500/15' : isExpiring || isNearEnd ? 'bg-amber-500/15' : 'bg-primary/10'
+                    }`}>
+                      {isRenewed ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> :
+                       isEnding ? <Clock className="w-4 h-4 text-red-400" /> :
+                       isExpiring || isNearEnd ? <AlertTriangle className="w-4 h-4 text-amber-400" /> :
+                       <Clock className="w-4 h-4 text-primary" />}
+                    </div>
+                    <div>
+                      <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {isRenewed ? 'Contract Renewed' : isEnding ? 'Contract Ending' : isExpiring || isNearEnd ? 'Contract Expiring Soon' : 'Contract Progress'}
+                      </p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {isRenewed ? 'Your lease has been successfully renewed.' :
+                         isEnding ? `Ends on ${new Date(apartmentInfo.lease_end!).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` :
+                         `Month ${monthsElapsed} of ${totalMonths} — ${new Date(apartmentInfo.lease_start!).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} to ${new Date(apartmentInfo.lease_end!).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                    isRenewed ? 'bg-emerald-500/15 text-emerald-400' :
+                    isEnding ? 'bg-red-500/15 text-red-400' :
+                    isExpiring || isNearEnd ? 'bg-amber-500/15 text-amber-400' :
+                    'bg-primary/10 text-primary'
+                  }`}>
+                    {Math.round(progressPct)}%
+                  </span>
                 </div>
-                <div>
-                  <p className={`text-xs font-medium ${isDark ? 'text-amber-400/60' : 'text-amber-600/70'}`}>Monthly Rent</p>
-                  <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{Number(apartmentInfo.monthly_rent).toLocaleString()}</p>
+
+                {/* Progress bar */}
+                <div className={`relative w-full h-2.5 rounded-full overflow-hidden ${isDark ? 'bg-white/5' : 'bg-gray-100'}`}>
+                  <div
+                    className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ${
+                      isRenewed ? 'bg-emerald-500' :
+                      isEnding ? 'bg-red-500' :
+                      progressPct >= 85 ? 'bg-amber-500' :
+                      'bg-primary'
+                    }`}
+                    style={{ width: `${progressPct}%` }}
+                  />
                 </div>
-                <div>
-                  <p className={`text-xs font-medium ${isDark ? 'text-amber-400/60' : 'text-amber-600/70'}`}>Contract Duration</p>
-                  <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{apartmentInfo.contract_duration ? `${apartmentInfo.contract_duration} month${apartmentInfo.contract_duration > 1 ? 's' : ''}` : '—'}</p>
+
+                {/* Month step markers */}
+                <div className="mt-3 px-1">
+                  <div className="flex justify-between items-start">
+                    {months.filter((_, i) => i === 0 || i === totalMonths || i % showEvery === 0).map((m) => {
+                      const isPast = m.idx <= monthsElapsed
+                      const isCurrent = m.idx === monthsElapsed
+                      return (
+                        <div key={m.idx} className="flex flex-col items-center min-w-0">
+                          <div className={`w-2.5 h-2.5 rounded-full border-2 shrink-0 ${
+                            isCurrent
+                              ? (isRenewed ? 'bg-emerald-500 border-emerald-400' : isEnding ? 'bg-red-500 border-red-400' : 'bg-primary border-primary')
+                              : isPast
+                                ? (isDark ? 'bg-white/20 border-white/30' : 'bg-gray-300 border-gray-400')
+                                : (isDark ? 'bg-transparent border-white/10' : 'bg-transparent border-gray-200')
+                          }`} />
+                          <span className={`text-[10px] mt-1 truncate max-w-[48px] text-center ${
+                            isCurrent ? (isDark ? 'text-white font-semibold' : 'text-gray-900 font-semibold') :
+                            isDark ? 'text-gray-500' : 'text-gray-400'
+                          }`}>
+                            {m.label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-                <div>
-                  <p className={`text-xs font-medium ${isDark ? 'text-amber-400/60' : 'text-amber-600/70'}`}>Contract Period</p>
-                  <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {apartmentInfo.lease_start ? new Date(apartmentInfo.lease_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                    {' — '}
-                    {apartmentInfo.lease_end ? new Date(apartmentInfo.lease_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+              </div>
+
+              {/* Expiring actions */}
+              {(isExpiring || isNearEnd) && (
+                <div className={`px-5 pb-4 pt-2 border-t ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                  <p className={`text-xs mb-3 ${isDark ? 'text-amber-400/70' : 'text-amber-600'}`}>
+                    Your contract is expiring soon. Would you like to renew or end your lease?
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowContractDetails(!showContractDetails)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+                        isDark ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      {showContractDetails ? 'Hide' : 'Details'}
+                    </button>
+                    <button
+                      onClick={handleRenew}
+                      disabled={renewing}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${renewing ? 'animate-spin' : ''}`} />
+                      {renewing ? 'Renewing...' : 'Renew'}
+                    </button>
+                    <button
+                      onClick={handleEndContract}
+                      disabled={ending}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
+                        isDark ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-red-50 text-red-600 hover:bg-red-100'
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      {ending ? 'Processing...' : 'End Contract'}
+                    </button>
+                  </div>
+                  {showContractDetails && (
+                    <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-dashed ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
+                      <div>
+                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Unit</p>
+                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{apartmentInfo.name}</p>
+                      </div>
+                      <div>
+                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Rent</p>
+                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>₱{Number(apartmentInfo.monthly_rent).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Duration</p>
+                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{totalMonths} month{totalMonths > 1 ? 's' : ''}</p>
+                      </div>
+                      <div>
+                        <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Period</p>
+                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {new Date(apartmentInfo.lease_start!).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {new Date(apartmentInfo.lease_end!).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Ending countdown info */}
+              {isEnding && (
+                <div className={`px-5 pb-4 pt-2 border-t ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                  <p className={`text-xs ${isDark ? 'text-red-400/70' : 'text-red-600'}`}>
+                    Your account will be closed after the contract period ends on {new Date(apartmentInfo.lease_end!).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
                   </p>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-dashed" style={{ borderColor: isDark ? 'rgba(245,158,11,0.2)' : 'rgba(217,119,6,0.2)' }}>
-                <button
-                  onClick={handleRenew}
-                  disabled={renewing}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-4 h-4 ${renewing ? 'animate-spin' : ''}`} />
-                  {renewing ? 'Renewing...' : 'Renew Contract'}
-                </button>
-                <button
-                  onClick={handleEndContract}
-                  disabled={ending}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                    isDark ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
-                  }`}
-                >
-                  <X className="w-4 h-4" />
-                  {ending ? 'Processing...' : 'End Contract'}
-                </button>
-              </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Contract Ending Countdown Banner */}
-      {contractStatus === 'end_contract' && (
-        <div className={`rounded-xl p-4 border flex items-center gap-3 ${isDark ? 'bg-red-500/10 border-red-500/30' : 'bg-red-50 border-red-200'}`}>
-          <div className="w-10 h-10 rounded-lg bg-red-500/15 flex items-center justify-center shrink-0">
-            <Clock className="w-5 h-5 text-red-400" />
-          </div>
-          <div>
-            <p className={`text-sm font-semibold ${isDark ? 'text-red-300' : 'text-red-800'}`}>Contract Ending</p>
-            <p className={`text-xs mt-0.5 ${isDark ? 'text-red-400/70' : 'text-red-600'}`}>
-              Your contract will end on {apartmentInfo?.lease_end ? new Date(apartmentInfo.lease_end).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'the scheduled date'}. Your account will be closed after the contract period.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {contractStatus === 'renewed' && (
-        <div className={`rounded-xl p-4 border flex items-center gap-3 ${isDark ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'}`}>
-          <div className="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          </div>
-          <div>
-            <p className={`text-sm font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>Contract Renewed</p>
-            <p className={`text-xs mt-0.5 ${isDark ? 'text-emerald-400/70' : 'text-emerald-600'}`}>Your lease has been successfully renewed.</p>
-          </div>
-        </div>
+          )
+        })()
       )}
 
       {loading && (
@@ -341,9 +412,9 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
       </div>
 
       {/* Recent Histories + Calendar — equal halves */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* Left: Recent Histories */}
-        <div className={`${cardClass} flex flex-col min-h-0`}>
+        <div className={`${cardClass} flex flex-col max-h-[520px]`}>
           <div className="flex items-center gap-2 mb-3">
             <Clock className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
             <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Recent Histories</h3>
@@ -355,7 +426,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
             </p>
           )}
 
-          <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
+          <div className="space-y-2 overflow-y-auto flex-1">
             {paginatedHistory.map((item, idx) => (
               <div
                 key={item.id}
@@ -415,7 +486,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
 
         {/* Right: Calendar */}
         <CalendarWidget
-          className="h-full"
+          className="max-h-[520px]"
           deadlines={(() => {
             // Generate monthly billing dates from lease period
             if (apartmentInfo?.lease_start) {

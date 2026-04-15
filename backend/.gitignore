@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 .DS_Store
+exec-migration.js
+run-migrations.js
+test-rls.js

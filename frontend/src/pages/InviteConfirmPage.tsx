@@ -37,7 +37,7 @@ export default function InviteConfirmPage() {
   const [idBackPreview, setIdBackPreview] = useState<string | null>(null)
   const [showIdDropdown, setShowIdDropdown] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
-  const [countdown, setCountdown] = useState(5)
+  const [countdown, setCountdown] = useState(60)
   const [stepTransition, setStepTransition] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const fileBackInputRef = useRef<HTMLInputElement>(null)
@@ -275,7 +275,7 @@ export default function InviteConfirmPage() {
 
         <div className="w-full max-w-md">
           <div className="mb-7">
-            <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Verify & Activate Account</h2>
+            <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Verify & Set Up Account</h2>
             <p className={`mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               Step {currentStep} of 3
             </p>
@@ -559,12 +559,12 @@ export default function InviteConfirmPage() {
                   disabled={verifying}
                   className="flex-1 bg-primary hover:bg-primary/90 text-white font-semibold py-3"
                 >
-                  {verifying ? 'Activating...' : 'Activate Account'}
+                  {verifying ? 'Setting Up...' : 'Complete Set Up'}
                 </Button>
               </div>
 
               <p className={`text-xs mt-4 text-center ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                After activation, sign in with your email and new password.
+                After setup, your account will be under review by management for verification.
               </p>
             </div>
           )}
@@ -578,9 +578,9 @@ export default function InviteConfirmPage() {
                 </div>
               </div>
               <div>
-                <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Account Activated!</h3>
+                <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Account Set Up Completed!</h3>
                 <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {successMessage || "You're all set! Your account is currently under review by management for verification."}
+                  {successMessage || "You're all set! Your account has been successfully set up and is currently under review by management for verification."}
                 </p>
               </div>
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
