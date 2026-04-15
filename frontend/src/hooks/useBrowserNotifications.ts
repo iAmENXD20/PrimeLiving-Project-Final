@@ -13,6 +13,7 @@ interface UseBrowserNotificationsOptions {
   storageKey: string
   fetchNotifications: () => Promise<BrowserNotificationItem[]>
   pollMs?: number
+  onSync?: () => void
 }
 
 export default function useBrowserNotifications({
@@ -20,6 +21,7 @@ export default function useBrowserNotifications({
   storageKey,
   fetchNotifications,
   pollMs = 30000,
+  onSync,
 }: UseBrowserNotificationsOptions) {
   const initializedRef = useRef(false)
   const seenIdsRef = useRef<Set<string>>(new Set())
@@ -102,6 +104,9 @@ export default function useBrowserNotifications({
         if (unseenUnread.length > 0) {
           persistSeenIds()
         }
+
+        // Notify parent to refresh badge count
+        onSync?.()
       } catch {
         // silent polling failures
       }

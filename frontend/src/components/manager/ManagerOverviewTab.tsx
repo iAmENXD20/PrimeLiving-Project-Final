@@ -42,23 +42,36 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
         setPayments(paymentData)
 
         // Get apartment branch + address from the manager's first unit
+        let branchResolved = false
+        let addressResolved = false
         const firstUnit = units?.[0]
         if (firstUnit) {
-          setApartmentBranch(firstUnit.apartment_name || firstUnit.name || null)
+          const aptCode = firstUnit.apartment_name || null
+          const unitName = firstUnit.name || null
+          if (aptCode && unitName) {
+            setApartmentBranch(`${aptCode} — ${unitName}`)
+            branchResolved = true
+          } else if (aptCode || unitName) {
+            setApartmentBranch(aptCode || unitName || null)
+            branchResolved = true
+          }
           const addrParts = [
             firstUnit.apartment_address_street,
             firstUnit.apartment_address_barangay,
             firstUnit.apartment_address_city,
             firstUnit.apartment_address_province,
           ].filter(Boolean)
-          setApartmentAddress(addrParts.length > 0 ? addrParts.join(', ') : null)
+          if (addrParts.length > 0) {
+            setApartmentAddress(addrParts.join(', '))
+            addressResolved = true
+          }
         }
-        // Fallback to owner-level data
-        if (!apartmentBranch && ownerId) {
+        // Fallback to owner-level data only if manager data didn't resolve
+        if (!branchResolved && ownerId) {
           const name = await getOwnerApartmentName(ownerId)
           if (name) setApartmentBranch(name)
         }
-        if (!apartmentAddress && ownerId) {
+        if (!addressResolved && ownerId) {
           const addr = await getOwnerApartmentAddress(ownerId)
           if (addr) setApartmentAddress(addr)
         }
@@ -145,16 +158,10 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
             <div className="animate-marquee whitespace-nowrap">
               <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                 {(() => {
-                  const tickets = recentRequests.length > 0
-                    ? recentRequests.filter(m => m.status === 'pending' || m.status === 'in_progress').map(m => `🔧 ${m.tenant_name || 'Tenant'}: ${m.title} (${m.status.replace('_', ' ')})`)
-                    : [
-                      '🔧 Juan Dela Cruz: Leaking faucet in kitchen (pending)',
-                      '🔧 Carlos Reyes: Broken door lock - Unit 5 (in progress)',
-                      '🔧 Patricia Villanueva: AC not working - Unit 8 (pending)',
-                      '💰 Liza Mendoza: Rent overdue - ₱9,000',
-                      '🔧 Rico Dimaculangan: Clogged drain in bathroom - Unit 3 (pending)',
-                    ]
-                  return tickets.join('     •     ')
+                  const tickets = recentRequests
+                    .filter(m => m.status === 'pending' || m.status === 'in_progress')
+                    .map(m => `🔧 ${m.tenant_name || 'Tenant'}: ${m.title} (${m.status.replace('_', ' ')})`)
+                  return tickets.length > 0 ? tickets.join('     •     ') : 'No active maintenance requests'
                 })()}
               </span>
             </div>

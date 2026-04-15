@@ -172,7 +172,7 @@ export async function createManager(
         apartment_id: apartment_id || null,
         status: "pending",
       })
-      .select()
+      .select("*, apartment:apartments!apartment_id(id, name, address)")
       .single();
 
     if (error) {
@@ -233,7 +233,7 @@ export async function updateManager(
       .from("apartment_managers")
       .update(updates)
       .eq("id", id)
-      .select()
+      .select("*, apartment:apartments!apartment_id(id, name, address)")
       .single();
 
     if (error) {

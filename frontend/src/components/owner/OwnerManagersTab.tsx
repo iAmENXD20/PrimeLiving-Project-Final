@@ -1,4 +1,4 @@
-import { Search, Plus, MoreHorizontal, Edit2, Trash2, Copy, Check } from 'lucide-react'
+import { Search, Plus, MoreHorizontal, Edit2, Trash2, Copy, Check, Eye } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
@@ -8,6 +8,7 @@ import {
   createOwnerManager,
   updateOwnerManager,
   deleteOwnerManager,
+  getOwnerApartments,
 } from '../../lib/ownerApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import { TableSkeleton } from '@/components/ui/skeleton'
@@ -36,7 +37,7 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingManager, setEditingManager] = useState<Manager | null>(null)
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', apartmentId: '' })
   const [saving, setSaving] = useState(false)
   const [phonePrefixError, setPhonePrefixError] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
@@ -47,9 +48,11 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
   const [page, setPage] = useState(1)
   const pageSize = 10
   const managerEmailValidation = useEmailValidation(form.email)
+  const [apartments, setApartments] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     loadManagers()
+    getOwnerApartments(ownerId).then((data) => setApartments(data || [])).catch(() => {})
   }, [ownerId])
 
   async function loadManagers() {
@@ -66,13 +69,13 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
 
   function openAddModal() {
     setEditingManager(null)
-    setForm({ firstName: '', lastName: '', email: '', phone: '' })
+    setForm({ firstName: '', lastName: '', email: '', phone: '', apartmentId: '' })
     setShowModal(true)
   }
 
   function openEditModal(manager: Manager) {
     setEditingManager(manager)
-    setForm({ firstName: manager.first_name || '', lastName: manager.last_name || '', email: manager.email, phone: (manager.phone || '').replace(/^\+63/, '') })
+    setForm({ firstName: manager.first_name || '', lastName: manager.last_name || '', email: manager.email, phone: (manager.phone || '').replace(/^\+63/, ''), apartmentId: manager.apartment?.id || '' })
     setShowModal(true)
     setOpenMenu(null)
   }
@@ -100,6 +103,7 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
           last_name: form.lastName,
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
+          apartment_id: form.apartmentId || null,
         })
         setManagers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
         toast.success('Manager updated successfully')
@@ -111,6 +115,7 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
           apartmentowner_id: ownerId,
+          apartment_id: form.apartmentId || undefined,
         })
         setManagers((prev) => [result.manager, ...prev])
         setShowModal(false)
@@ -152,7 +157,8 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
   const filtered = managers.filter(
     (m) =>
       `${m.first_name} ${m.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
-      m.email.toLowerCase().includes(search.toLowerCase())
+      m.email.toLowerCase().includes(search.toLowerCase()) ||
+      (m.apartment?.name || '').toLowerCase().includes(search.toLowerCase())
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -216,7 +222,7 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
           <table className="w-full text-base">
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                {['Name', 'Email', 'Phone', 'Status', 'Apartment', 'Location', 'Joined', ''].map((h) => (
+                {['No.', 'Name', 'Apartment Code', 'Address', 'Status', 'View'].map((h) => (
                   <th key={h} className={`text-left py-3.5 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {h}
                   </th>
@@ -226,27 +232,30 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={8} className="py-3 px-4">
+                  <td colSpan={6} className="py-3 px-4">
                     <TableSkeleton rows={5} />
                   </td>
                 </tr>
               )}
               {!loading &&
-                paginated.map((manager) => (
+                paginated.map((manager, idx) => (
                   <tr
                     key={manager.id}
                     className={`border-b last:border-0 transition-colors ${
                       isDark ? 'border-[#1E293B] hover:bg-white/[0.02]' : 'border-gray-100 hover:bg-gray-50'
                     }`}
                   >
+                    <td className={`py-3.5 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {(page - 1) * pageSize + idx + 1}
+                    </td>
                     <td className={`py-3.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {manager.first_name} {manager.last_name}
                     </td>
                     <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {manager.email}
+                      {manager.apartment?.name || <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Unassigned</span>}
                     </td>
                     <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {manager.phone || '—'}
+                      {manager.apartment?.address || '—'}
                     </td>
                     <td className="py-3.5 px-4">
                       <span
@@ -259,21 +268,12 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
                         {manager.status}
                       </span>
                     </td>
-                    <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {manager.apartment?.name || '—'}
-                    </td>
-                    <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {manager.apartment?.address || '—'}
-                    </td>
-                    <td className={`py-3.5 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {manager.joined_date ? new Date(manager.joined_date).toLocaleDateString() : '—'}
-                    </td>
                     <td className="py-3.5 px-4 relative">
                       <button
                         onClick={() => setOpenMenu(openMenu === manager.id ? null : manager.id)}
-                        className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                        className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
                       >
-                        <MoreHorizontal className="w-4 h-4" />
+                        <Eye className="w-4 h-4" />
                       </button>
                       {openMenu === manager.id && (
                         <div
@@ -304,7 +304,7 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
                 ))}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <td colSpan={6} className={`py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     No managers found
                   </td>
                 </tr>
@@ -437,6 +437,26 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
                 {phonePrefixError && (
                   <p className="text-xs text-red-500 mt-1">Contact number must start with 9 after +63</p>
                 )}
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Assign to Apartment
+                </label>
+                <select
+                  value={form.apartmentId}
+                  onChange={(e) => setForm({ ...form, apartmentId: e.target.value })}
+                  className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white'
+                      : 'bg-white border-gray-200 text-gray-900'
+                  }`}
+                >
+                  <option value="">— Not assigned —</option>
+                  {apartments.map((apt) => (
+                    <option key={apt.id} value={apt.id}>{apt.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

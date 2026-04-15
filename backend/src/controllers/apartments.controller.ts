@@ -404,7 +404,7 @@ export async function getApartmentsWithTenants(
     // Get active tenants for these apartments
     const { data: tenants, error: tenError } = await supabaseAdmin
       .from("tenants")
-      .select("id, first_name, last_name, phone, unit_id")
+      .select("id, first_name, last_name, phone, unit_id, move_in_date")
       .eq("status", "active")
       .in("unit_id", aptIds);
 
@@ -416,7 +416,7 @@ export async function getApartmentsWithTenants(
     // Map tenant to apartment
     const tenantMap: Record<
       string,
-      { id: string; name: string; phone: string | null }
+      { id: string; name: string; phone: string | null; move_in_date: string | null }
     > = {};
     (tenants || []).forEach((t: any) => {
       if (t.unit_id) {
@@ -424,6 +424,7 @@ export async function getApartmentsWithTenants(
           id: t.id,
           name: `${t.first_name} ${t.last_name}`.trim(),
           phone: t.phone,
+          move_in_date: t.move_in_date,
         };
       }
     });
@@ -442,11 +443,13 @@ export async function getApartmentsWithTenants(
       manager_id: apt.manager_id,
       status: apt.status,
       payment_due_day: apt.payment_due_day,
+      rent_deadline: apt.rent_deadline ?? null,
       max_occupancy: apt.max_occupancy ?? null,
       created_at: apt.created_at,
       tenant_name: tenantMap[apt.id]?.name || null,
       tenant_phone: tenantMap[apt.id]?.phone || null,
       tenant_id: tenantMap[apt.id]?.id || null,
+      tenant_move_in_date: tenantMap[apt.id]?.move_in_date || null,
     }));
 
     sendSuccess(res, results);

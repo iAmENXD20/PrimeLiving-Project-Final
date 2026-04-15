@@ -124,7 +124,8 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
         r.title.toLowerCase().includes(q) ||
         r.description.toLowerCase().includes(q) ||
         (r.tenant_name ?? '').toLowerCase().includes(q) ||
-        (r.apartment_name ?? '').toLowerCase().includes(q)
+        (r.apartment_name ?? '').toLowerCase().includes(q) ||
+        (r.maintenance_id ?? '').toLowerCase().includes(q)
       )
     }
     return true
@@ -269,12 +270,12 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
                 <th className={`w-14 text-center py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No.</th>
+                <th className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Maintenance ID</th>
                 <th className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Name</th>
-                <th className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Branch</th>
-                <th className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Photo</th>
+                <th className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Description</th>
                 <th className={`text-center py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Priority</th>
                 <th className={`text-center py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Status</th>
-                <th className={`text-center py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Date</th>
+                <th className={`text-center py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Timestamp</th>
                 <th className={`text-center py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>View</th>
               </tr>
             </thead>
@@ -284,31 +285,15 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
                   <td className={`py-3 px-4 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {(page - 1) * pageSize + index + 1}
                   </td>
+                  <td className={`py-3 px-4 font-mono text-sm font-medium ${isDark ? 'text-primary' : 'text-blue-600'}`}>
+                    {r.maintenance_id || '—'}
+                  </td>
                   <td className={`py-3 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {r.tenant_name || '—'}
                   </td>
-                  <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{r.apartment_name || '—'}</td>
-                  <td className="py-3 px-4">
-                    {(() => {
-                      const urls = parsePhotoUrls(r.photo_url)
-                      return urls.length > 0 ? (
-                        <div className="flex gap-1.5">
-                          {urls.map((url, i) => (
-                            <button key={i} type="button" onClick={() => openPhotoModal(urls, i)}>
-                              <img
-                                src={url}
-                                alt={`Evidence ${i + 1}`}
-                                className={`w-10 h-10 object-cover rounded-lg border hover:opacity-80 transition-opacity ${
-                                  isDark ? 'border-[#1E293B]' : 'border-gray-200'
-                                }`}
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>—</span>
-                      )
-                    })()}
+                  <td className={`py-3 px-4 max-w-[200px] ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{r.title}</p>
+                    <p className={`text-sm mt-0.5 truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{r.description}</p>
                   </td>
                   <td className="py-3 px-4 text-center">
                     <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize ${priorityColor[r.priority] || ''}`}>
@@ -320,8 +305,9 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
                       {r.status === 'in_progress' ? 'In Progress' : r.status}
                     </span>
                   </td>
-                  <td className={`py-3 px-4 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {new Date(r.created_at).toLocaleDateString()}
+                  <td className={`py-3 px-4 text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <div>{new Date(r.created_at).toLocaleDateString()}</div>
+                    <div className="text-xs">{new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   </td>
                   <td className="py-3 px-4 text-center">
                     <button
@@ -383,6 +369,10 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
             </div>
 
             <div className={`space-y-3 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              <div>
+                <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Maintenance ID</p>
+                <p className={`font-mono font-medium ${isDark ? 'text-primary' : 'text-blue-600'}`}>{viewRequest.maintenance_id || '—'}</p>
+              </div>
               <div>
                 <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Title</p>
                 <p className={isDark ? 'text-white' : 'text-gray-900'}>{viewRequest.title}</p>

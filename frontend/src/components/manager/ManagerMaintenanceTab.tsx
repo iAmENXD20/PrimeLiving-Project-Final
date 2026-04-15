@@ -144,7 +144,8 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
         r.title.toLowerCase().includes(q) ||
         r.description.toLowerCase().includes(q) ||
         (r.tenant_name ?? '').toLowerCase().includes(q) ||
-        (r.apartment_name ?? '').toLowerCase().includes(q)
+        (r.apartment_name ?? '').toLowerCase().includes(q) ||
+        (r.maintenance_id ?? '').toLowerCase().includes(q)
       )
     }
     return true
@@ -293,7 +294,7 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
           <table className="w-full text-base bg-transparent">
             <thead>
               <tr className={`border-b ${isDark ? 'border-[#1E293B] bg-[#0F1B30]' : 'border-gray-200 bg-white'}`}>
-                {['No.', 'Names', 'Description', 'Photo', 'Priority', 'Status', 'Date', 'View'].map((h) => (
+                {['No.', 'Maintenance ID', 'Name', 'Description', 'Priority', 'Status', 'Timestamp', 'View'].map((h) => (
                   <th key={h} className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {h}
                   </th>
@@ -306,34 +307,15 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
                   <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                     {(page - 1) * pageSize + idx + 1}
                   </td>
+                  <td className={`py-3 px-4 font-mono text-sm font-medium ${isDark ? 'text-primary' : 'text-blue-600'}`}>
+                    {req.maintenance_id || '—'}
+                  </td>
                   <td className={`py-3 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{req.tenant_name}</td>
                   <td className="py-3 px-4">
                     <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{req.title}</p>
                     <p className={`text-sm mt-0.5 truncate max-w-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                       {req.description}
                     </p>
-                  </td>
-                  <td className="py-3 px-4">
-                    {(() => {
-                      const urls = parsePhotoUrls(req.photo_url)
-                      return urls.length > 0 ? (
-                        <div className="flex gap-1.5">
-                          {urls.map((url, i) => (
-                            <button key={i} type="button" onClick={() => openPhotoModal(urls, i)}>
-                              <img
-                                src={url}
-                                alt={`Evidence ${i + 1}`}
-                                className={`w-10 h-10 object-cover rounded-lg border hover:opacity-80 transition-opacity ${
-                                  isDark ? 'border-[#1E293B]' : 'border-gray-200'
-                                }`}
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>—</span>
-                      )
-                    })()}
                   </td>
                   <td className="py-3 px-4">
                     <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${priorityColor[req.priority] || ''}`}>
@@ -345,8 +327,9 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
                       {req.status.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className={`py-3 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {new Date(req.created_at).toLocaleDateString()}
+                  <td className={`py-3 px-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <div>{new Date(req.created_at).toLocaleDateString()}</div>
+                    <div className="text-xs">{new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   </td>
                   <td className="py-3 px-4">
                     <button
@@ -461,6 +444,12 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
             </div>
 
             <div className="space-y-4">
+              {/* Maintenance ID */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Maintenance ID</label>
+                <p className={`text-sm font-mono font-medium ${isDark ? 'text-primary' : 'text-blue-600'}`}>{selectedRequest.maintenance_id || '—'}</p>
+              </div>
+
               {/* Title */}
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Title</label>

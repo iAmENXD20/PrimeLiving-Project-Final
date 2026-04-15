@@ -18,91 +18,46 @@ function normalizeRole(rawRole: unknown): UserRole | null {
   return null;
 }
 
-async function resolveUserRole(userId: string, user: any): Promise<UserRole> {
+async function resolveUserRoleAndStatus(userId: string, user: any): Promise<{ role: UserRole; active: boolean; status?: string }> {
   const [ownerRes, managerRes, tenantRes] = await Promise.all([
     supabaseAdmin
       .from("apartment_owners")
-      .select("id")
+      .select("id,status")
       .eq("auth_user_id", userId)
       .maybeSingle(),
     supabaseAdmin
       .from("apartment_managers")
-      .select("id")
+      .select("id,status")
       .eq("auth_user_id", userId)
       .maybeSingle(),
     supabaseAdmin
       .from("tenants")
-      .select("id")
+      .select("id,status")
       .eq("auth_user_id", userId)
       .maybeSingle(),
   ]);
 
-  if (ownerRes.data) return "owner";
-  if (managerRes.data) return "manager";
-  if (tenantRes.data) return "tenant";
+  if (ownerRes.data) {
+    const s = ownerRes.data.status || "active";
+    return { role: "owner", active: s === "active", status: s };
+  }
+  if (managerRes.data) {
+    const s = managerRes.data.status || "active";
+    return { role: "manager", active: s === "active", status: s };
+  }
+  if (tenantRes.data) {
+    const s = tenantRes.data.status || "active";
+    return { role: "tenant", active: s === "active", status: s };
+  }
 
+  // Fallback to metadata role — no row found, so treat as active
+  // (the user has a valid JWT but no profile row yet)
   const metadataRole =
     normalizeRole(user?.user_metadata?.role) ||
     normalizeRole(user?.app_metadata?.role) ||
     normalizeRole(user?.app_metadata?.user_role);
 
-  if (metadataRole) return metadataRole;
-
-  return "tenant";
-}
-
-async function ensureRoleIsActive(role: UserRole, userId: string): Promise<{ active: boolean; status?: string }> {
-  if (role === "owner") {
-    const { data, error } = await supabaseAdmin
-      .from("apartment_owners")
-      .select("id,status")
-      .eq("auth_user_id", userId)
-      .maybeSingle();
-
-    // If query failed, assume active to avoid blocking legitimate users
-    if (error) {
-      return { active: true, status: "active" };
-    }
-
-    const s = data?.status || "active";
-    return { active: Boolean(data && s === "active"), status: s };
-  }
-
-  if (role === "manager") {
-    const { data, error } = await supabaseAdmin
-      .from("apartment_managers")
-      .select("id,status")
-      .eq("auth_user_id", userId)
-      .maybeSingle();
-
-    if (error) {
-      return { active: true, status: "active" };
-    }
-
-    if (!data) {
-      return { active: false };
-    }
-
-    const s = data.status || "active";
-    return { active: s === "active", status: s };
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from("tenants")
-    .select("id,status")
-    .eq("auth_user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    return { active: true, status: "active" };
-  }
-
-  if (!data) {
-    return { active: false };
-  }
-
-  const s = data.status || "active";
-  return { active: s === "active", status: s };
+  return { role: metadataRole || "tenant", active: true, status: "active" };
 }
 
 /**
@@ -142,26 +97,24 @@ export async function authenticate(
       return;
     }
 
-    // Extract role from metadata and fallback to profile table linkage
-    const role = await resolveUserRole(user.id, user);
-
-    const isActive = await ensureRoleIsActive(role, user.id);
+    // Resolve role and check active status in a single query set
+    const { role, active: isActive, status: roleStatus } = await resolveUserRoleAndStatus(user.id, user);
 
     // Allow pending users through for activation endpoints
     const isActivationPath = req.path === "/confirm-activation";
 
-    if (!isActive.active && !isActivationPath) {
+    if (!isActive && !isActivationPath) {
       let msg = "Account is not active yet";
-      if (isActive.status === "pending_verification") {
+      if (roleStatus === "pending_verification") {
         const approver = role === "tenant" ? "apartment manager" : "apartment owner";
         msg = `Your account is currently under review. Please wait for your ${approver} to approve your account before you can log in.`;
-      } else if (isActive.status === "pending") {
+      } else if (roleStatus === "pending") {
         msg = "Please complete your account setup by accepting the invitation sent to your email.";
       }
       res.status(403).json({
         success: false,
         error: msg,
-        status: isActive.status,
+        status: roleStatus,
       });
       return;
     }

@@ -28,9 +28,11 @@ import {
   createOwnerProperty,
   updateOwnerProperty,
   deleteOwnerProperty,
+  getUnitOccupants,
   type Property,
   type UnitWithTenant,
   type OwnerTenant,
+  type UnitOccupant,
 } from '../../lib/ownerApi'
 
 interface OwnerManageApartmentTabProps {
@@ -77,6 +79,8 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   const [savingUnit, setSavingUnit] = useState(false)
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
   const statusDropdownRef = useRef<HTMLDivElement>(null)
+  const [unitOccupants, setUnitOccupants] = useState<UnitOccupant[]>([])
+  const [occupantsLoading, setOccupantsLoading] = useState(false)
 
   // ─── Add Unit modal state ─────────────────────────────────
   const [showAddUnitModal, setShowAddUnitModal] = useState(false)
@@ -266,6 +270,13 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
       max_occupancy: unit.max_occupancy != null ? String(unit.max_occupancy) : '',
       status: unit.status || 'active',
     })
+    // Fetch occupants for this unit
+    setOccupantsLoading(true)
+    setUnitOccupants([])
+    getUnitOccupants(unit.id)
+      .then(setUnitOccupants)
+      .catch(() => setUnitOccupants([]))
+      .finally(() => setOccupantsLoading(false))
   }
 
   async function saveUnitDetails() {
@@ -517,6 +528,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
           last_name: form.lastName.trim(),
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
+          apartment_id: form.apartment_id || null,
         })
         setManagers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
         toast.success('Manager updated successfully')
@@ -530,6 +542,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
           sex: form.sex || undefined,
           age: form.age || undefined,
           apartmentowner_id: ownerId,
+          apartment_id: form.apartment_id || undefined,
         })
         setManagers((prev) => [result.manager as Manager, ...prev])
         setShowManagerModal(false)
@@ -757,7 +770,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                     </span>
                   </div>
                   <h4 className={`text-lg font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Branch {index + 1}
+                    {prop.name}
                   </h4>
                   <p className={`text-sm flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
@@ -793,7 +806,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 Back to Apartments
               </button>
               <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Branch {branchIndex}
+                {selectedProperty.name}
               </h3>
               {buildAddress(selectedProperty) && (
                 <p className={`text-sm mt-0.5 flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -905,7 +918,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                             </div>
                             {mgr.first_name} {mgr.last_name}
                             {mgr.apartment_id && mgr.apartment_id !== selectedProperty.id && !isSelected && (
-                              <span className={`text-xs ml-auto ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>(other branch)</span>
+                              <span className={`text-xs ml-auto ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>(other apartment)</span>
                             )}
                           </div>
                         )})}
@@ -973,7 +986,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
               }`}
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 h-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 content-start">
                   {paginatedUnits.map((unit) => {
                     const isOccupied = !!unit.tenant_name
                     const isRenovation = unit.status === 'under_renovation'
@@ -991,7 +1004,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                     return (
                       <div
                         key={unit.id}
-                        className="relative rounded-lg overflow-hidden transition-all duration-200 flex flex-col"
+                        className="relative rounded-lg overflow-hidden transition-all duration-200"
                         style={{
                           borderLeft: `3px solid ${borderColor}`,
                           backgroundColor: bgColor,
@@ -1028,7 +1041,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                         </div>
 
                         {/* Body */}
-                        <div className="px-4 py-5 space-y-4 text-sm flex-1">
+                        <div className="px-4 py-5 space-y-4 text-sm">
                           <div className="flex justify-between">
                             <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Tenant</span>
                             <span className={`font-medium truncate ml-2 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
@@ -1075,25 +1088,25 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
            ════════════════════════════════════════════════════════ */}
         {mode === 'manage' && activeSubTab === 'managers' && (
         <section className="flex flex-col flex-1 min-h-0">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-            {/* Search */}
-            <div className="relative max-w-sm">
-              <Search
-                className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
-              />
-              <input
-                type="text"
-                placeholder="Search managers..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className={`w-full pl-10 pr-4 py-3 rounded-lg text-base border focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                  isDark
-                    ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
-                    : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                }`}
-              />
-            </div>
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+            {/* Search + Filter group */}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="relative w-64">
+                <Search
+                  className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                />
+                <input
+                  type="text"
+                  placeholder="Search managers..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className={`w-full pl-10 pr-4 py-3 rounded-lg text-base border focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                  }`}
+                />
+              </div>
               {/* Status filter dropdown */}
               <div ref={managerFilterRef} className="relative">
                 <button
@@ -1101,14 +1114,14 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   onClick={() => setManagerFilterOpen((prev) => !prev)}
                   className={`h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-white border-gray-200 text-gray-900'}`}
                 >
-                  {managerStatusFilter === 'all' ? 'All Status' : managerStatusFilter === 'active' ? 'Active' : managerStatusFilter === 'inactive' ? 'Inactive' : managerStatusFilter === 'pending' ? 'Pending Invite' : 'Awaiting Approval'}
+                  {managerStatusFilter === 'all' ? 'All Status' : managerStatusFilter === 'active' ? 'Active' : managerStatusFilter === 'inactive' ? 'Closed' : managerStatusFilter === 'pending' ? 'Pending Invite' : 'Awaiting Approval'}
                 </button>
                 <ChevronDown
                   className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${managerFilterOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                 />
                 {managerFilterOpen && (
                   <div className={`absolute z-50 mt-1 w-full min-w-[160px] rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
-                    {([['all', 'All Status'], ['active', 'Active'], ['inactive', 'Inactive'], ['pending', 'Pending Invite'], ['pending_verification', 'Awaiting Approval']] as const).map(([value, label]) => (
+                    {([['all', 'All Status'], ['active', 'Active'], ['inactive', 'Closed'], ['pending', 'Pending Invite'], ['pending_verification', 'Awaiting Approval']] as const).map(([value, label]) => (
                       <button
                         key={value}
                         type="button"
@@ -1121,18 +1134,20 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   </div>
                 )}
               </div>
+            </div>
+            <div className="flex items-center gap-3 ml-auto">
               {/* Download button */}
               <button
                 onClick={() => {
-                  const headers = ['Name', 'Branch', 'Address', 'Status']
+                  const headers = ['Name', 'Apartment Code', 'Address', 'Status']
                   const rows = filtered.map((m) => {
                     const prop = m.apartment_id ? properties.find(p => p.id === m.apartment_id) : null
                     const idx = m.apartment_id ? properties.findIndex(p => p.id === m.apartment_id) : -1
                     return [
                       `${m.first_name} ${m.last_name}`,
-                      idx >= 0 ? `Branch ${idx + 1}` : 'Unassigned',
+                      idx >= 0 ? properties[idx]?.name || 'Unassigned' : 'Unassigned',
                       buildAddress(prop) || '—',
-                      m.status === 'pending_verification' ? 'Awaiting Approval' : m.status === 'pending' ? 'Pending Invite' : m.status,
+                      m.status === 'pending_verification' ? 'Awaiting Approval' : m.status === 'pending' ? 'Pending Invite' : m.status === 'inactive' ? 'Closed' : m.status,
                     ]
                   })
                   const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -1170,7 +1185,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
               <table className="w-full text-base table-fixed">
                 <thead className="sticky top-0 z-[1]">
                   <tr className={`border-b ${isDark ? 'border-[#1E293B] bg-[#111D32]' : 'border-gray-200 bg-white'}`}>
-                    {['No.', 'Name', 'Branch', 'Address', 'Status', 'View'].map((h) => (
+                    {['No.', 'Name', 'Apartment Code', 'Address', 'Status', 'View'].map((h) => (
                       <th key={h} className={`text-center py-3.5 px-4 font-medium ${h === 'No.' ? 'w-16' : 'w-1/5'} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {h}
                       </th>
@@ -1202,9 +1217,9 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                         <td className={`py-3.5 px-4 text-center text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                           {(() => {
                             if (!manager.apartment_id) return <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Unassigned</span>
-                            const idx = properties.findIndex(p => p.id === manager.apartment_id)
-                            if (idx === -1) return <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Unassigned</span>
-                            return `Branch ${idx + 1}`
+                            const prop = properties.find(p => p.id === manager.apartment_id)
+                            if (!prop) return <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Unassigned</span>
+                            return prop.name
                           })()}
                         </td>
                         <td className={`py-3.5 px-4 text-center text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -1230,7 +1245,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                                       : 'bg-gray-500/15 text-gray-400'
                             }`}
                           >
-                            {manager.status === 'pending_verification' ? 'Awaiting Approval' : manager.status === 'pending' ? 'Pending Invite' : manager.status}
+                            {manager.status === 'pending_verification' ? 'Awaiting Approval' : manager.status === 'pending' ? 'Pending Invite' : manager.status === 'inactive' ? 'closed' : manager.status}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">
@@ -1275,28 +1290,25 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
            ════════════════════════════════════════════════════════ */}
         {mode === 'manage' && activeSubTab === 'tenants' && (
         <section className="flex flex-col flex-1 min-h-0">
-          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            {/* Search */}
-            <div className="relative max-w-sm">
-              <Search
-                className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
-              />
-              <input
-                type="text"
-                placeholder="Search tenants..."
-                value={tenantSearch}
-                onChange={(e) => setTenantSearch(e.target.value)}
-                className={`w-full pl-10 pr-4 py-3 rounded-lg text-base border focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                  isDark
-                    ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
-                    : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                }`}
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                {activeTenantCount} active tenant{activeTenantCount !== 1 ? 's' : ''}
-              </p>
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            {/* Search + Filter group */}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="relative w-64">
+                <Search
+                  className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                />
+                <input
+                  type="text"
+                  placeholder="Search tenants..."
+                  value={tenantSearch}
+                  onChange={(e) => setTenantSearch(e.target.value)}
+                  className={`w-full pl-10 pr-4 py-3 rounded-lg text-base border focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                    isDark
+                      ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                  }`}
+                />
+              </div>
               {/* Custom status filter dropdown */}
               <div ref={tenantFilterRef} className="relative">
                 <button
@@ -1304,14 +1316,14 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   onClick={() => setTenantFilterOpen((prev) => !prev)}
                   className={`h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-white border-gray-200 text-gray-900'}`}
                 >
-                  {tenantStatusFilter === 'all' ? 'All Status' : tenantStatusFilter === 'active' ? 'Active' : tenantStatusFilter === 'inactive' ? 'Inactive' : tenantStatusFilter === 'pending' ? 'Pending Verification' : 'Awaiting Approval'}
+                  {tenantStatusFilter === 'all' ? 'All Status' : tenantStatusFilter === 'active' ? 'Active' : tenantStatusFilter === 'inactive' ? 'Closed' : tenantStatusFilter === 'pending' ? 'Pending Verification' : 'Awaiting Approval'}
                 </button>
                 <ChevronDown
                   className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${tenantFilterOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                 />
                 {tenantFilterOpen && (
                   <div className={`absolute z-50 mt-1 w-full min-w-[160px] rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
-                    {([['all', 'All Status'], ['active', 'Active'], ['inactive', 'Inactive'], ['pending', 'Pending Verification'], ['pending_verification', 'Awaiting Approval']] as const).map(([value, label]) => (
+                    {([['all', 'All Status'], ['active', 'Active'], ['inactive', 'Closed'], ['pending', 'Pending Verification'], ['pending_verification', 'Awaiting Approval']] as const).map(([value, label]) => (
                       <button
                         key={value}
                         type="button"
@@ -1331,14 +1343,14 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   onClick={() => setTenantBranchFilterOpen((prev) => !prev)}
                   className={`h-11 rounded-lg border px-4 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-white border-gray-200 text-gray-900'}`}
                 >
-                  {tenantBranchFilter === 'all' ? 'All Branches' : tenantBranchFilter}
+                  {tenantBranchFilter === 'all' ? 'All Apartments' : tenantBranchFilter}
                 </button>
                 <ChevronDown
                   className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-transform ${tenantBranchFilterOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                 />
                 {tenantBranchFilterOpen && (
                   <div className={`absolute z-50 mt-1 w-full min-w-[160px] rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
-                    {[['all', 'All Branches'], ...properties.map((p, i) => [p.name, `Branch ${i + 1}`])].map(([value, label]) => (
+                    {[['all', 'All Apartments'], ...properties.map((p) => [p.name, p.name])].map(([value, label]) => (
                       <button
                         key={value}
                         type="button"
@@ -1351,15 +1363,20 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   </div>
                 )}
               </div>
+            </div>
+            <div className="flex items-center gap-3 ml-auto">
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {activeTenantCount} active tenant{activeTenantCount !== 1 ? 's' : ''}
+              </p>
               <button
                 onClick={() => {
-                  const headers = ['Name', 'Branch', 'Address', 'Unit/Room', 'Status']
+                  const headers = ['Name', 'Apartment Code', 'Address', 'Unit/Room', 'Status']
                   const rows = tenantsList.map((t) => [
                     t.name,
                     t.branch,
                     t.address,
                     t.unit,
-                    t.status === 'pending_verification' ? 'Awaiting Approval' : t.status === 'pending' ? 'Pending Invite' : t.status,
+                    t.status === 'pending_verification' ? 'Awaiting Approval' : t.status === 'pending' ? 'Pending Invite' : t.status === 'inactive' ? 'Closed' : t.status,
                   ])
                   const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
                   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -1370,7 +1387,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   a.click()
                   URL.revokeObjectURL(url)
                 }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
                   isDark
                     ? 'border-[#1E293B] text-gray-300 hover:bg-white/5'
                     : 'border-gray-200 text-gray-600 hover:bg-gray-50'
@@ -1388,7 +1405,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
               <table className="w-full text-base table-fixed">
                 <thead className="sticky top-0 z-[1]">
                   <tr className={`border-b ${isDark ? 'border-[#1E293B] bg-[#111D32]' : 'border-gray-200 bg-white'}`}>
-                    {['No.', 'Name', 'Branch', 'Address', 'Unit/Room', 'Status', 'View'].map((h) => (
+                    {['No.', 'Name', 'Apartment Code', 'Address', 'Unit/Room', 'Status', 'View'].map((h) => (
                       <th
                         key={h}
                         className={`text-center py-3.5 px-4 font-medium ${h === 'No.' ? 'w-16' : 'w-1/7'} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
@@ -1442,7 +1459,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                                     : 'bg-gray-500/15 text-gray-400'
                           }`}
                         >
-                          {t.status === 'pending_verification' ? 'Awaiting Approval' : t.status === 'pending' ? 'Pending Invite' : t.status}
+                          {t.status === 'pending_verification' ? 'Awaiting Approval' : t.status === 'pending' ? 'Pending Invite' : t.status === 'inactive' ? 'closed' : t.status}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
@@ -1678,7 +1695,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
       {selectedUnit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedUnit(null)} />
-          <div className={`relative w-full max-w-md rounded-xl p-6 shadow-2xl ${isDark ? 'bg-navy-card border border-white/10' : 'bg-white border border-gray-200'}`}>
+          <div className={`relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl p-6 shadow-2xl ${isDark ? 'bg-navy-card border border-white/10' : 'bg-white border border-gray-200'}`}>
             <div className="flex items-center justify-between mb-5">
               <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 Edit Unit
@@ -1781,6 +1798,49 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedUnit.tenant_phone || '—'}</span>
                 </div>
               </div>
+
+              {/* Occupants list */}
+              <div className={`rounded-lg p-3 text-sm ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Occupants
+                  </span>
+                  <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    {unitOccupants.length}{editForm.max_occupancy ? ` / ${editForm.max_occupancy}` : ''}
+                  </span>
+                </div>
+                {occupantsLoading ? (
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Loading…</p>
+                ) : unitOccupants.length === 0 ? (
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No occupants added</p>
+                ) : (
+                  <div className="space-y-2">
+                    {unitOccupants.map((occ, idx) => (
+                      <div
+                        key={occ.id}
+                        className={`flex items-center gap-3 rounded-md px-2.5 py-2 ${isDark ? 'bg-white/5' : 'bg-white border border-gray-100'}`}
+                      >
+                        <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'}`}>
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                            {occ.first_name && occ.last_name ? `${occ.first_name} ${occ.last_name}` : occ.full_name}
+                          </p>
+                          <div className="flex gap-3 text-xs">
+                            {occ.sex && (
+                              <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>{occ.sex}</span>
+                            )}
+                            {occ.phone && (
+                              <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>{occ.phone}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-3 mt-6">
@@ -1875,11 +1935,11 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 { label: 'Name', value: `${viewManager.first_name} ${viewManager.last_name}` },
                 { label: 'Email', value: viewManager.email },
                 { label: 'Phone', value: viewManager.phone || '—' },
-                { label: 'Branch', value: (() => {
+                { label: 'Apartment Code', value: (() => {
                   if (!viewManager.apartment_id) return 'Unassigned'
-                  const idx = properties.findIndex(p => p.id === viewManager.apartment_id)
-                  if (idx === -1) return 'Unassigned'
-                  return `Branch ${idx + 1}`
+                  const prop = properties.find(p => p.id === viewManager.apartment_id)
+                  if (!prop) return 'Unassigned'
+                  return prop.name
                 })() },
                 { label: 'Address', value: (() => {
                   if (!viewManager.apartment_id) return '—'
@@ -2072,7 +2132,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
               {[
                 { label: 'Name', value: viewTenant.name },
                 { label: 'Phone', value: viewTenant.phone },
-                { label: 'Branch', value: viewTenant.branch },
+                { label: 'Apartment Code', value: viewTenant.branch },
                 { label: 'Address', value: viewTenant.address },
                 { label: 'Unit', value: viewTenant.unit },
                 { label: 'Monthly Rent', value: viewTenant.rent ? `₱${viewTenant.rent.toLocaleString()}` : '—' },
@@ -2211,11 +2271,11 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 </p>
 
                 <div>
-                  <Label className="mb-1.5 block">Apartment Name</Label>
+                  <Label className="mb-1.5 block">Apartment Code</Label>
                   <Input
                     value={addPropertyForm.name}
                     onChange={(e) => setAddPropertyForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="e.g. Main Building, Branch 2"
+                    placeholder="e.g. Apartment 1, Building A"
                   />
                 </div>
 

@@ -1,4 +1,4 @@
-import { ChevronDown, UserMinus, X, Users, Eye } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, UserMinus, X, Users, Eye } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ import {
   getManagerUnits,
   getManagerTenants,
   updateManagerUnit,
+  updateTenantMoveInDate,
   assignExistingTenantToUnit,
   removeTenantFromUnit,
   getUnitOccupants,
@@ -35,7 +36,7 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
   // Edit modal
   const [selectedUnit, setSelectedUnit] = useState<UnitWithTenant | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [editForm, setEditForm] = useState({ name: '', tenantId: '', monthlyRent: '', billingStartAt: todayDate, contractDuration: '', leaseStart: '', leaseEnd: '' })
+  const [editForm, setEditForm] = useState({ name: '', tenantId: '', monthlyRent: '', billingStartAt: todayDate, contractDuration: '', leaseStart: '', leaseEnd: '', moveInDate: '', rentDeadline: '' })
   const [emptyingUnitId, setEmptyingUnitId] = useState<string | null>(null)
   const [unitToEmpty, setUnitToEmpty] = useState<UnitWithTenant | null>(null)
   const [isTenantDropdownOpen, setIsTenantDropdownOpen] = useState(false)
@@ -43,6 +44,12 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
   const [occupants, setOccupants] = useState<UnitOccupant[]>([])
   const [loadingOccupants, setLoadingOccupants] = useState(false)
   const [viewingIdPhoto, setViewingIdPhoto] = useState<string | null>(null)
+
+  // Pagination
+  const UNITS_PER_PAGE = 6
+  const [currentPage, setCurrentPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(units.length / UNITS_PER_PAGE))
+  const paginatedUnits = units.slice((currentPage - 1) * UNITS_PER_PAGE, currentPage * UNITS_PER_PAGE)
 
   useEffect(() => {
     loadUnits()
@@ -92,6 +99,8 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
       contractDuration: unit.contract_duration?.toString() || '',
       leaseStart: unit.lease_start?.slice(0, 10) || '',
       leaseEnd: unit.lease_end?.slice(0, 10) || '',
+      moveInDate: unit.tenant_move_in_date?.slice(0, 10) || '',
+      rentDeadline: unit.rent_deadline?.slice(0, 10) || '',
     })
     setShowEditModal(true)
 
@@ -109,13 +118,13 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
   async function handleEditUnit() {
     if (!selectedUnit) return
     try {
-      // Update apartment name & rent
+      // Update apartment name & unit details
       await updateManagerUnit(selectedUnit.id, {
         name: editForm.name,
-        monthly_rent: Number(editForm.monthlyRent) || 0,
         contract_duration: editForm.contractDuration ? Number(editForm.contractDuration) : null,
         lease_start: editForm.leaseStart || null,
         lease_end: editForm.leaseEnd || null,
+        rent_deadline: editForm.rentDeadline || null,
       })
 
       const hadTenant = !!selectedUnit.tenant_id
@@ -133,6 +142,10 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
           Number(editForm.monthlyRent) || undefined,
           editForm.billingStartAt,
         )
+        // Update move-in date if changed
+        if (editForm.moveInDate) {
+          await updateTenantMoveInDate(editForm.tenantId, editForm.moveInDate)
+        }
       } else if (hadTenant && !hasTenantNow) {
         await removeTenantFromUnit(selectedUnit.id, true)
         setUnits((prev) => prev.map((unit) =>
@@ -235,15 +248,12 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
 
         {/* Unit Cards Grid */}
         {!loading && units.length > 0 && (
-          <div className={`rounded-xl border p-4 max-h-[65vh] overflow-y-auto ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+          <div className={`rounded-xl border p-4 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {units.map((unit) => {
+            {paginatedUnits.map((unit) => {
               const isRenovation = unit.status === 'under_renovation'
               const isOccupied = !isRenovation && !!unit.tenant_name
               const isVacant = !isRenovation && !isOccupied
-              const tenantDetails = unit.tenant_id
-                ? tenants.find((tenant) => tenant.id === unit.tenant_id)
-                : null
 
               const borderColor = isRenovation ? '#D97706' : isOccupied ? '#DC2626' : '#059669'
               const bgColor = isRenovation
@@ -282,9 +292,34 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                     <span className={`text-base font-bold tracking-wide ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {unit.name.toUpperCase()}
                     </span>
-                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${statusBadge}`}>
-                      {statusLabel}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {isOccupied && (
+                        <button
+                          type="button"
+                          title="Empty Unit"
+                          aria-label="Empty Unit"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setUnitToEmpty(unit)
+                          }}
+                          disabled={emptyingUnitId === unit.id}
+                          className={`w-7 h-7 flex items-center justify-center rounded-full border transition-colors ${
+                            isDark
+                              ? 'border-red-500/30 text-red-400 hover:bg-red-500/15'
+                              : 'border-red-500/30 text-red-500 hover:bg-red-500/10'
+                          }`}
+                        >
+                          {emptyingUnitId === unit.id ? (
+                            <span className="text-[10px]">...</span>
+                          ) : (
+                            <UserMinus className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${statusBadge}`}>
+                        {statusLabel}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Body */}
@@ -302,27 +337,11 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Email</span>
-                      <span className={`truncate ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {tenantDetails?.email || '—'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Tenant Status</span>
-                      <span className={`capitalize ml-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {tenantDetails?.status || '—'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Billing Start</span>
-                      <span className={`ml-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {formatDate(tenantDetails?.move_in_date)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Rent</span>
-                      <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {unit.monthly_rent ? `₱${unit.monthly_rent.toLocaleString()}` : '—'}
+                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Billing Period</span>
+                      <span className={`ml-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {unit.lease_start && unit.lease_end
+                          ? `${new Date(unit.lease_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — ${new Date(unit.lease_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                          : '—'}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -332,54 +351,54 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Lease Duration</span>
-                      <span className={`ml-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {unit.lease_start && unit.lease_end ? (() => {
-                          const start = new Date(unit.lease_start!)
-                          const end = new Date(unit.lease_end!)
-                          const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth())
-                          return `${months} month${months !== 1 ? 's' : ''}`
-                        })() : '—'}
+                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Rent</span>
+                      <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {unit.monthly_rent ? `₱${unit.monthly_rent.toLocaleString()}` : '—'}
                       </span>
                     </div>
-                    {unit.lease_start && unit.lease_end && (
-                      <div className="flex justify-between">
-                        <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Lease Period</span>
-                        <span className={`ml-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {new Date(unit.lease_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {new Date(unit.lease_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                      </div>
-                    )}
-
-                    {isOccupied && (
-                      <div className="pt-2 flex justify-end">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          title="Empty Unit"
-                          aria-label="Empty Unit"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setUnitToEmpty(unit)
-                          }}
-                          disabled={emptyingUnitId === unit.id}
-                          className={`h-9 w-9 p-0 border-red-500/40 text-red-500 hover:bg-red-500/10 hover:text-red-400 ${
-                            isDark ? 'bg-transparent' : 'bg-white'
-                          }`}
-                        >
-                          {emptyingUnitId === unit.id ? (
-                            <span className="text-xs">...</span>
-                          ) : (
-                            <UserMinus className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
-                    )}
                   </div>
                 </div>
               )
             })}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className={`flex items-center justify-between mt-4 pt-4 border-t ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Showing {(currentPage - 1) * UNITS_PER_PAGE + 1}-{Math.min(currentPage * UNITS_PER_PAGE, units.length)} of {units.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                    currentPage === 1
+                      ? (isDark ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed')
+                      : (isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-gray-100')
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Prev
+                </button>
+                <span className={`px-3 py-1.5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                    currentPage === totalPages
+                      ? (isDark ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed')
+                      : (isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-gray-100')
+                  }`}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
           </div>
         )}
       </div>
@@ -389,7 +408,7 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/65 animate-in fade-in duration-200" onClick={() => setShowEditModal(false)} />
           <div
-            className={`relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${
+            className={`relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${
               isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
             }`}
           >
@@ -440,7 +459,9 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                       isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'
                     }`}
                   >
-                    {tenants.map((tenant) => (
+                    {tenants
+                      .filter((t) => !t.unit_id || t.unit_id === selectedUnit?.id)
+                      .map((tenant) => (
                       <button
                         type="button"
                         key={tenant.id}
@@ -474,19 +495,14 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Email: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedTenantDetails.email || '—'}</span></p>
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Phone: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedTenantDetails.phone || '—'}</span></p>
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Status: <span className={`capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedTenantDetails.status || '—'}</span></p>
-                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Move-in: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{formatDate(selectedTenantDetails.move_in_date)}</span></p>
                   </div>
                 </div>
               )}
               <div>
                 <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Monthly Rent (₱)</Label>
-                <Input
-                  type="number"
-                  value={editForm.monthlyRent}
-                  onChange={(e) => setEditForm({ ...editForm, monthlyRent: e.target.value })}
-                  placeholder="0"
-                  className={`mt-2 ${inputClass}`}
-                />
+                <div className={`mt-2 px-3 py-2 rounded-md text-sm font-medium ${isDark ? 'bg-[#0A1628] border border-[#1E293B] text-gray-200' : 'bg-gray-100 border border-gray-200 text-gray-800'}`}>
+                  {editForm.monthlyRent ? `₱${Number(editForm.monthlyRent).toLocaleString()}` : '—'}
+                </div>
               </div>
               <div>
                 <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Contract Duration (months)</Label>
@@ -494,20 +510,39 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                   type="number"
                   min="1"
                   value={editForm.contractDuration}
-                  onChange={(e) => setEditForm({ ...editForm, contractDuration: e.target.value })}
+                  onChange={(e) => {
+                    const months = Number(e.target.value) || 0
+                    let to = editForm.leaseEnd
+                    if (editForm.leaseStart && months > 0) {
+                      const d = new Date(editForm.leaseStart)
+                      d.setMonth(d.getMonth() + months)
+                      to = d.toISOString().split('T')[0]
+                    }
+                    setEditForm({ ...editForm, contractDuration: e.target.value, leaseEnd: to })
+                  }}
                   placeholder="e.g. 6, 12"
                   className={`mt-2 ${inputClass}`}
                 />
               </div>
               <div>
-                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Lease Period</Label>
+                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Move-in Date</Label>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <div>
                     <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>From</span>
                     <Input
                       type="date"
                       value={editForm.leaseStart}
-                      onChange={(e) => setEditForm({ ...editForm, leaseStart: e.target.value })}
+                      onChange={(e) => {
+                        const from = e.target.value
+                        const months = Number(editForm.contractDuration) || 0
+                        let to = editForm.leaseEnd
+                        if (from && months > 0) {
+                          const d = new Date(from)
+                          d.setMonth(d.getMonth() + months)
+                          to = d.toISOString().split('T')[0]
+                        }
+                        setEditForm({ ...editForm, leaseStart: from, leaseEnd: to, moveInDate: from })
+                      }}
                       className={inputClass}
                     />
                   </div>
@@ -533,18 +568,15 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                   </p>
                 )}
               </div>
-              {editForm.tenantId && (
-                <div>
-                  <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Billing Start Date</Label>
-                  <DatePicker
-                    value={editForm.billingStartAt}
-                    onChange={(date) => setEditForm({ ...editForm, billingStartAt: date })}
-                    isDark={isDark}
-                    className="mt-2"
-                    upward
-                  />
-                </div>
-              )}
+              <div>
+                <Label className={isDark ? 'text-gray-300' : 'text-gray-700'}>Rent Deadline / Billing Period</Label>
+                <Input
+                  type="date"
+                  value={editForm.rentDeadline}
+                  onChange={(e) => setEditForm({ ...editForm, rentDeadline: e.target.value })}
+                  className={`mt-2 ${inputClass}`}
+                />
+              </div>
 
               {/* Occupants / Co-Residents */}
               {editForm.tenantId && (

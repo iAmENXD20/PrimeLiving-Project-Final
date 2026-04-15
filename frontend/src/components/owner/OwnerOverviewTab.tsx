@@ -9,9 +9,11 @@ import {
   getOwnerUnits,
   getOwnerManagers,
   getOwnerPayments,
+  getOwnerApartmentLogs,
   type MaintenanceRequest,
   type UnitWithTenant,
   type OwnerPayment,
+  type ApartmentLog,
 } from '../../lib/ownerApi'
 import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
@@ -22,7 +24,7 @@ interface OwnerOverviewTabProps {
   ownerName?: string
 }
 
-type HistoryItem = { id: string; type: 'maintenance' | 'payment'; description: string; detail: string; date: string; badge: string; badgeColor: string; branch?: string; extra?: Record<string, string>; photo_url?: string | null }
+type HistoryItem = { id: string; type: 'maintenance' | 'payment' | 'activity'; description: string; detail: string; date: string; badge: string; badgeColor: string; branch?: string; extra?: Record<string, string>; photo_url?: string | null }
 
 export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTabProps) {
   const { isDark } = useTheme()
@@ -32,6 +34,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
   const [managerCount, setManagerCount] = useState(0)
   const [paidTenantCount, setPaidTenantCount] = useState(0)
   const [allPayments, setAllPayments] = useState<OwnerPayment[]>([])
+  const [activityLogs, setActivityLogs] = useState<ApartmentLog[]>([])
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -59,10 +62,11 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
     { value: 12, label: 'December' },
   ]
 
+  // Load all data once on mount
   useEffect(() => {
     async function load() {
       try {
-        const [s, requests, addr, unitList, managers, payments] = await Promise.all([
+        const [s, requests, addr, unitList, managers, payments, logs] = await Promise.all([
           selectedMonth === 0
             ? getOwnerDashboardStats(ownerId)
             : getOwnerDashboardStats(ownerId, { month: selectedMonth, year: selectedYear }),
@@ -71,6 +75,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
           getOwnerUnits(ownerId),
           getOwnerManagers(ownerId),
           getOwnerPayments(ownerId),
+          getOwnerApartmentLogs(ownerId),
         ])
         setStats(s)
         setRecentMaintenance(requests)
@@ -78,6 +83,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
         setUnits(unitList)
         setManagerCount((managers || []).length)
         setAllPayments(payments || [])
+        setActivityLogs((logs || []).filter((l) => l.action === 'tenant_assigned_to_unit'))
 
         // Count unique tenants who have paid this month
         const now = new Date()
@@ -104,7 +110,23 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
       }
     }
     load()
-  }, [ownerId, selectedMonth, selectedYear])
+  }, [ownerId])
+
+  // Only refetch stats when month/year filter changes (not all data)
+  useEffect(() => {
+    async function refetchStats() {
+      try {
+        const s = selectedMonth === 0
+          ? await getOwnerDashboardStats(ownerId)
+          : await getOwnerDashboardStats(ownerId, { month: selectedMonth, year: selectedYear })
+        setStats(s)
+      } catch (err) {
+        console.error('Failed to refresh stats:', err)
+      }
+    }
+    // Skip initial mount (handled by the main effect above)
+    if (!loading) refetchStats()
+  }, [selectedMonth, selectedYear])
 
   const cardClass = `rounded-xl p-4 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-300'
@@ -115,12 +137,12 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
     : `${monthOptions.find((m) => m.value === selectedMonth)?.label} ${selectedYear}`
 
   const statCards = [
-    { label: 'Total Income', value: (stats.totalRevenue || 285000).toLocaleString(), icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: `${monthOptions.find((m) => m.value === today.getMonth() + 1)?.label} ${today.getFullYear()}` },
-    { label: 'Paid Tenants', value: `${paidTenantCount || 28}/${stats.activeTenants || 33}`, icon: CreditCard, color: 'text-cyan-400', bg: 'bg-cyan-500/15', subtitle: monthOptions.find((m) => m.value === today.getMonth() + 1)?.label },
-    { label: 'Pending Maintenance', value: stats.pendingMaintenance || 7, icon: Wrench, color: 'text-red-400', bg: 'bg-red-500/15' },
-    { label: 'Active Tenants', value: stats.activeTenants || 33, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
-    { label: 'Apartments', value: stats.apartments || 6, icon: Building2, color: 'text-blue-400', bg: 'bg-blue-500/15' },
-    { label: 'Apartment Managers', value: managerCount || 6, icon: UserCog, color: 'text-violet-400', bg: 'bg-violet-500/15' },
+    { label: 'Total Income', value: (stats.totalRevenue || 0).toLocaleString(), icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: `${monthOptions.find((m) => m.value === today.getMonth() + 1)?.label} ${today.getFullYear()}` },
+    { label: 'Paid Tenants', value: `${paidTenantCount || 0}/${stats.activeTenants || 0}`, icon: CreditCard, color: 'text-cyan-400', bg: 'bg-cyan-500/15', subtitle: monthOptions.find((m) => m.value === today.getMonth() + 1)?.label },
+    { label: 'Pending Maintenance', value: stats.pendingMaintenance || 0, icon: Wrench, color: 'text-red-400', bg: 'bg-red-500/15' },
+    { label: 'Active Tenants', value: stats.activeTenants || 0, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
+    { label: 'Apartments', value: stats.apartments || 0, icon: Building2, color: 'text-blue-400', bg: 'bg-blue-500/15' },
+    { label: 'Apartment Managers', value: managerCount || 0, icon: UserCog, color: 'text-violet-400', bg: 'bg-violet-500/15' },
   ]
 
   // Build unified history from maintenance requests + payments
@@ -156,30 +178,24 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
       branch: p.apartment_name && p.apartment_name !== '\u2014' ? p.apartment_name : undefined,
       extra: { Amount: `₱${p.amount.toLocaleString()}`, 'Payment Mode': p.payment_mode || 'N/A' },
     })),
+    ...activityLogs.map((log) => {
+      const meta = log.metadata as Record<string, string>
+      const tenantName = meta?.first_name && meta?.last_name ? `${meta.first_name} ${meta.last_name}` : 'A tenant'
+      return {
+        id: `a-${log.id}`,
+        type: 'activity' as const,
+        description: `${tenantName} moved in`,
+        detail: log.description,
+        date: log.created_at,
+        badge: 'move-in',
+        badgeColor: 'bg-blue-500/15 text-blue-400',
+        branch: undefined,
+        extra: { 'Performed by': log.actor_name },
+      }
+    }),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-  const mockHistory: HistoryItem[] = [
-    { id: 'mock-1', type: 'maintenance', description: 'Juan Dela Cruz submitted a request', detail: 'Leaking faucet in kitchen', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 1' },
-    { id: 'mock-2', type: 'payment', description: 'Maria Santos rent payment', detail: '₱8,500', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 1' },
-    { id: 'mock-3', type: 'maintenance', description: 'Carlos Reyes submitted a request', detail: 'Broken door lock - Unit 5', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2).toISOString(), badge: 'in progress', badgeColor: 'bg-blue-500/15 text-blue-400', branch: 'Apartment 2' },
-    { id: 'mock-4', type: 'maintenance', description: 'Patricia Villanueva submitted a request', detail: 'AC not working - Unit 8', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 2' },
-    { id: 'mock-5', type: 'payment', description: 'Ana Garcia rent payment', detail: '₱12,000', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 1' },
-    { id: 'mock-6', type: 'maintenance', description: 'Rico Dimaculangan submitted a request', detail: 'Clogged drain in bathroom - Unit 3', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 3' },
-    { id: 'mock-7', type: 'maintenance', description: 'Elena Flores submitted a request', detail: 'Flickering lights in hallway - Unit 2', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 4).toISOString(), badge: 'in progress', badgeColor: 'bg-blue-500/15 text-blue-400', branch: 'Apartment 3' },
-    { id: 'mock-8', type: 'payment', description: 'Liza Mendoza rent payment', detail: '₱9,000', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 4).toISOString(), badge: 'overdue', badgeColor: 'bg-red-500/15 text-red-400', branch: 'Apartment 1' },
-    { id: 'mock-9', type: 'maintenance', description: 'Marco Pascual submitted a request', detail: 'Water heater not working - Unit 6', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 5).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 2' },
-    { id: 'mock-10', type: 'maintenance', description: 'Karl Bautista submitted a request', detail: 'Pest control needed - Unit 4', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 5).toISOString(), badge: 'resolved', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 1' },
-    { id: 'mock-11', type: 'payment', description: 'Bryan Navarro rent payment', detail: '₱9,500', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 3' },
-    { id: 'mock-12', type: 'maintenance', description: 'Christine Tan submitted a request', detail: 'Broken window latch - Unit 7', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6).toISOString(), badge: 'resolved', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 3' },
-    { id: 'mock-13', type: 'payment', description: 'Gabriel Mendez rent payment', detail: '₱8,500', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 4' },
-    { id: 'mock-14', type: 'maintenance', description: 'Isabella Cruz submitted a request', detail: 'Leaking pipe in bathroom - Unit 2', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 4' },
-    { id: 'mock-15', type: 'payment', description: 'Victor Lim rent payment', detail: '₱8,000', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3).toISOString(), badge: 'paid', badgeColor: 'bg-emerald-500/15 text-emerald-400', branch: 'Apartment 5' },
-    { id: 'mock-16', type: 'maintenance', description: 'Rachel Tan submitted a request', detail: 'Broken cabinet hinge - Unit 2', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3).toISOString(), badge: 'in progress', badgeColor: 'bg-blue-500/15 text-blue-400', branch: 'Apartment 5' },
-    { id: 'mock-17', type: 'maintenance', description: 'Andrea Navarro submitted a request', detail: 'Faulty electrical outlet - Unit 1', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 4).toISOString(), badge: 'pending', badgeColor: 'bg-yellow-500/15 text-yellow-400', branch: 'Apartment 6' },
-    { id: 'mock-18', type: 'payment', description: 'Bianca Ramos rent payment', detail: '₱8,500', date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 5).toISOString(), badge: 'overdue', badgeColor: 'bg-red-500/15 text-red-400', branch: 'Apartment 6' },
-  ]
-
-  const historyItems = realHistory.length > 0 ? realHistory : mockHistory
+  const historyItems = realHistory
 
   const totalPages = Math.max(1, Math.ceil(historyItems.length / pageSize))
   const paginatedHistory = historyItems.slice((page - 1) * pageSize, page * pageSize)
@@ -208,21 +224,10 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
               <div className="animate-marquee whitespace-nowrap">
                 <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                   {(() => {
-                    const tickets = recentMaintenance.length > 0
-                      ? recentMaintenance.filter(m => m.status === 'pending' || m.status === 'in_progress').map(m => `🔧 ${m.tenant_name || 'Tenant'}: ${m.title} (${m.status.replace('_', ' ')})`)
-                      : [
-                        '🔧 Juan Dela Cruz: Leaking faucet in kitchen (pending)',
-                        '🔧 Carlos Reyes: Broken door lock - Unit 5 (in progress)',
-                        '🔧 Patricia Villanueva: AC not working - Unit 8 (pending)',
-                        '💰 Liza Mendoza: Rent overdue - ₱9,000',
-                        '🔧 Rico Dimaculangan: Clogged drain in bathroom - Unit 3 (pending)',
-                        '🔧 Elena Flores: Flickering lights in hallway - Unit 2 (in progress)',
-                        '🔧 Marco Pascual: Water heater not working - Unit 6 (pending)',
-                        '🔧 Isabella Cruz: Leaking pipe in bathroom - Apt 4 Unit 2 (pending)',
-                        '🔧 Rachel Tan: Broken cabinet hinge - Apt 5 Unit 2 (in progress)',
-                        '🔧 Andrea Navarro: Faulty electrical outlet - Apt 6 Unit 1 (pending)',
-                      ]
-                    return tickets.join('     •     ')
+                    const tickets = recentMaintenance
+                      .filter(m => m.status === 'pending' || m.status === 'in_progress')
+                      .map(m => `🔧 ${m.tenant_name || 'Tenant'}: ${m.title} (${m.status.replace('_', ' ')})`)
+                    return tickets.length > 0 ? tickets.join('     •     ') : 'No active maintenance requests'
                   })()}
                 </span>
               </div>
@@ -292,10 +297,12 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
                   {(page - 1) * pageSize + idx + 1}
                 </span>
                 <div className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                  item.type === 'payment' ? 'bg-emerald-500/15' : 'bg-orange-500/15'
+                  item.type === 'payment' ? 'bg-emerald-500/15' : item.type === 'activity' ? 'bg-blue-500/15' : 'bg-orange-500/15'
                 }`}>
                   {item.type === 'payment'
                     ? <PhilippinePeso className="w-4 h-4 text-emerald-400" />
+                    : item.type === 'activity'
+                    ? <Users className="w-4 h-4 text-blue-400" />
                     : <Wrench className="w-4 h-4 text-orange-400" />
                   }
                 </div>
@@ -371,16 +378,18 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
 
             <div className="flex items-center gap-3 mb-4">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                selectedHistoryItem.type === 'payment' ? 'bg-emerald-500/15' : 'bg-orange-500/15'
+                selectedHistoryItem.type === 'payment' ? 'bg-emerald-500/15' : selectedHistoryItem.type === 'activity' ? 'bg-blue-500/15' : 'bg-orange-500/15'
               }`}>
                 {selectedHistoryItem.type === 'payment'
                   ? <PhilippinePeso className="w-5 h-5 text-emerald-400" />
+                  : selectedHistoryItem.type === 'activity'
+                  ? <Users className="w-5 h-5 text-blue-400" />
                   : <Wrench className="w-5 h-5 text-orange-400" />
                 }
               </div>
               <div>
                 <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {selectedHistoryItem.type === 'payment' ? 'Payment Details' : 'Maintenance Details'}
+                  {selectedHistoryItem.type === 'payment' ? 'Payment Details' : selectedHistoryItem.type === 'activity' ? 'Move-in Details' : 'Maintenance Details'}
                 </h3>
                 <span className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded-full ${selectedHistoryItem.badgeColor}`}>
                   {selectedHistoryItem.badge}

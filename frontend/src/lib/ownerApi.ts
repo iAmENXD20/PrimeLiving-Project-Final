@@ -4,6 +4,7 @@ import { supabase } from './supabase'
 // ── Types ──────────────────────────────────────────────────
 export interface MaintenanceRequest {
   id: string
+  maintenance_id: string | null
   tenant_id: string | null
   unit_id: string | null
   apartmentowner_id: string | null
@@ -509,6 +510,24 @@ function setQrCache(ownerId: string, url: string): void {
 
 function clearQrCache(ownerId: string): void {
   localStorage.removeItem(`${QR_CACHE_KEY}_${ownerId}`)
+}
+
+// ── Unit Occupants ─────────────────────────────────────────
+export interface UnitOccupant {
+  id: string
+  unit_id: string
+  tenant_id: string
+  full_name: string
+  first_name?: string
+  last_name?: string
+  sex?: string | null
+  phone?: string | null
+  id_photo_url?: string | null
+  created_at: string
+}
+
+export async function getUnitOccupants(unitId: string): Promise<UnitOccupant[]> {
+  return api.get<UnitOccupant[]>(`/apartments/occupants/${unitId}`)
 }
 
 function fileToDataUrl(file: File): Promise<string> {

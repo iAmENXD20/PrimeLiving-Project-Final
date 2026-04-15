@@ -17,6 +17,7 @@ import {
   getTenantIdPhotos,
   checkLeaseExpiry,
   renewTenantContract,
+  endTenantContract,
 } from "../controllers/tenants.controller";
 
 const router = Router();
@@ -34,6 +35,7 @@ router.put("/confirm-activation", authorize("tenant", "manager"), invalidateCach
 router.get("/:id/id-photos", authorize("owner", "manager"), getTenantIdPhotos);
 router.put("/:id/approve", authorize("owner", "manager"), invalidateCache(["tenants", "analytics"]), approveTenant);
 router.put("/:id/renew", authorize("tenant"), invalidateCache(["tenants"]), renewTenantContract);
+router.put("/:id/end-contract", authorize("tenant"), invalidateCache(["tenants"]), endTenantContract);
 router.post("/", authorize("owner", "manager"), invalidateCache(["tenants", "analytics"]), createTenant);
 router.put("/:id", authorize("owner", "manager", "tenant"), invalidateCache(["tenants", "analytics"]), updateTenant);
 router.delete("/:id", authorize("owner", "manager"), invalidateCache(["tenants", "apartments", "analytics"]), deleteTenant);

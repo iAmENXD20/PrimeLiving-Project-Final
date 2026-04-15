@@ -15,9 +15,9 @@ interface ManagerSidebarProps {
 
 const navItems = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'maintenance', label: 'Maintenance Request', icon: Wrench },
   { id: 'manage-apartment', label: 'Manage Apartment', icon: Building2 },
   { id: 'payments', label: 'Payment History', icon: PhilippinePeso },
+  { id: 'maintenance', label: 'Maintenance Request', icon: Wrench },
   { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'settings', label: 'Account Settings', icon: Settings },

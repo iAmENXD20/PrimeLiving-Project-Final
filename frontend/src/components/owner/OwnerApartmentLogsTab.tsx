@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ClipboardList, Filter, Trash2, X, RefreshCcw, Search, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { ClipboardList, Filter, Trash2, X, RefreshCcw, Search, Download, ArrowUp, ArrowDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { Button } from '@/components/ui/button'
@@ -24,27 +24,62 @@ function formatTimestamp(dateStr: string) {
   return { date, time }
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  move_in_date: 'Move-in Date', lease_start: 'Lease Start', lease_end: 'Lease End',
+  contract_duration: 'Duration (months)', rent_deadline: 'Rent Deadline', monthly_rent: 'Monthly Rent',
+  apartment_id: 'Apartment', unit_id: 'Unit', tenant_id: 'Tenant',
+  first_name: 'First Name', last_name: 'Last Name', email: 'Email', phone: 'Phone',
+  status: 'Status', max_occupancy: 'Max Occupancy', updated_at: 'Last Updated',
+  created_at: 'Created', contract_status: 'Contract Status', name: 'Name', start_at: 'Start Date',
+}
+
+function formatFieldLabel(field: string): string {
+  return FIELD_LABELS[field] || field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const ISO_TS_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/
+
+function formatFieldVal(value: string): string {
+  if (!value || value === '—') return value
+  if (UUID_RE.test(value)) return value.slice(0, 8) + '…'
+  if (ISO_TS_RE.test(value)) {
+    const d = new Date(value)
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ', ' +
+        d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    }
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const d = new Date(value + 'T00:00:00')
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+  return value
+}
+
+function cleanDescription(desc: string): string {
+  return desc.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, (m) => m.slice(0, 8) + '…')
+}
+
 function formatFieldChanges(log: ApartmentLog): { field: string; from: string; to: string }[] {
   const metadata = log.metadata
   if (!metadata || Object.keys(metadata).length === 0) return []
 
-  // Structured changes format: { changes: { fieldName: { from, to } } }
   if (metadata.changes && typeof metadata.changes === 'object') {
     const changes = metadata.changes as Record<string, { from?: string; to?: string }>
     return Object.entries(changes).map(([field, val]) => ({
-      field,
-      from: String(val?.from ?? '—'),
-      to: String(val?.to ?? '—'),
+      field: formatFieldLabel(field),
+      from: formatFieldVal(String(val?.from ?? '—')),
+      to: formatFieldVal(String(val?.to ?? '—')),
     }))
   }
 
-  // Fallback: show any metadata key-value pairs
   return Object.entries(metadata)
     .filter(([key]) => key !== 'entity_type' && key !== 'entity_id')
     .map(([key, val]) => ({
-      field: key,
+      field: formatFieldLabel(key),
       from: '',
-      to: String(val ?? '—'),
+      to: formatFieldVal(String(val ?? '—')),
     }))
 }
 
@@ -103,7 +138,7 @@ export default function OwnerApartmentLogsTab({ ownerId }: OwnerApartmentLogsTab
         'Archive ID': log.arc_id || '',
         'Role': log.actor_role || '',
         'User Name': log.actor_name || '',
-        'Description': log.description || '',
+        'Description': cleanDescription(log.description || ''),
         'Field Changes': changesText,
         'Date': date,
         'Time': time,
@@ -210,6 +245,15 @@ export default function OwnerApartmentLogsTab({ ownerId }: OwnerApartmentLogsTab
             <Filter className="w-4 h-4 mr-1" />
             Filters
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            title={sortOrder === 'asc' ? 'Showing oldest first' : 'Showing newest first'}
+          >
+            {sortOrder === 'asc' ? <ArrowUp className="w-4 h-4 mr-1" /> : <ArrowDown className="w-4 h-4 mr-1" />}
+            {sortOrder === 'asc' ? 'Oldest' : 'Newest'}
+          </Button>
           <Button variant="outline" size="sm" onClick={loadLogs} disabled={loading}>
             <RefreshCcw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -287,95 +331,77 @@ export default function OwnerApartmentLogsTab({ ownerId }: OwnerApartmentLogsTab
         </div>
       )}
 
-      {/* Logs Table */}
+      {/* Logs Timeline */}
       {!loading && filtered.length > 0 && (
-        <div className={`${cardClass} overflow-hidden flex flex-col flex-1 min-h-0`}>
-          <div className="overflow-auto flex-1">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={isDark ? 'bg-[#0A1628] text-gray-400' : 'bg-gray-50 text-gray-500'}>
-                  <th className="text-left px-4 py-3 font-medium">
-                    <button
-                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                      className="flex items-center gap-1 hover:text-primary transition-colors"
-                    >
-                      Archive ID
-                      {sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
-                    </button>
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium">Role</th>
-                  <th className="text-left px-4 py-3 font-medium">User Name</th>
-                  <th className="text-left px-4 py-3 font-medium">Field Changes</th>
-                  <th className="text-left px-4 py-3 font-medium">Timestamp</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginated.map((log) => {
-                  const { date, time } = formatTimestamp(log.created_at)
-                  const roleColor = ROLE_COLORS[log.actor_role] || ROLE_COLORS.system
-                  const changes = formatFieldChanges(log)
-                  return (
-                    <tr
-                      key={log.id}
-                      onClick={() => setSelectedLog(log)}
-                      className={`border-t cursor-pointer transition-colors ${isDark ? 'border-[#1E293B] hover:bg-[#111D32]/50' : 'border-gray-100 hover:bg-gray-50/50'}`}
-                    >
-                      {/* Archive ID */}
-                      <td className={`px-4 py-3 font-mono text-xs ${isDark ? 'text-primary-400' : 'text-primary-700'} font-semibold`}>
-                        {log.arc_id}
-                      </td>
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="overflow-auto flex-1 space-y-3 pr-1">
+            {paginated.map((log) => {
+              const { date, time } = formatTimestamp(log.created_at)
+              const roleColor = ROLE_COLORS[log.actor_role] || ROLE_COLORS.system
+              const changes = formatFieldChanges(log)
+              const accentColor = {
+                owner: 'border-l-blue-500',
+                manager: 'border-l-purple-500',
+                tenant: 'border-l-emerald-500',
+                system: 'border-l-gray-500',
+              }[log.actor_role] || 'border-l-gray-500'
 
-                      {/* Role */}
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border capitalize ${roleColor}`}>
-                          {log.actor_role}
-                        </span>
-                      </td>
+              return (
+                <div
+                  key={log.id}
+                  onClick={() => setSelectedLog(log)}
+                  className={`${cardClass} border-l-4 ${accentColor} p-4 cursor-pointer transition-all ${isDark ? 'hover:bg-[#111D32]/80' : 'hover:shadow-md hover:bg-gray-50/50'}`}
+                >
+                  {/* Card Header */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className={`font-mono text-xs font-bold ${isDark ? 'text-primary-400' : 'text-primary-700'}`}>{log.arc_id}</span>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium border capitalize ${roleColor}`}>{log.actor_role}</span>
+                      <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{log.actor_name}</span>
+                    </div>
+                    <div className={`text-right shrink-0 ml-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <div className="text-xs font-medium">{date}</div>
+                      <div className="text-[11px]">{time}</div>
+                    </div>
+                  </div>
 
-                      {/* User Name */}
-                      <td className={`px-4 py-3 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                        {log.actor_name}
-                      </td>
+                  {/* Description */}
+                  <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{cleanDescription(log.description)}</p>
 
-                      {/* Field Changes */}
-                      <td className={`px-4 py-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        <div className="text-sm font-medium mb-0.5">{log.description}</div>
-                        {changes.length > 0 && (
-                          <div className="space-y-0.5 mt-1">
-                            {changes.map((c, i) => (
-                              <div key={i} className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                <span className="font-medium">{c.field}</span>
-                                {c.from ? (
-                                  <>: <span className="line-through text-red-400">{c.from}</span> → <span className="text-emerald-400">{c.to}</span></>
-                                ) : (
-                                  <>: {c.to}</>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Timestamp */}
-                      <td className={`px-4 py-3 whitespace-nowrap ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        <div>{date}</div>
-                        <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{time}</div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  {/* Field Changes */}
+                  {changes.length > 0 && (
+                    <div className={`flex flex-wrap gap-2 mt-3 pt-3 border-t ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                      {changes.map((c, i) => (
+                        <div key={i} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs ${isDark ? 'bg-white/5' : 'bg-gray-50 border border-gray-100'}`}>
+                          <span className={`font-semibold ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{c.field}:</span>
+                          {c.from && c.from !== '—' ? (
+                            <>
+                              <span className="line-through text-red-400/80">{c.from}</span>
+                              <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>→</span>
+                              <span className="text-emerald-400 font-medium">{c.to}</span>
+                            </>
+                          ) : (
+                            <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{c.to}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
           {totalPages > 1 && (
-            <TablePagination
-              currentPage={page}
-              totalPages={totalPages}
-              totalItems={filtered.length}
-              pageSize={pageSize}
-              onPageChange={setPage}
-              isDark={isDark}
-            />
+            <div className="mt-3">
+              <TablePagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={filtered.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                isDark={isDark}
+              />
+            </div>
           )}
         </div>
       )}
@@ -447,7 +473,7 @@ export default function OwnerApartmentLogsTab({ ownerId }: OwnerApartmentLogsTab
                 {/* Description */}
                 <div>
                   <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Description</label>
-                  <p className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{selectedLog.description}</p>
+                  <p className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{cleanDescription(selectedLog.description)}</p>
                 </div>
 
                 {/* Timestamp */}

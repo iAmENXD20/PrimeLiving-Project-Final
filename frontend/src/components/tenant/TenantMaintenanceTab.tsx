@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Wrench, X, Camera, ChevronDown } from 'lucide-react'
+import { Wrench, X, Camera, ChevronDown, ClipboardList, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -52,6 +52,8 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const pageSize = 10
+  const [subTab, setSubTab] = useState<'request' | 'tracking'>('request')
+  const [trackingSearch, setTrackingSearch] = useState('')
 
   // 4 photo slots
   const [photos, setPhotos] = useState<(File | null)[]>([null, null, null, null])
@@ -195,6 +197,19 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
     if (page > totalPages) setPage(totalPages)
   }, [page, totalPages])
 
+  const statusSteps = ['pending', 'in_progress', 'resolved', 'closed'] as const
+  const statusLabels: Record<string, string> = { pending: 'Pending', in_progress: 'In Progress', resolved: 'Resolved', closed: 'Closed' }
+
+  const filteredTracking = requests.filter((r) => {
+    if (!trackingSearch) return true
+    const q = trackingSearch.toLowerCase()
+    return (
+      (r.maintenance_id ?? '').toLowerCase().includes(q) ||
+      r.title.toLowerCase().includes(q) ||
+      r.description.toLowerCase().includes(q)
+    )
+  })
+
   return (
     <div className="animate-fade-up flex flex-col flex-1 min-h-0 gap-4">
       {/* Header */}
@@ -205,7 +220,34 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
         </p>
       </div>
 
-      {/* Two-column layout */}
+      {/* Sub-tab Navigation */}
+      <div className={`flex gap-1 p-1 rounded-lg w-fit ${isDark ? 'bg-[#0A1628]' : 'bg-gray-100'}`}>
+        <button
+          onClick={() => setSubTab('request')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            subTab === 'request'
+              ? 'bg-primary text-white shadow-sm'
+              : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <Wrench className="w-4 h-4" />
+          Request Maintenance
+        </button>
+        <button
+          onClick={() => setSubTab('tracking')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            subTab === 'tracking'
+              ? 'bg-primary text-white shadow-sm'
+              : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <ClipboardList className="w-4 h-4" />
+          Track Status
+        </button>
+      </div>
+
+      {/* Sub-tab Content */}
+      {subTab === 'request' ? (
       <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0">
         {/* Left: New Request Form */}
         <div className={`${cardClass} lg:w-[400px] lg:shrink-0 overflow-y-auto`}>
@@ -372,7 +414,7 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
             <table className="w-full text-base">
               <thead>
                 <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                  {['Subject', 'Description', 'Photo', 'Priority', 'Status', 'Date'].map((h) => (
+                  {['No.', 'Maintenance ID', 'Subject', 'Description', 'Priority', 'Status', 'Timestamp'].map((h) => (
                     <th key={h} className={`text-left py-3.5 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {h}
                     </th>
@@ -380,38 +422,24 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
                 </tr>
               </thead>
               <tbody>
-                {paginatedRequests.map((req) => (
+                {paginatedRequests.map((req, idx) => (
                   <tr
                     key={req.id}
                     className={`border-b last:border-0 transition-colors ${
                       isDark ? 'border-[#1E293B] hover:bg-white/[0.02]' : 'border-gray-100 hover:bg-gray-50'
                     }`}
                   >
+                    <td className={`py-3.5 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {(page - 1) * pageSize + idx + 1}
+                    </td>
+                    <td className={`py-3.5 px-4 font-mono text-sm font-medium ${isDark ? 'text-primary' : 'text-blue-600'}`}>
+                      {req.maintenance_id || '—'}
+                    </td>
                     <td className={`py-3.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {req.title}
                     </td>
                     <td className={`py-3.5 px-4 max-w-[200px] truncate ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                       {req.description}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      {(() => {
-                        const urls = parsePhotoUrls(req.photo_url)
-                        return urls.length > 0 ? (
-                          <div className="flex gap-1.5">
-                            {urls.map((url, i) => (
-                              <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                                <img
-                                  src={url}
-                                  alt={`Evidence ${i + 1}`}
-                                  className="w-10 h-10 object-cover rounded-lg border border-gray-200 dark:border-[#1E293B] hover:opacity-80 transition-opacity"
-                                />
-                              </a>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>—</span>
-                        )
-                      })()}
                     </td>
                     <td className="py-3.5 px-4">
                       <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${priorityColor(req.priority)}`}>
@@ -431,8 +459,9 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
                         {req.status.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className={`py-3.5 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {new Date(req.created_at).toLocaleDateString()}
+                    <td className={`py-3.5 px-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <div>{new Date(req.created_at).toLocaleDateString()}</div>
+                      <div className="text-xs">{new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                     </td>
                   </tr>
                 ))}
@@ -453,6 +482,111 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
           )}
         </div>
       </div>
+      ) : (
+        /* ── Tracking Sub-tab ── */
+        <div className="flex-1 flex flex-col min-h-0 gap-4">
+          {/* Search */}
+          <div className="relative w-full max-w-sm">
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+            <input
+              type="text"
+              placeholder="Search by Maintenance ID or title…"
+              value={trackingSearch}
+              onChange={(e) => setTrackingSearch(e.target.value)}
+              className={`w-full pl-9 pr-3 py-2 rounded-lg border text-sm ${
+                isDark ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder:text-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder:text-gray-400'
+              }`}
+            />
+          </div>
+
+          {loading ? (
+            <TableSkeleton rows={4} />
+          ) : filteredTracking.length === 0 ? (
+            <div className={`${cardClass} flex-1 flex items-center justify-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              {requests.length === 0 ? 'No maintenance requests to track.' : 'No matching requests found.'}
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto space-y-4">
+              {filteredTracking.map((req) => {
+                const currentIdx = statusSteps.indexOf(req.status as typeof statusSteps[number])
+                return (
+                  <div key={req.id} className={`${cardClass}`}>
+                    {/* Request Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-5">
+                      <div className="flex items-center gap-3">
+                        <span className={`font-mono text-sm font-bold ${isDark ? 'text-primary' : 'text-blue-600'}`}>
+                          {req.maintenance_id || '—'}
+                        </span>
+                        <h4 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {req.title}
+                        </h4>
+                      </div>
+                      <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {' · '}
+                        {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+
+                    <p className={`text-sm mb-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {req.description}
+                    </p>
+
+                    {/* Progress Map */}
+                    <div className="flex items-center gap-0">
+                      {statusSteps.map((step, i) => {
+                        const isCompleted = i <= currentIdx
+                        const isCurrent = i === currentIdx
+                        return (
+                          <div key={step} className="flex items-center flex-1 last:flex-none">
+                            <div className="flex flex-col items-center">
+                              <div
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                                  isCurrent
+                                    ? 'bg-primary text-white ring-4 ring-primary/20'
+                                    : isCompleted
+                                    ? 'bg-emerald-500 text-white'
+                                    : isDark ? 'bg-[#1E293B] text-gray-500' : 'bg-gray-200 text-gray-400'
+                                }`}
+                              >
+                                {isCompleted && !isCurrent ? '✓' : i + 1}
+                              </div>
+                              <span className={`text-[11px] mt-1.5 font-medium whitespace-nowrap ${
+                                isCurrent
+                                  ? 'text-primary'
+                                  : isCompleted
+                                  ? isDark ? 'text-emerald-400' : 'text-emerald-600'
+                                  : isDark ? 'text-gray-500' : 'text-gray-400'
+                              }`}>
+                                {statusLabels[step]}
+                              </span>
+                            </div>
+                            {i < statusSteps.length - 1 && (
+                              <div className={`flex-1 h-0.5 mx-2 mt-[-18px] ${
+                                i < currentIdx
+                                  ? 'bg-emerald-500'
+                                  : isDark ? 'bg-[#1E293B]' : 'bg-gray-200'
+                              }`} />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Priority badge */}
+                    <div className="mt-4 flex items-center gap-2">
+                      <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Priority:</span>
+                      <span className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded-full ${priorityColor(req.priority)}`}>
+                        {req.priority}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

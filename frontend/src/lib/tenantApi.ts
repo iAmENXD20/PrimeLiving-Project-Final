@@ -22,6 +22,7 @@ export interface TenantProfile {
 
 export interface TenantMaintenanceRequest {
   id: string
+  maintenance_id: string | null
   tenant_id: string | null
   unit_id: string | null
   apartmentowner_id: string | null
@@ -396,4 +397,8 @@ export async function uploadOccupantIdPhoto(file: File, tenantId: string): Promi
 // ── Lease Renewal ───────────────────────────────
 export async function renewTenantContract(tenantId: string): Promise<void> {
   await api.put(`/tenants/${tenantId}/renew`, {})
+}
+
+export async function endTenantContract(tenantId: string): Promise<void> {
+  await api.put(`/tenants/${tenantId}/end-contract`, {})
 }

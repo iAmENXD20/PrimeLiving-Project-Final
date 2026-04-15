@@ -127,6 +127,13 @@ export async function createMaintenanceRequest(
     const { tenant_id, unit_id, apartmentowner_id, title, description, priority, photo_url } =
       req.body;
 
+    // Generate next maintenance_id (MR0001, MR0002, etc.)
+    const { count } = await supabaseAdmin
+      .from("maintenance")
+      .select("id", { count: "exact", head: true });
+    const nextNum = (count || 0) + 1;
+    const maintenance_id = `MR${String(nextNum).padStart(4, "0")}`;
+
     const { data, error } = await supabaseAdmin
       .from("maintenance")
       .insert({
@@ -138,6 +145,7 @@ export async function createMaintenanceRequest(
         priority,
         status: "pending",
         photo_url: photo_url || null,
+        maintenance_id,
       })
       .select()
       .single();

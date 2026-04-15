@@ -91,7 +91,7 @@ export async function getOwnerStats(
 
     const [apartmentsRes, maintenanceRes, revenueRes] = await Promise.all([
       supabaseAdmin
-        .from("units")
+        .from("apartments")
         .select("*", { count: "exact", head: true })
         .eq("apartmentowner_id", apartmentownerId)
         .eq("status", "active"),

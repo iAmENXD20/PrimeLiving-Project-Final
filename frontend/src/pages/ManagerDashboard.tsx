@@ -59,7 +59,7 @@ export default function ManagerDashboard() {
       }
     }
     fetchPendingCount()
-    const interval = setInterval(fetchPendingCount, 30000)
+    const interval = setInterval(fetchPendingCount, 120000)
     return () => clearInterval(interval)
   }, [manager?.id])
 
@@ -86,21 +86,15 @@ export default function ManagerDashboard() {
     refreshNotificationCount().catch(() => {
       // silent
     })
-
-    const interval = setInterval(() => {
-      refreshNotificationCount().catch(() => {
-        // silent
-      })
-    }, 30000)
-
-    return () => clearInterval(interval)
   }, [manager?.id, manager?.ownerId, refreshNotificationCount])
 
+  // Single polling via browser notifications hook (also refreshes badge count)
   useBrowserNotifications({
     enabled: Boolean(manager?.id && manager?.ownerId),
     storageKey: `browser_notifs_manager_${manager?.id || 'unknown'}`,
     fetchNotifications: fetchManagerNotifications,
-    pollMs: 30000,
+    pollMs: 120000,
+    onSync: refreshNotificationCount,
   })
 
   const handleTabChange = (tab: string) => {

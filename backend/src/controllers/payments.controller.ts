@@ -108,11 +108,12 @@ export async function getTenantDueSchedule(
 
     const { data: apartment } = await supabaseAdmin
       .from("units")
-      .select("monthly_rent")
+      .select("monthly_rent, rent_deadline")
       .eq("id", tenant.unit_id)
       .single();
 
     const monthlyRent = Number(apartment?.monthly_rent || 0);
+    const rentDeadline = apartment?.rent_deadline ? new Date(apartment.rent_deadline) : null;
     const moveInDate = new Date(tenant.move_in_date);
     if (Number.isNaN(moveInDate.getTime())) {
       sendSuccess(res, []);
@@ -155,12 +156,20 @@ export async function getTenantDueSchedule(
 
     for (let periodStart = new Date(moveInDate); periodStart <= today; periodStart = addOneMonthSameDay(periodStart)) {
       const periodEnd = addOneMonthSameDay(periodStart);
-      const dueDate = new Date(periodEnd);
+      const periodFrom = toLocalDateString(periodStart);
+      const periodTo = toLocalDateString(periodEnd);
+
+      // Use rent_deadline if it falls within this billing period, otherwise use period end
+      let dueDate: Date;
+      if (rentDeadline && rentDeadline >= periodStart && rentDeadline <= periodEnd) {
+        dueDate = new Date(rentDeadline);
+      } else {
+        dueDate = new Date(periodEnd);
+      }
+
       const overdueAt = new Date(dueDate);
       overdueAt.setDate(overdueAt.getDate() + GRACE_DAYS);
 
-      const periodFrom = toLocalDateString(periodStart);
-      const periodTo = toLocalDateString(periodEnd);
       const shouldBeOverdue = today > overdueAt;
       const existing = existingByPeriodStart.get(periodFrom);
 

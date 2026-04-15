@@ -891,53 +891,110 @@ export async function checkLeaseExpiry(
       return;
     }
 
-    // Get all active units with lease_end set
-    const { data: units, error: unitsError } = await supabaseAdmin
-      .from("units")
-      .select("id, name, lease_end, apartmentowner_id")
-      .eq("apartmentowner_id", ownerId)
-      .not("lease_end", "is", null)
-      .eq("status", "active");
+    // Batch: Get all active units with lease_end + their active tenants in 2 queries
+    const [unitsResult, tenantsResult] = await Promise.all([
+      supabaseAdmin
+        .from("units")
+        .select("id, name, lease_end, lease_start, contract_duration, monthly_rent, apartmentowner_id")
+        .eq("apartmentowner_id", ownerId)
+        .not("lease_end", "is", null)
+        .eq("status", "active"),
+      supabaseAdmin
+        .from("tenants")
+        .select("id, first_name, last_name, contract_status, unit_id")
+        .eq("apartmentowner_id", ownerId)
+        .eq("status", "active"),
+    ]);
 
-    if (unitsError || !units) {
+    const units = unitsResult.data;
+    if (unitsResult.error || !units || !units.length) {
       sendSuccess(res, { checked: 0, notified: 0 });
       return;
+    }
+
+    // Build tenant lookup by unit_id (single pass)
+    const tenantByUnit = new Map<string, typeof tenantsResult.data extends (infer T)[] ? T : never>();
+    for (const t of tenantsResult.data || []) {
+      if (t.unit_id) tenantByUnit.set(t.unit_id, t);
     }
 
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     let notified = 0;
 
-    for (const unit of units) {
+    // Pre-filter units that need processing
+    const relevantUnits = units.filter((unit) => {
+      const tenant = tenantByUnit.get(unit.id);
+      if (!tenant || tenant.contract_status === "renewed") return false;
+      const daysUntilExpiry = Math.ceil((new Date(unit.lease_end).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (tenant.contract_status === "end_contract") return daysUntilExpiry <= 0 || [7, 3, 1].includes(daysUntilExpiry);
+      return daysUntilExpiry <= 30 && !(daysUntilExpiry > 15 && daysUntilExpiry < 30);
+    });
+
+    if (!relevantUnits.length) {
+      sendSuccess(res, { checked: units.length, notified: 0 });
+      return;
+    }
+
+    // Batch: check today's notifications for all relevant tenants in 1 query
+    const relevantTenantIds = relevantUnits.map((u) => tenantByUnit.get(u.id)!.id);
+    const { data: todayNotifs } = await supabaseAdmin
+      .from("notifications")
+      .select("id, recipient_id, type")
+      .in("recipient_id", relevantTenantIds)
+      .in("type", ["lease_expiring", "contract_ending_countdown"])
+      .gte("created_at", today + "T00:00:00")
+      .lte("created_at", today + "T23:59:59");
+
+    // Build set of "tenantId:type" for quick lookup
+    const notifiedToday = new Set(
+      (todayNotifs || []).map((n) => `${n.recipient_id}:${n.type}`)
+    );
+
+    // Process each relevant unit (only write operations remain)
+    for (const unit of relevantUnits) {
+      const tenant = tenantByUnit.get(unit.id)!;
       const leaseEnd = new Date(unit.lease_end);
       const daysUntilExpiry = Math.ceil((leaseEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-      // Notify at 30, 15, 7 days before and on expiry day
-      if (daysUntilExpiry > 30 || daysUntilExpiry < 0) continue;
+      // Auto-close tenant on contract expiry if they chose to end contract
+      if (daysUntilExpiry <= 0 && tenant.contract_status === "end_contract") {
+        await supabaseAdmin
+          .from("tenants")
+          .update({ contract_status: "closed", status: "inactive" })
+          .eq("id", tenant.id);
 
-      // Find active tenant in this unit
-      const { data: tenant } = await supabaseAdmin
-        .from("tenants")
-        .select("id, first_name, last_name, contract_status")
-        .eq("unit_id", unit.id)
-        .eq("status", "active")
-        .maybeSingle();
+        await createNotification({
+          apartmentowner_id: unit.apartmentowner_id,
+          recipient_role: "tenant",
+          recipient_id: tenant.id,
+          type: "contract_ended",
+          title: "Contract Ended",
+          message: `Your contract for ${unit.name} has ended. Your account is now closed.`,
+          unit_id: unit.id,
+        });
+        continue;
+      }
 
-      if (!tenant) continue;
-      // Skip if already renewed
-      if (tenant.contract_status === "renewed") continue;
+      // Tenant chose to end contract — send countdown warnings at 7, 3, 1 days
+      if (tenant.contract_status === "end_contract") {
+        if (notifiedToday.has(`${tenant.id}:contract_ending_countdown`)) continue;
 
-      // Check if we already sent a notification today for this tenant+unit
-      const { data: existing } = await supabaseAdmin
-        .from("notifications")
-        .select("id")
-        .eq("recipient_id", tenant.id)
-        .eq("type", "lease_expiring")
-        .gte("created_at", today + "T00:00:00")
-        .lte("created_at", today + "T23:59:59")
-        .limit(1);
+        await createNotification({
+          apartmentowner_id: unit.apartmentowner_id,
+          recipient_role: "tenant",
+          recipient_id: tenant.id,
+          type: "contract_ending_countdown",
+          title: "Account Closing Soon",
+          message: `Your account will be closed in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"}. After contract ends, your account will no longer be accessible.`,
+          unit_id: unit.id,
+        });
+        notified++;
+        continue;
+      }
 
-      if (existing && existing.length > 0) continue;
+      // Regular expiry notifications — skip if already sent today
+      if (notifiedToday.has(`${tenant.id}:lease_expiring`)) continue;
 
       // Update tenant contract_status to 'expiring' if not already
       if (tenant.contract_status !== "expiring") {
@@ -1026,9 +1083,94 @@ export async function renewTenantContract(
           unit_id: tenant.unit_id,
         });
       }
+
+      // Log to owner's activity logs (Recent Histories)
+      logActivity({
+        apartmentowner_id: tenant.apartmentowner_id,
+        actor_id: id,
+        actor_name: `${tenant.first_name} ${tenant.last_name}`,
+        actor_role: "tenant",
+        action: "contract_renewed",
+        entity_type: "tenant",
+        entity_id: id,
+        description: `${tenant.first_name} ${tenant.last_name} renewed their contract for ${unit?.name || "a unit"}`,
+        metadata: { unit_id: tenant.unit_id, tenant_id: id, first_name: tenant.first_name, last_name: tenant.last_name },
+      });
     }
 
     sendSuccess(res, { renewed: true }, "Contract renewed successfully");
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * PUT /api/tenants/:id/end-contract
+ * Tenant chooses not to renew — triggers countdown notifications
+ */
+export async function endTenantContract(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    const { data: tenant, error: fetchErr } = await supabaseAdmin
+      .from("tenants")
+      .select("id, first_name, last_name, unit_id, apartmentowner_id")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !tenant) {
+      sendError(res, "Tenant not found", 404);
+      return;
+    }
+
+    const { error } = await supabaseAdmin
+      .from("tenants")
+      .update({ contract_status: "end_contract" })
+      .eq("id", id);
+
+    if (error) {
+      sendError(res, error.message, 500);
+      return;
+    }
+
+    // Notify manager
+    if (tenant.unit_id) {
+      const { data: unit } = await supabaseAdmin
+        .from("units")
+        .select("manager_id, name")
+        .eq("id", tenant.unit_id)
+        .maybeSingle();
+
+      if (unit?.manager_id) {
+        await createNotification({
+          apartmentowner_id: tenant.apartmentowner_id,
+          recipient_role: "manager",
+          recipient_id: unit.manager_id,
+          type: "contract_ended",
+          title: "Tenant Ending Contract",
+          message: `${tenant.first_name} ${tenant.last_name} has decided to end their contract for ${unit.name}.`,
+          unit_id: tenant.unit_id,
+        });
+      }
+
+      // Log to owner's activity logs
+      logActivity({
+        apartmentowner_id: tenant.apartmentowner_id,
+        actor_id: id,
+        actor_name: `${tenant.first_name} ${tenant.last_name}`,
+        actor_role: "tenant",
+        action: "contract_ended",
+        entity_type: "tenant",
+        entity_id: id,
+        description: `${tenant.first_name} ${tenant.last_name} chose to end their contract for ${unit?.name || "a unit"}`,
+        metadata: { unit_id: tenant.unit_id, tenant_id: id, first_name: tenant.first_name, last_name: tenant.last_name },
+      });
+    }
+
+    sendSuccess(res, { ended: true }, "Contract end request recorded");
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

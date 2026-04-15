@@ -94,23 +94,18 @@ export default function TenantDashboard() {
     }
   }
 
-  // Poll every 30 seconds for new notifications
-  useEffect(() => {
-    if (!tenant?.id) return
-    const interval = setInterval(refreshNotificationCount, 30000)
-    return () => clearInterval(interval)
-  }, [tenant?.id, tenant?.ownerId])
-
   const fetchTenantNotifications = useCallback(async () => {
     if (!tenant?.id) return []
     return getTenantNotifications(tenant.id, tenant.ownerId)
   }, [tenant?.id, tenant?.ownerId])
 
+  // Single polling via browser notifications hook (also refreshes badge count)
   useBrowserNotifications({
     enabled: Boolean(tenant?.id),
     storageKey: `browser_notifs_tenant_${tenant?.id || 'unknown'}`,
     fetchNotifications: fetchTenantNotifications,
-    pollMs: 30000,
+    pollMs: 120000,
+    onSync: refreshNotificationCount,
   })
 
   const handleTabChange = (tab: string) => {
@@ -160,7 +155,7 @@ export default function TenantDashboard() {
 
     switch (activeTab) {
       case 'overview':
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} />
+        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} onEnded={() => setTenant(prev => prev ? { ...prev, contract_status: 'end_contract' } : prev)} />
       case 'maintenance':
         return <TenantMaintenanceTab tenantId={tenant.id} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
       case 'payments':
@@ -172,7 +167,7 @@ export default function TenantDashboard() {
       case 'account':
         return <TenantAccountTab tenantId={tenant.id} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
       default:
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} />
+        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} onEnded={() => setTenant(prev => prev ? { ...prev, contract_status: 'end_contract' } : prev)} />
     }
   }
 

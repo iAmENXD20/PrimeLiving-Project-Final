@@ -4,6 +4,7 @@ import { supabase } from './supabase'
 // ── Types ──────────────────────────────────────────────────
 export interface MaintenanceRequest {
   id: string
+  maintenance_id: string | null
   tenant_id: string | null
   unit_id: string | null
   apartmentowner_id: string | null
@@ -147,6 +148,9 @@ export interface UnitWithTenant {
   tenant_name: string | null
   tenant_phone: string | null
   tenant_id: string | null
+  tenant_move_in_date: string | null
+  payment_due_day: number | null
+  rent_deadline: string | null
 }
 
 export async function getManagerUnits(managerId: string): Promise<UnitWithTenant[]> {
@@ -165,9 +169,13 @@ export async function getManagedApartments(managerId: string) {
 // ── Update a unit (name, rent) ─────────────────────────────
 export async function updateManagerUnit(
   unitId: string,
-  updates: { name?: string; monthly_rent?: number; contract_duration?: number | null; lease_start?: string | null; lease_end?: string | null },
+  updates: { name?: string; monthly_rent?: number; contract_duration?: number | null; lease_start?: string | null; lease_end?: string | null; payment_due_day?: number | null; rent_deadline?: string | null },
 ) {
   await api.put(`/apartments/${unitId}`, updates)
+}
+
+export async function updateTenantMoveInDate(tenantId: string, moveInDate: string) {
+  await api.put(`/tenants/${tenantId}`, { move_in_date: moveInDate })
 }
 
 // ── Unit Occupants ─────────────────────────────────────────

@@ -89,145 +89,153 @@ export default function CalendarWidget({ deadlines, className }: CalendarWidgetP
     }
   }
 
-  const cardClass = `rounded-xl border ${
-    isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-300'
+  const cardClass = `rounded-xl border shadow-sm ${
+    isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200'
   }`
 
-  const cellBorder = isDark ? 'border-[#1E293B]' : 'border-gray-200'
+  const cellBorder = isDark ? 'border-[#1E293B]/60' : 'border-gray-100'
 
   return (
     <div className={`${cardClass} flex flex-col ${className || ''}`}>
-      {/* Title row */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-1">
-        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+        <h3 className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Calendar
         </h3>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-red-400" />
-            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Billing Due</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-red-400 ring-2 ring-red-400/20" />
+            <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Billing Due</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-primary" />
-            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Today</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/20" />
+            <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Today</span>
           </div>
         </div>
       </div>
 
-      {/* Navigation row */}
-      <div className={`flex items-center justify-between px-4 py-1`}>
-        <div className="flex items-center gap-1">
+      {/* Navigation */}
+      <div className="flex items-center justify-between px-5 py-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={prevMonth}
-            className={`p-1.5 rounded-md transition-colors ${
-              isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+            className={`p-1.5 rounded-lg transition-all duration-200 ${
+              isDark ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
             }`}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={goToToday}
-            className={`px-3 py-1 text-xs font-medium rounded-md border transition-colors ${
+            className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all duration-200 ${
               isDark
-                ? 'text-gray-300 border-[#1E293B] hover:bg-white/10'
-                : 'text-gray-600 border-gray-300 hover:bg-gray-100'
+                ? 'text-primary border-primary/30 hover:bg-primary/10 hover:border-primary/50'
+                : 'text-primary border-primary/30 hover:bg-primary/5 hover:border-primary/50'
             }`}
           >
             Today
           </button>
           <button
             onClick={nextMonth}
-            className={`p-1.5 rounded-md transition-colors ${
-              isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+            className={`p-1.5 rounded-lg transition-all duration-200 ${
+              isDark ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
             }`}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
-        <span className={`text-sm font-semibold tracking-wide uppercase ${
-          isDark ? 'text-white' : 'text-gray-900'
+        <span className={`text-sm font-bold tracking-wider uppercase ${
+          isDark ? 'text-white' : 'text-gray-800'
         }`}>
           {MONTHS[currentMonth]} {currentYear}
         </span>
       </div>
 
-      {/* Inner container for dates */}
-      <div className={`mx-3 mb-3 mt-1 rounded-lg border overflow-hidden flex-1 flex flex-col ${cellBorder}`}>
+      {/* Calendar body */}
+      <div className={`mx-4 mb-4 mt-1 rounded-xl border overflow-hidden flex-1 flex flex-col ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
         {/* Day headers */}
-        <div className={`grid grid-cols-7 border-b ${cellBorder}`}>
-        {DAYS.map((day) => (
-          <div
-            key={day}
-            className={`text-center text-[11px] font-semibold py-1.5 ${
-              isDark ? 'text-gray-500' : 'text-gray-400'
-            }`}
-          >
-            {day}
-          </div>
-        ))}
-      </div>
-
-      {/* Calendar grid */}
-      <div className="grid grid-cols-7 flex-1">
-        {cells.map((cell, idx) => {
-          const dayDeadlines = cell.isCurrentMonth ? getDeadlinesForDay(cell.day) : []
-          const hasDeadline = dayDeadlines.length > 0
-
-          return (
+        <div className={`grid grid-cols-7 ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
+          {DAYS.map((day) => (
             <div
-              key={idx}
-              className={`relative border-b border-r ${cellBorder} p-0.5 min-h-[36px] group ${
-                idx % 7 === 0 ? 'border-l-0' : ''
+              key={day}
+              className={`text-center text-[11px] font-bold tracking-wider py-2.5 ${
+                isDark ? 'text-gray-500' : 'text-gray-400'
               }`}
             >
-              <span
-                className={`flex items-center justify-end text-sm px-1 ${
-                  !cell.isCurrentMonth
-                    ? isDark ? 'text-gray-600' : 'text-gray-300'
-                    : isToday(cell.day)
-                    ? ''
-                    : isDark
-                    ? 'text-gray-300'
-                    : 'text-gray-700'
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 flex-1">
+          {cells.map((cell, idx) => {
+            const dayDeadlines = cell.isCurrentMonth ? getDeadlinesForDay(cell.day) : []
+            const hasDeadline = dayDeadlines.length > 0
+            const isSaturday = idx % 7 === 6
+            const isSunday = idx % 7 === 0
+
+            return (
+              <div
+                key={idx}
+                className={`relative border-b border-r ${cellBorder} min-h-[40px] flex flex-col items-center justify-center group transition-colors duration-150 ${
+                  idx % 7 === 6 ? 'border-r-0' : ''
+                } ${
+                  cell.isCurrentMonth
+                    ? isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-gray-50/80'
+                    : ''
                 }`}
               >
-                {isToday(cell.day) && cell.isCurrentMonth ? (
-                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-white text-xs font-bold">
-                    {cell.day}
-                  </span>
-                ) : (
-                  cell.day
-                )}
-              </span>
-
-              {/* Deadline dot */}
-              {hasDeadline && (
-                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-red-400" />
-              )}
-
-              {/* Tooltip */}
-              {hasDeadline && (
-                <div
-                  className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50
-                    hidden group-hover:block
-                    px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap shadow-lg border ${
-                    isDark
-                      ? 'bg-[#111C32] border-[#1E293B] text-gray-200'
-                      : 'bg-white border-gray-200 text-gray-700'
+                <span
+                  className={`text-sm leading-none ${
+                    !cell.isCurrentMonth
+                      ? isDark ? 'text-gray-700' : 'text-gray-300'
+                      : isToday(cell.day)
+                      ? ''
+                      : (isSaturday || isSunday)
+                      ? isDark ? 'text-gray-500' : 'text-gray-400'
+                      : isDark
+                      ? 'text-gray-300'
+                      : 'text-gray-700'
                   }`}
                 >
-                  <p className="font-semibold text-red-400 mb-0.5">Billing Due</p>
-                  {dayDeadlines.map((d) => (
-                    <p key={d.tenantName + d.unitName}>
-                      {d.tenantName} — {d.unitName}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+                  {isToday(cell.day) && cell.isCurrentMonth ? (
+                    <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-white text-xs font-bold shadow-md shadow-primary/30">
+                      {cell.day}
+                    </span>
+                  ) : (
+                    <span className="font-medium">{cell.day}</span>
+                  )}
+                </span>
+
+                {/* Deadline indicator */}
+                {hasDeadline && (
+                  <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-red-400 shadow-sm shadow-red-400/40" />
+                )}
+
+                {/* Tooltip */}
+                {hasDeadline && (
+                  <div
+                    className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50
+                      hidden group-hover:block
+                      px-3 py-2 rounded-lg text-xs whitespace-nowrap shadow-xl border backdrop-blur-sm ${
+                      isDark
+                        ? 'bg-[#111C32]/95 border-[#1E293B] text-gray-200'
+                        : 'bg-white/95 border-gray-200 text-gray-700'
+                    }`}
+                  >
+                    <p className="font-bold text-red-400 mb-1">Billing Due</p>
+                    {dayDeadlines.map((d) => (
+                      <p key={d.tenantName + d.unitName} className="leading-relaxed">
+                        {d.tenantName} — {d.unitName}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
