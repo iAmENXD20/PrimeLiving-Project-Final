@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import OwnerSidebar from '../components/owner/OwnerSidebar'
 import OwnerTopBar from '../components/owner/OwnerTopBar'
-import { getCurrentOwner, getOwnerMaintenanceRequests } from '../lib/ownerApi'
+import { getCurrentOwner, getOwnerDashboardStats } from '../lib/ownerApi'
 import { CardsSkeleton } from '../components/ui/skeleton'
 
 const OwnerOverviewTab = lazy(() => import('../components/owner/OwnerOverviewTab'))
@@ -27,13 +27,12 @@ export default function OwnerDashboard() {
         const data = await getCurrentOwner()
         if (data) {
           setOwner({ id: data.id, first_name: data.first_name, last_name: data.last_name })
-          // Load pending maintenance count
+          // Load pending maintenance count using lightweight stats endpoint
           try {
-            const requests = await getOwnerMaintenanceRequests(data.id)
-            const pending = requests.filter((r: any) => r.status === 'pending' || r.status === 'in_progress').length
-            setPendingMaintenanceCount(pending || 7)
+            const stats = await getOwnerDashboardStats(data.id)
+            setPendingMaintenanceCount(stats.pendingMaintenance ?? 0)
           } catch {
-            setPendingMaintenanceCount(7)
+            setPendingMaintenanceCount(0)
           }
         }
       } catch (err) {

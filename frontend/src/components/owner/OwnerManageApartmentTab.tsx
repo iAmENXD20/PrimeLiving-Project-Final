@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
+import { formatPhone } from '@/lib/utils'
 import AddressSelector, { type StructuredAddress } from '@/components/ui/AddressSelector'
 import {
   getOwnerUnits,
@@ -625,7 +626,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
         return {
           id: tenant.id,
           name: `${tenant.first_name} ${tenant.last_name}`.trim(),
-          phone: tenant.phone || '—',
+          phone: formatPhone(tenant.phone) || '—',
           unit: tenant.unit_id ? (unitNameById.get(tenant.unit_id) || 'Unassigned') : 'Unassigned',
           rent: tenant.unit_id ? (unitRentById.get(tenant.unit_id) || 0) : 0,
           status: tenant.status,
@@ -1004,7 +1005,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                     return (
                       <div
                         key={unit.id}
-                        className="relative rounded-lg overflow-hidden transition-all duration-200"
+                        className="relative rounded-lg overflow-hidden transition-all duration-200 cursor-pointer hover:opacity-90"
                         style={{
                           borderLeft: `3px solid ${borderColor}`,
                           backgroundColor: bgColor,
@@ -1012,6 +1013,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                           borderLeftWidth: '3px',
                           borderLeftColor: borderColor,
                         }}
+                        onClick={() => openUnitModal(unit)}
                       >
                         {/* Header */}
                         <div className={`px-4 py-4 flex items-center justify-between ${isDark ? 'border-b border-white/5' : 'border-b border-gray-100'}`}>
@@ -1030,13 +1032,11 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                               className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                               style={{ backgroundColor: borderColor }}
                             />
-                            <button
-                              onClick={() => openUnitModal(unit)}
-                              className={`p-0.5 rounded transition-colors ${isDark ? 'hover:bg-primary/20 text-gray-500 hover:text-primary' : 'hover:bg-primary/10 text-gray-400 hover:text-primary'}`}
-                              title="Edit unit"
+                            <span
+                              className={`p-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
                             >
-                              <Edit2 className="w-3 h-3" />
-                            </button>
+                              {isOccupied ? <Eye className="w-3 h-3" /> : <Edit2 className="w-3 h-3" />}
+                            </span>
                           </div>
                         </div>
 
@@ -1051,7 +1051,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                           <div className="flex justify-between">
                             <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Contact</span>
                             <span className={`truncate ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {unit.tenant_phone || '—'}
+                              {unit.tenant_phone ? formatPhone(unit.tenant_phone) : '—'}
                             </span>
                           </div>
                           <div className="flex justify-between">
@@ -1698,7 +1698,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
           <div className={`relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl p-6 shadow-2xl ${isDark ? 'bg-navy-card border border-white/10' : 'bg-white border border-gray-200'}`}>
             <div className="flex items-center justify-between mb-5">
               <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Edit Unit
+                {selectedUnit.tenant_name ? 'Unit Details' : 'Edit Unit'}
               </h3>
               <button
                 onClick={() => setSelectedUnit(null)}
@@ -1708,6 +1708,136 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
               </button>
             </div>
 
+            {selectedUnit.tenant_name ? (
+              /* ── View-only mode for occupied units ── */
+              <div className="space-y-4">
+                <div className={`rounded-lg p-3 space-y-2 text-sm ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Unit Name</span>
+                    <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedUnit.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Monthly Rent</span>
+                    <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>₱{(selectedUnit.monthly_rent || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Max Occupancy</span>
+                    <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedUnit.max_occupancy || 'No limit'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Status</span>
+                    <span className={`font-medium capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedUnit.status === 'under_renovation' ? 'Under Renovation' : 'Active'}</span>
+                  </div>
+                </div>
+
+                <div className={`rounded-lg p-3 space-y-2 text-sm ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Occupancy</span>
+                    <span className="font-medium text-red-500">Occupied</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Tenant</span>
+                    <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedUnit.tenant_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Contact</span>
+                    <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{formatPhone(selectedUnit.tenant_phone) || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Move-in Date</span>
+                    <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedUnit.tenant_move_in_date ? new Date(selectedUnit.tenant_move_in_date).toLocaleDateString() : '—'}</span>
+                  </div>
+                </div>
+
+                {/* Contract Details */}
+                <div className={`rounded-lg p-3 space-y-2 text-sm ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                  <p className={`font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Contract Details</p>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Duration</span>
+                    <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedUnit.contract_duration ? `${selectedUnit.contract_duration} month${selectedUnit.contract_duration !== 1 ? 's' : ''}` : '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Lease Start</span>
+                    <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedUnit.lease_start ? new Date(selectedUnit.lease_start).toLocaleDateString() : '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Lease End</span>
+                    <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedUnit.lease_end ? new Date(selectedUnit.lease_end).toLocaleDateString() : '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Rent Deadline</span>
+                    <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedUnit.rent_deadline ? new Date(selectedUnit.rent_deadline).toLocaleDateString() : '—'}</span>
+                  </div>
+                </div>
+
+                {/* Occupants list with View ID */}
+                <div className={`rounded-lg p-3 text-sm ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Occupants
+                    </span>
+                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {unitOccupants.length}{selectedUnit.max_occupancy ? ` / ${selectedUnit.max_occupancy}` : ''}
+                    </span>
+                  </div>
+                  {occupantsLoading ? (
+                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Loading…</p>
+                  ) : unitOccupants.length === 0 ? (
+                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No occupants added</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {unitOccupants.map((occ, idx) => (
+                        <div
+                          key={occ.id}
+                          className={`flex items-center gap-3 rounded-md px-2.5 py-2 ${isDark ? 'bg-white/5' : 'bg-white border border-gray-100'}`}
+                        >
+                          <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'}`}>
+                            {idx + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                              {occ.first_name && occ.last_name ? `${occ.first_name} ${occ.last_name}` : occ.full_name}
+                            </p>
+                            <div className="flex gap-3 text-xs">
+                              {occ.sex && (
+                                <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>{occ.sex}</span>
+                              )}
+                              {occ.birthdate && (
+                                <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>
+                                  {Math.floor((Date.now() - new Date(occ.birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs old
+                                </span>
+                              )}
+                              {occ.phone && (
+                                <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>{formatPhone(occ.phone)}</span>
+                              )}
+                            </div>
+                          </div>
+                          {occ.id_photo_url ? (
+                            <button
+                              type="button"
+                              onClick={() => window.open(occ.id_photo_url!, '_blank')}
+                              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors whitespace-nowrap"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              View ID
+                            </button>
+                          ) : (
+                            <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No ID uploaded</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex mt-6">
+                  <Button variant="outline" className="flex-1" onClick={() => setSelectedUnit(null)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+            ) : (
+            <>
             <div className="space-y-4">
               <div>
                 <Label className="mb-1.5 block">Unit Name</Label>
@@ -1831,6 +1961,11 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                             {occ.sex && (
                               <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>{occ.sex}</span>
                             )}
+                            {occ.birthdate && (
+                              <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>
+                                {Math.floor((Date.now() - new Date(occ.birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs old
+                              </span>
+                            )}
                             {occ.phone && (
                               <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>{occ.phone}</span>
                             )}
@@ -1851,6 +1986,8 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 {savingUnit ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
+            </>
+            )}
           </div>
         </div>
       )}
@@ -1934,7 +2071,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
               {[
                 { label: 'Name', value: `${viewManager.first_name} ${viewManager.last_name}` },
                 { label: 'Email', value: viewManager.email },
-                { label: 'Phone', value: viewManager.phone || '—' },
+                { label: 'Phone', value: formatPhone(viewManager.phone) || '—' },
                 { label: 'Apartment Code', value: (() => {
                   if (!viewManager.apartment_id) return 'Unassigned'
                   const prop = properties.find(p => p.id === viewManager.apartment_id)

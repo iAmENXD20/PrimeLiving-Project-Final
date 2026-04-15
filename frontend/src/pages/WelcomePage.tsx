@@ -1,10 +1,35 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Building2, Sun, Moon } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
+import api from '@/lib/apiClient'
 
 export default function WelcomePage() {
   const navigate = useNavigate()
   const { isDark, toggleTheme } = useTheme()
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    api.get<{ isSetup: boolean }>('/auth/check-setup')
+      .then((res) => {
+        if (!res.isSetup) {
+          navigate('/setup', { replace: true })
+        } else {
+          setChecking(false)
+        }
+      })
+      .catch(() => {
+        setChecking(false)
+      })
+  }, [navigate])
+
+  if (checking) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div

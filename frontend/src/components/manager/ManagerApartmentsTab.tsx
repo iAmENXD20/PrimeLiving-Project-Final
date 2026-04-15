@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import DatePicker from '@/components/ui/DatePicker'
+import { formatPhone } from '@/lib/utils'
 import { CardsSkeleton } from '@/components/ui/skeleton'
 import {
   getManagerUnits,
@@ -333,7 +334,7 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                     <div className="flex justify-between">
                       <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Contact</span>
                       <span className={`truncate ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {unit.tenant_phone || '—'}
+                        {unit.tenant_phone ? formatPhone(unit.tenant_phone) : '—'}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -493,7 +494,7 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                   <p className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>Selected Tenant Details</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Email: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedTenantDetails.email || '—'}</span></p>
-                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Phone: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedTenantDetails.phone || '—'}</span></p>
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Phone: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{formatPhone(selectedTenantDetails.phone) || '—'}</span></p>
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Status: <span className={`capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedTenantDetails.status || '—'}</span></p>
                   </div>
                 </div>
@@ -602,9 +603,9 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                                 ? `${occ.first_name} ${occ.last_name}`
                                 : occ.full_name}
                             </span>
-                            {(occ.sex || occ.phone) && (
+                            {(occ.sex || occ.phone || occ.birthdate) && (
                               <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                {[occ.sex, occ.phone].filter(Boolean).join(' · ')}
+                                {[occ.sex, occ.birthdate ? `${Math.floor((Date.now() - new Date(occ.birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs old` : null, occ.phone ? formatPhone(occ.phone) : null].filter(Boolean).join(' · ')}
                               </p>
                             )}
                           </div>

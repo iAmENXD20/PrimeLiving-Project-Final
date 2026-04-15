@@ -1,4 +1,4 @@
-import { Response } from "express";
+﻿import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
@@ -289,7 +289,7 @@ export async function createPayment(
         action: "payment_created",
         entity_type: "payment",
         entity_id: data.id,
-        description: `Created payment record — Amount: ${data.amount || 0}`,
+        description: `Created payment record â€” Amount: ${data.amount || 0}`,
         metadata: { amount: data.amount, status: data.status, tenant_id: data.tenant_id },
       });
     }
@@ -370,7 +370,7 @@ export async function submitPaymentProof(
 
       await sendSmsToMany(
         (managers || []).map((manager: any) => manager.phone),
-        `[Geeb Apartment] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
+        `[E-AMS] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
         { unit_id: unit_id || null, apartmentowner_id }
       );
 
@@ -432,7 +432,7 @@ export async function submitPaymentProof(
 
     await sendSmsToMany(
       (managers || []).map((manager: any) => manager.phone),
-      `[Geeb Apartment] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
+      `[E-AMS] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
       { unit_id: unit_id || null, apartmentowner_id }
     );
 
@@ -512,7 +512,7 @@ export async function updatePayment(
     const { status, verification_status, ...safeUpdates } = req.body;
 
     // Allow status changes except setting to 'paid' (must use /approve route).
-    // verification_status is always blocked — must use /verify or /approve routes.
+    // verification_status is always blocked â€” must use /verify or /approve routes.
     const updates: Record<string, unknown> = { ...safeUpdates };
     if (status && status !== 'paid') {
       updates.status = status;
@@ -578,9 +578,9 @@ export async function verifyPayment(
 
     const updateData: any = { verification_status };
 
-    // Manager verifies payment — keep status as pending, owner will approve later
+    // Manager verifies payment â€” keep status as pending, owner will approve later
     if (verification_status === "verified") {
-      // Don't set status to paid — owner approval is required
+      // Don't set status to paid â€” owner approval is required
     }
 
     const { data, error } = await supabaseAdmin
@@ -605,7 +605,7 @@ export async function verifyPayment(
       // Notify tenant
       await sendSmsToMany(
         [tenant?.phone],
-        `[Geeb Apartment] Your payment has been verified by the manager. Awaiting owner approval.`,
+        `[E-AMS] Your payment has been verified by the manager. Awaiting owner approval.`,
         { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 
@@ -623,7 +623,7 @@ export async function verifyPayment(
     } else {
       await sendSmsToMany(
         [tenant?.phone],
-        `[Geeb Apartment] Your payment has been ${verification_status}.`,
+        `[E-AMS] Your payment has been ${verification_status}.`,
         { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 
@@ -653,7 +653,7 @@ export async function verifyPayment(
       action: `payment_${verification_status}`,
       entity_type: "payment",
       entity_id: id,
-      description: `Payment ${verification_status} — Amount: ${data.amount}`,
+      description: `Payment ${verification_status} â€” Amount: ${data.amount}`,
       metadata: { verification_status, amount: data.amount },
     });
   } catch (err: any) {
@@ -663,7 +663,7 @@ export async function verifyPayment(
 
 /**
  * PUT /api/payments/:id/approve
- * Owner approves a manager-verified payment — marks it as paid and creates revenue.
+ * Owner approves a manager-verified payment â€” marks it as paid and creates revenue.
  */
 export async function approvePayment(
   req: AuthenticatedRequest,
@@ -734,7 +734,7 @@ export async function approvePayment(
 
       await sendSmsToMany(
         [tenant?.phone],
-        `[Geeb Apartment] Your payment has been approved by the owner. Thank you!`,
+        `[E-AMS] Your payment has been approved by the owner. Thank you!`,
         { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 
@@ -746,7 +746,7 @@ export async function approvePayment(
           recipient_id: data.tenant_id,
           type: "payment_verification_updated",
           title: "Payment Approved",
-          message: `Your payment of ₱${data.amount} has been approved.`,
+          message: `Your payment of â‚±${data.amount} has been approved.`,
         });
       }
 
@@ -763,7 +763,7 @@ export async function approvePayment(
         action: "payment_approved",
         entity_type: "payment",
         entity_id: id,
-        description: `Payment approved — Amount: ₱${data.amount}`,
+        description: `Payment approved â€” Amount: â‚±${data.amount}`,
         metadata: { amount: data.amount },
       });
     } else if (action === "rejected") {
@@ -789,7 +789,7 @@ export async function approvePayment(
 
       await sendSmsToMany(
         [tenant?.phone],
-        `[Geeb Apartment] Your payment has been rejected by the owner.`,
+        `[E-AMS] Your payment has been rejected by the owner.`,
         { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 
@@ -818,7 +818,7 @@ export async function approvePayment(
         action: "payment_rejected",
         entity_type: "payment",
         entity_id: id,
-        description: `Payment rejected — Amount: ₱${data.amount}`,
+        description: `Payment rejected â€” Amount: â‚±${data.amount}`,
         metadata: { amount: data.amount },
       });
     } else {

@@ -8,11 +8,15 @@ import {
   updatePassword,
   getMe,
   validateEmailForAccountCreation,
+  checkSetup,
+  setupOwner,
 } from "../controllers/auth.controller";
 
 const router = Router();
 
 // Public routes
+router.get("/check-setup", checkSetup);
+router.post("/setup", setupOwner);
 router.post("/login", login);
 router.post("/reset-password", resetPassword);
 

@@ -18,7 +18,8 @@ export async function getAnnouncements(
     let query = supabaseAdmin
       .from("announcements")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(200);
 
     if (req.query.apartmentowner_id) {
       query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
@@ -187,7 +188,7 @@ export async function createAnnouncement(
         .filter(Boolean);
 
       if (tenantPhones.length > 0) {
-        const smsMessage = `[Geeb Apartment] ${title}\n\n${message}`;
+        const smsMessage = `[E-AMS] ${title}\n\n${message}`;
         sendSmsToMany(tenantPhones, smsMessage, { apartmentowner_id }).catch(
           (err) => console.error("Announcement SMS failed:", err)
         );

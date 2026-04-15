@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -38,6 +38,15 @@ export default function LoginPage() {
   const [pendingAlert, setPendingAlert] = useState<string | null>(null)
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
+
+  // Redirect to setup if no owner account exists yet
+  useEffect(() => {
+    api.get<{ isSetup: boolean }>('/auth/check-setup')
+      .then((res) => {
+        if (!res.isSetup) navigate('/setup', { replace: true })
+      })
+      .catch(() => { /* ignore — let user try to login normally */ })
+  }, [navigate])
 
   const {
     register,

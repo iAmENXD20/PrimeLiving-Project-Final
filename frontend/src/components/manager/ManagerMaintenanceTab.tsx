@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, Filter, ChevronDown, X, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
+import { Search, Filter, ChevronDown, X, ChevronLeft, ChevronRight, Eye, Star } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { toast } from 'sonner'
 import { getManagerMaintenanceRequests, updateMaintenanceStatus, type MaintenanceRequest } from '../../lib/managerApi'
@@ -520,39 +520,56 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
               </div>
 
               {/* Status Change Buttons */}
-              {selectedRequest.status !== 'resolved' && selectedRequest.status !== 'closed' && (
+              {selectedRequest.status === 'pending' && (
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Update Status</label>
                   <div className="flex flex-wrap gap-2">
-                    {selectedRequest.status === 'pending' && (
-                      <button
-                        onClick={async () => {
-                          setStatusChangeLoading(true)
-                          await performStatusChange(selectedRequest.id, 'in_progress')
-                          setSelectedRequest({ ...selectedRequest, status: 'in_progress' })
-                          setStatusChangeLoading(false)
-                        }}
-                        disabled={statusChangeLoading}
-                        className="px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
-                      >
-                        Start (In Progress)
-                      </button>
-                    )}
-                    {(selectedRequest.status === 'pending' || selectedRequest.status === 'in_progress') && (
-                      <button
-                        onClick={async () => {
-                          setStatusChangeLoading(true)
-                          await performStatusChange(selectedRequest.id, 'resolved')
-                          setSelectedRequest({ ...selectedRequest, status: 'resolved' })
-                          setStatusChangeLoading(false)
-                        }}
-                        disabled={statusChangeLoading}
-                        className="px-3 py-1.5 rounded-lg text-sm font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
-                      >
-                        Resolve
-                      </button>
-                    )}
+                    <button
+                      onClick={async () => {
+                        setStatusChangeLoading(true)
+                        await performStatusChange(selectedRequest.id, 'in_progress')
+                        setSelectedRequest({ ...selectedRequest, status: 'in_progress' })
+                        setStatusChangeLoading(false)
+                      }}
+                      disabled={statusChangeLoading}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
+                    >
+                      Start (In Progress)
+                    </button>
                   </div>
+                </div>
+              )}
+
+              {/* Waiting for tenant */}
+              {selectedRequest.status === 'in_progress' && (
+                <div className={`rounded-lg border p-3 ${isDark ? 'border-blue-500/30 bg-blue-500/5' : 'border-blue-200 bg-blue-50'}`}>
+                  <p className={`text-sm ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>In progress — waiting for tenant to mark as resolved.</p>
+                </div>
+              )}
+
+              {/* Tenant Review */}
+              {selectedRequest.status === 'resolved' && !selectedRequest.review_rating && (
+                <div className={`rounded-lg border p-3 ${isDark ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-yellow-200 bg-yellow-50'}`}>
+                  <p className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Waiting for tenant review before closing.</p>
+                </div>
+              )}
+              {selectedRequest.review_rating && (
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Tenant Review</label>
+                  <div className="flex items-center gap-1 mb-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`w-4 h-4 ${star <= selectedRequest.review_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                      />
+                    ))}
+                    <span className={`ml-1.5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {selectedRequest.review_rating}/5
+                    </span>
+                  </div>
+                  {selectedRequest.review_comment && (
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{selectedRequest.review_comment}"</p>
+                  )}
                 </div>
               )}
             </div>

@@ -6,6 +6,7 @@ import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 import { isValidEmailFormat } from "../utils/emailValidation";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 import { createNotification } from "../utils/notifications";
+import { sendEmail, accountApprovedEmailHtml } from "../utils/email";
 
 function getInviteRedirectUrl(): string {
   return env.FRONTEND_URL.replace(/\/+$/, "") + "/invite/confirm";
@@ -27,7 +28,8 @@ export async function getTenants(
     let query = supabaseAdmin
       .from("tenants")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500);
 
     if (!includeInactive) {
       query = query.neq("status", "inactive");
@@ -540,6 +542,20 @@ export async function assignTenantToUnit(
       const actorName = req.user?.id
         ? await resolveActorName(req.user.id, req.user.role, req.user.email)
         : "System";
+
+      // Resolve tenant name for the log description
+      let tenantDisplayName = first_name ? `${first_name} ${last_name || ''}`.trim() : '';
+      if (!tenantDisplayName && tenant_id) {
+        const { data: tenantData } = await supabaseAdmin
+          .from("tenants")
+          .select("first_name, last_name")
+          .eq("id", tenant_id)
+          .maybeSingle();
+        tenantDisplayName = tenantData
+          ? `${tenantData.first_name} ${tenantData.last_name || ''}`.trim()
+          : tenant_id;
+      }
+
       logActivity({
         apartmentowner_id: apt.apartmentowner_id,
         actor_id: req.user?.id || null,
@@ -548,7 +564,7 @@ export async function assignTenantToUnit(
         action: "tenant_assigned_to_unit",
         entity_type: "tenant",
         entity_id: tenant_id || null,
-        description: `Assigned tenant ${first_name ? `${first_name} ${last_name || ''}`.trim() : tenant_id} to unit`,
+        description: `Assigned tenant ${tenantDisplayName} to unit`,
         metadata: { unit_id, tenant_id, first_name, last_name, start_at: resolvedStartDate },
       });
     }
@@ -782,7 +798,7 @@ export async function approveTenant(
 
     const { data: tenant, error: findError } = await supabaseAdmin
       .from("tenants")
-      .select("id, status, first_name, last_name, apartmentowner_id")
+      .select("id, status, email, first_name, last_name, apartmentowner_id, apartment_id, unit_id")
       .eq("id", id)
       .single();
 
@@ -808,7 +824,29 @@ export async function approveTenant(
 
     sendSuccess(res, null, "Tenant approved successfully");
 
+    // Send approval email (non-blocking)
+    const tenantName = `${tenant.first_name || ""} ${tenant.last_name || ""}`.trim() || "Tenant";
+    if (tenant.email) {
+      sendEmail({
+        to: tenant.email,
+        subject: "Your PrimeLiving Account Has Been Approved",
+        html: accountApprovedEmailHtml({ name: tenantName, role: "tenant" }),
+      }).catch((err) => console.error("[ApproveTenant] Email failed:", err));
+    }
+
+    // Create in-app notification (non-blocking)
     if (tenant.apartmentowner_id) {
+      createNotification({
+        apartmentowner_id: tenant.apartmentowner_id,
+        recipient_role: "tenant",
+        recipient_id: tenant.id,
+        type: "account_approved",
+        title: "Account Approved",
+        message: "Your account has been verified and approved. You can now access all tenant features.",
+        apartment_id: tenant.apartment_id || null,
+        unit_id: tenant.unit_id || null,
+      }).catch((err) => console.error("[ApproveTenant] Notification failed:", err));
+
       const actorName = req.user?.id
         ? await resolveActorName(req.user.id, req.user.role, req.user.email)
         : "System";

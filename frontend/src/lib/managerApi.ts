@@ -13,6 +13,9 @@ export interface MaintenanceRequest {
   priority: 'low' | 'medium' | 'high' | 'urgent'
   status: 'pending' | 'in_progress' | 'resolved' | 'closed'
   photo_url: string | null
+  review_rating: number | null
+  review_comment: string | null
+  reviewed_at: string | null
   created_at: string
   updated_at: string
   tenant_name?: string
@@ -188,6 +191,7 @@ export interface UnitOccupant {
   last_name: string
   sex: string | null
   phone: string | null
+  birthdate: string | null
   id_photo_url: string | null
   created_at: string
 }

@@ -202,13 +202,29 @@ export default function DatePicker({ value, onChange, min, placeholder = 'Select
               )}
             </div>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
+              maxLength={4}
               value={viewYear}
+              onFocus={(e) => e.target.select()}
               onChange={(e) => {
-                const v = parseInt(e.target.value)
-                if (!isNaN(v) && v > 1900 && v < 2200) setViewYear(v)
+                const raw = e.target.value.replace(/\D/g, '').slice(0, 4)
+                if (raw === '') {
+                  setViewYear(0 as any)
+                  return
+                }
+                setViewYear(parseInt(raw))
               }}
-              className={`text-sm font-semibold bg-transparent border-none w-14 text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none rounded-md px-1 py-0.5 transition-colors ${
+              onBlur={() => {
+                if (!viewYear || viewYear < 1900) setViewYear(1900)
+                if (viewYear > 2100) setViewYear(2100)
+              }}
+              onKeyDown={(e) => {
+                if (!/\d/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'].includes(e.key) && !e.ctrlKey && !e.metaKey) {
+                  e.preventDefault()
+                }
+              }}
+              className={`text-sm font-semibold bg-transparent border-none w-16 text-center focus:outline-none rounded-md px-1 py-0.5 transition-colors ${
                 isDark ? 'text-white hover:bg-white/10 focus:bg-white/10' : 'text-gray-900 hover:bg-gray-100 focus:bg-gray-100'
               }`}
             />

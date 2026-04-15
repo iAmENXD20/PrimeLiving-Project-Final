@@ -92,33 +92,30 @@ export async function getOwnerStats(
     const [apartmentsRes, maintenanceRes, revenueRes] = await Promise.all([
       supabaseAdmin
         .from("apartments")
-        .select("*", { count: "exact", head: true })
+        .select("id", { count: "exact", head: true })
         .eq("apartmentowner_id", apartmentownerId)
         .eq("status", "active"),
       supabaseAdmin
         .from("maintenance")
-        .select("*", { count: "exact", head: true })
+        .select("id", { count: "exact", head: true })
         .eq("apartmentowner_id", apartmentownerId)
         .eq("status", "pending"),
       revenueQuery,
     ]);
 
-    // Count active tenants in the owner's apartments
+    // Count active tenants - single query combining both unit-based and owner-based lookup
     let activeTenants = 0;
     if (aptIds.length > 0) {
       const { count } = await supabaseAdmin
         .from("tenants")
-        .select("*", { count: "exact", head: true })
-        .in("unit_id", aptIds)
+        .select("id", { count: "exact", head: true })
+        .or(`unit_id.in.(${aptIds.join(",")}),apartmentowner_id.eq.${apartmentownerId}`)
         .eq("status", "active");
       activeTenants = count ?? 0;
-    }
-
-    // Fallback: if unit-based query returned 0, try direct apartmentowner_id lookup
-    if (activeTenants === 0) {
+    } else {
       const { count } = await supabaseAdmin
         .from("tenants")
-        .select("*", { count: "exact", head: true })
+        .select("id", { count: "exact", head: true })
         .eq("apartmentowner_id", apartmentownerId)
         .eq("status", "active");
       activeTenants = count ?? 0;
@@ -346,13 +343,13 @@ export async function getUserDistribution(
     const [ownersRes, managersRes, tenantsRes] = await Promise.all([
       supabaseAdmin
         .from("apartment_owners")
-        .select("*", { count: "exact", head: true }),
+        .select("id", { count: "exact", head: true }),
       supabaseAdmin
         .from("apartment_managers")
-        .select("*", { count: "exact", head: true }),
+        .select("id", { count: "exact", head: true }),
       supabaseAdmin
         .from("tenants")
-        .select("*", { count: "exact", head: true }),
+        .select("id", { count: "exact", head: true }),
     ]);
 
     sendSuccess(res, [
@@ -375,24 +372,20 @@ export async function getTenantsPerApartment(
 ): Promise<void> {
   try {
     // Get all active apartments with tenant counts
-    const { data: apartments, error: aptError } = await supabaseAdmin
-      .from("units")
-      .select("*")
-      .eq("status", "active")
-      .order("name");
+    const [{ data: apartments, error: aptError }, { data: tenants, error: tenError }] = await Promise.all([
+      supabaseAdmin
+        .from("units")
+        .select("id, name, apartmentowner_id, status")
+        .eq("status", "active")
+        .order("name"),
+      supabaseAdmin
+        .from("tenants")
+        .select("unit_id")
+        .eq("status", "active"),
+    ]);
 
-    if (aptError) {
-      sendError(res, aptError.message, 500);
-      return;
-    }
-
-    const { data: tenants, error: tenError } = await supabaseAdmin
-      .from("tenants")
-      .select("unit_id")
-      .eq("status", "active");
-
-    if (tenError) {
-      sendError(res, tenError.message, 500);
+    if (aptError || tenError) {
+      sendError(res, (aptError || tenError)!.message, 500);
       return;
     }
 

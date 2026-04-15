@@ -13,6 +13,9 @@ export interface MaintenanceRequest {
   priority: 'low' | 'medium' | 'high' | 'urgent'
   status: 'pending' | 'in_progress' | 'resolved' | 'closed'
   photo_url: string | null
+  review_rating: number | null
+  review_comment: string | null
+  reviewed_at: string | null
   created_at: string
   updated_at: string
   tenant_name?: string
@@ -180,6 +183,11 @@ export interface UnitWithTenant {
   tenant_id: string | null
   max_occupancy: number | null
   payment_due_day: number | null
+  contract_duration: number | null
+  lease_start: string | null
+  lease_end: string | null
+  tenant_move_in_date: string | null
+  rent_deadline: string | null
 }
 
 export interface OwnerTenant {
@@ -522,6 +530,7 @@ export interface UnitOccupant {
   last_name?: string
   sex?: string | null
   phone?: string | null
+  birthdate?: string | null
   id_photo_url?: string | null
   created_at: string
 }

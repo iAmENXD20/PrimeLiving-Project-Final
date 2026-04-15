@@ -3,6 +3,42 @@ import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 
+const DOCUMENTS_BUCKET = "documents";
+
+async function ensureDocumentsBucket(): Promise<void> {
+  const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+  const exists = (buckets || []).some((bucket) => bucket.name === DOCUMENTS_BUCKET);
+  if (exists) return;
+
+  await supabaseAdmin.storage.createBucket(DOCUMENTS_BUCKET, {
+    public: true,
+    fileSizeLimit: "5MB",
+    allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "image/jpg", "application/pdf"],
+  });
+}
+
+function parseImageDataUrl(dataUrl: string): { mime: string; buffer: Buffer; extension: string } | null {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) return null;
+
+  const mime = match[1].toLowerCase();
+  const extMap: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+  };
+
+  const extension = extMap[mime];
+  if (!extension) return null;
+
+  return {
+    mime,
+    buffer: Buffer.from(match[2], "base64"),
+    extension,
+  };
+}
+
 /**
  * GET /api/apartments/occupants/:unitId
  * Get all occupants for a unit
@@ -40,7 +76,7 @@ export async function addOccupant(
   res: Response
 ): Promise<void> {
   try {
-    const { unit_id, tenant_id, full_name, first_name, last_name, sex, phone, id_photo_url } = req.body;
+    const { unit_id, tenant_id, full_name, first_name, last_name, sex, phone, id_photo_url, birthdate } = req.body;
 
     const resolvedFirstName = first_name || (full_name ? full_name.split(' ')[0] : '')
     const resolvedLastName = last_name || (full_name ? full_name.split(' ').slice(1).join(' ') : '')
@@ -86,6 +122,7 @@ export async function addOccupant(
         sex: sex || null,
         phone: phone || null,
         id_photo_url: id_photo_url || null,
+        birthdate: birthdate || null,
       })
       .select()
       .single();
@@ -157,6 +194,61 @@ export async function deleteOccupant(
     }
 
     sendSuccess(res, null, "Occupant removed successfully");
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/apartments/occupants/upload-id
+ * Upload occupant ID photo to Supabase Storage
+ */
+export async function uploadOccupantIdPhoto(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { tenant_id, data_url } = req.body as {
+      tenant_id?: string;
+      data_url?: string;
+    };
+
+    if (!tenant_id || !data_url) {
+      sendError(res, "tenant_id and data_url are required", 400);
+      return;
+    }
+
+    const parsed = parseImageDataUrl(data_url);
+    if (!parsed) {
+      sendError(res, "Invalid image data", 400);
+      return;
+    }
+
+    await ensureDocumentsBucket();
+
+    const objectPath = `occupant-ids/${tenant_id}/${Date.now()}.${parsed.extension}`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(DOCUMENTS_BUCKET)
+      .upload(objectPath, parsed.buffer, {
+        contentType: parsed.mime,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      sendError(res, uploadError.message, 500);
+      return;
+    }
+
+    const { data: publicData } = supabaseAdmin.storage
+      .from(DOCUMENTS_BUCKET)
+      .getPublicUrl(objectPath);
+
+    sendSuccess(
+      res,
+      { url: publicData.publicUrl, path: objectPath },
+      "Occupant ID photo uploaded successfully",
+      201
+    );
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

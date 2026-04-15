@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Wrench, X, Camera, ChevronDown, ClipboardList, Search } from 'lucide-react'
+import { Wrench, X, Camera, ChevronDown, ClipboardList, Search, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +12,8 @@ import {
   getTenantMaintenanceRequests,
   createTenantMaintenanceRequest,
   uploadMaintenancePhoto,
+  reviewMaintenanceRequest,
+  updateMaintenanceStatus,
   type TenantMaintenanceRequest,
 } from '@/lib/tenantApi'
 import { TableSkeleton } from '@/components/ui/skeleton'
@@ -54,6 +56,14 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
   const pageSize = 10
   const [subTab, setSubTab] = useState<'request' | 'tracking'>('request')
   const [trackingSearch, setTrackingSearch] = useState('')
+
+  // Review state
+  const [reviewingId, setReviewingId] = useState<string | null>(null)
+  const [reviewRating, setReviewRating] = useState(0)
+  const [reviewHover, setReviewHover] = useState(0)
+  const [reviewComment, setReviewComment] = useState('')
+  const [submittingReview, setSubmittingReview] = useState(false)
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
 
   // 4 photo slots
   const [photos, setPhotos] = useState<(File | null)[]>([null, null, null, null])
@@ -580,6 +590,118 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
                         {req.priority}
                       </span>
                     </div>
+
+                    {/* Mark as Resolved — only when in_progress */}
+                    {req.status === 'in_progress' && (
+                      <div className={`mt-5 rounded-lg border p-4 ${isDark ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50'}`}>
+                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Has this issue been fixed? Mark it as resolved to proceed with your review.
+                        </p>
+                        <Button
+                          disabled={resolvingId === req.id}
+                          onClick={async () => {
+                            setResolvingId(req.id)
+                            try {
+                              await updateMaintenanceStatus(req.id, 'resolved')
+                              toast.success('Marked as resolved! You can now leave a review.')
+                              await loadRequests()
+                            } catch (err: any) {
+                              toast.error(err.message || 'Failed to update status')
+                            } finally {
+                              setResolvingId(null)
+                            }
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-6"
+                        >
+                          {resolvingId === req.id ? 'Updating...' : 'Mark as Resolved'}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Review Section — Show form for resolved, show submitted review for closed */}
+                    {req.status === 'resolved' && (
+                      <div className={`mt-5 rounded-lg border p-4 ${isDark ? 'border-primary/30 bg-primary/5' : 'border-primary/20 bg-primary/5'}`}>
+                        <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          How was the service? Leave a review to close this request.
+                        </p>
+                        <div className="flex items-center gap-1 mb-3">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => { setReviewingId(req.id); setReviewRating(star) }}
+                              onMouseEnter={() => { setReviewingId(req.id); setReviewHover(star) }}
+                              onMouseLeave={() => setReviewHover(0)}
+                              className="transition-transform hover:scale-110"
+                            >
+                              <Star
+                                className={`w-7 h-7 ${
+                                  star <= (reviewingId === req.id ? (reviewHover || reviewRating) : 0)
+                                    ? 'fill-yellow-400 text-yellow-400'
+                                    : isDark ? 'text-gray-600' : 'text-gray-300'
+                                }`}
+                              />
+                            </button>
+                          ))}
+                          {reviewingId === req.id && reviewRating > 0 && (
+                            <span className={`ml-2 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {reviewRating}/5
+                            </span>
+                          )}
+                        </div>
+                        <textarea
+                          placeholder="Comment (optional)"
+                          value={reviewingId === req.id ? reviewComment : ''}
+                          onChange={(e) => { setReviewingId(req.id); setReviewComment(e.target.value) }}
+                          rows={2}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm mb-3 resize-none ${
+                            isDark ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder:text-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder:text-gray-400'
+                          }`}
+                        />
+                        <Button
+                          disabled={submittingReview || !(reviewingId === req.id && reviewRating > 0)}
+                          onClick={async () => {
+                            if (!reviewRating || reviewingId !== req.id) return
+                            setSubmittingReview(true)
+                            try {
+                              await reviewMaintenanceRequest(req.id, reviewRating, reviewComment || undefined)
+                              toast.success('Review submitted! Request is now closed.')
+                              setReviewingId(null)
+                              setReviewRating(0)
+                              setReviewComment('')
+                              await loadRequests()
+                            } catch (err: any) {
+                              toast.error(err.message || 'Failed to submit review')
+                            } finally {
+                              setSubmittingReview(false)
+                            }
+                          }}
+                          className="bg-primary hover:bg-primary/90 text-white font-semibold text-sm px-6"
+                        >
+                          {submittingReview ? 'Submitting...' : 'Submit Review'}
+                        </Button>
+                      </div>
+                    )}
+
+                    {req.status === 'closed' && req.review_rating && (
+                      <div className={`mt-5 rounded-lg border p-4 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
+                        <p className={`text-xs font-medium mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Your Review</p>
+                        <div className="flex items-center gap-1 mb-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`w-4 h-4 ${star <= req.review_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                            />
+                          ))}
+                          <span className={`ml-1.5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {req.review_rating}/5
+                          </span>
+                        </div>
+                        {req.review_comment && (
+                          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{req.review_comment}"</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}

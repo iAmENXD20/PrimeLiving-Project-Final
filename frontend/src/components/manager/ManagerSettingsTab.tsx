@@ -9,15 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
-
-function formatPhoneTo63(phone: string): string {
-  if (!phone) return ''
-  const digits = phone.replace(/\D/g, '')
-  if (digits.startsWith('63')) return `+63 ${digits.slice(2)}`
-  if (digits.startsWith('0')) return `+63 ${digits.slice(1)}`
-  if (digits.startsWith('9') && digits.length === 10) return `+63 ${digits}`
-  return phone
-}
+import { formatPhone } from '@/lib/utils'
 
 const passwordSchema = z
   .object({
@@ -55,6 +47,8 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
   const [joinedDate, setJoinedDate] = useState<string | null>(null)
   const [ownerName, setOwnerName] = useState<string | null>(null)
   const [propertyAddress, setPropertyAddress] = useState<string | null>(null)
+  const [birthdate, setBirthdate] = useState<string>('')
+  const [birthdateSaving, setBirthdateSaving] = useState(false)
 
   useEffect(() => {
     async function loadProfile() {
@@ -63,7 +57,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
         managerId
           ? supabase
               .from('apartment_managers')
-              .select('status, joined_date, apartmentowner_id, apartment_id')
+              .select('status, joined_date, apartmentowner_id, apartment_id, birthdate')
               .eq('id', managerId)
               .maybeSingle()
           : Promise.resolve({ data: null } as any),
@@ -76,6 +70,7 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
 
       if (managerRes?.data?.status) setManagerStatus(managerRes.data.status)
       if (managerRes?.data?.joined_date) setJoinedDate(managerRes.data.joined_date)
+      if (managerRes?.data?.birthdate) setBirthdate(managerRes.data.birthdate)
 
       if (resolvedClientId) {
         const { data: clientData } = await supabase
@@ -232,10 +227,32 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
                     setPhoneSaving(false)
                   }
                 }}
-                placeholder="9XXXXXXXXX"
+                placeholder="9XX XXX XXXX"
                 maxLength={10}
               />
             </div>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Birthdate</Label>
+            <Input
+              type="date"
+              className={`mt-1 text-base ${inputClass}`}
+              value={birthdate}
+              onChange={(e) => setBirthdate(e.target.value)}
+              onBlur={async () => {
+                if (!managerId || !birthdate) return
+                setBirthdateSaving(true)
+                try {
+                  const { error } = await supabase.from('apartment_managers').update({ birthdate }).eq('id', managerId)
+                  if (error) throw error
+                  toast.success('Birthdate updated!')
+                } catch {
+                  toast.error('Failed to update birthdate')
+                } finally {
+                  setBirthdateSaving(false)
+                }
+              }}
+            />
           </div>
         </div>
       </div>

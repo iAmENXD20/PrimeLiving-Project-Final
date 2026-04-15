@@ -9,15 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
-
-function formatPhoneTo63(phone: string): string {
-  if (!phone) return ''
-  const digits = phone.replace(/\D/g, '')
-  if (digits.startsWith('63')) return `+63 ${digits.slice(2)}`
-  if (digits.startsWith('0')) return `+63 ${digits.slice(1)}`
-  if (digits.startsWith('9') && digits.length === 10) return `+63 ${digits}`
-  return phone
-}
+import { formatPhone } from '@/lib/utils'
 
 const passwordSchema = z
   .object({
@@ -194,7 +186,7 @@ export default function OwnerAccountTab({ ownerId }: OwnerAccountTabProps) {
                 value={phoneInput}
                 onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ''))}
                 onBlur={handleSavePhone}
-                placeholder="9XXXXXXXXX"
+                placeholder="9XX XXX XXXX"
                 maxLength={10}
               />
             </div>

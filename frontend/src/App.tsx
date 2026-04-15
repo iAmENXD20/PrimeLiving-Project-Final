@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 
 const WelcomePage = lazy(() => import('./pages/WelcomePage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
+const SetupPage = lazy(() => import('./pages/SetupPage'))
 const OwnerDashboard = lazy(() => import('./pages/OwnerDashboard'))
 const ManagerDashboard = lazy(() => import('./pages/ManagerDashboard'))
 const TenantDashboard = lazy(() => import('./pages/TenantDashboard'))
@@ -42,6 +43,7 @@ function App() {
       <Routes>
         <Route path="/" element={<WelcomePage />} />
         <Route path="/login" element={<Suspense fallback={<PageLoader />}><LoginPage /></Suspense>} />
+        <Route path="/setup" element={<Suspense fallback={<PageLoader />}><SetupPage /></Suspense>} />
         <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPasswordPage /></Suspense>} />
         <Route path="/invite/confirm" element={<Suspense fallback={<PageLoader />}><InviteConfirmPage /></Suspense>} />
         <Route path="/invite/confirm/*" element={<Suspense fallback={<PageLoader />}><InviteConfirmPage /></Suspense>} />

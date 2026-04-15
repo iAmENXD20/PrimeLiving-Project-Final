@@ -74,18 +74,18 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
             setApartmentBranch(aptCode || unitName || null)
           }
           setApartmentAddress(info?.apartment_address || info?.address || null)
-          if (!info?.apartment_address && !info?.address) {
-            // Fallback: try owner-level apartment address
+
+          // Parallelize fallback calls if needed
+          const needAddressFallback = !info?.apartment_address && !info?.address
+          const needNameFallback = !info?.apartment_name && !info?.name
+          if (needAddressFallback || needNameFallback) {
             const fallbackClientId = info?.apartmentowner_id || ownerId || null
             if (fallbackClientId) {
-              const fallbackAddress = await getOwnerApartmentAddress(fallbackClientId)
+              const [fallbackAddress, fallbackName] = await Promise.all([
+                needAddressFallback ? getOwnerApartmentAddress(fallbackClientId) : Promise.resolve(null),
+                needNameFallback ? getOwnerApartmentName(fallbackClientId) : Promise.resolve(null),
+              ])
               if (fallbackAddress) setApartmentAddress(fallbackAddress)
-            }
-          }
-          if (!info?.apartment_name && !info?.name) {
-            const fallbackClientId = info?.apartmentowner_id || ownerId || null
-            if (fallbackClientId) {
-              const fallbackName = await getOwnerApartmentName(fallbackClientId)
               if (fallbackName) setApartmentBranch(fallbackName)
             }
           }

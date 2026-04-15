@@ -14,7 +14,7 @@ export async function getApartmentLogs(
   try {
     let query = supabaseAdmin
       .from("apartment_logs")
-      .select("*")
+      .select("id, created_at, action, entity_type, entity_id, description, actor_id, actor_name, actor_role, apartment_id, apartmentowner_id")
       .order("created_at", { ascending: false });
 
     if (req.query.apartmentowner_id) {

@@ -251,3 +251,127 @@ export async function validateEmailForAccountCreation(
     sendError(res, err.message, 500);
   }
 }
+
+/**
+ * GET /api/auth/check-setup
+ * Check if the system has been set up (at least one owner exists)
+ */
+export async function checkSetup(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { count, error } = await supabaseAdmin
+      .from("apartment_owners")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "active");
+
+    if (error) {
+      sendError(res, error.message, 500);
+      return;
+    }
+
+    sendSuccess(res, { isSetup: (count ?? 0) > 0 });
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/auth/setup
+ * First-time owner/admin account creation.
+ * Only works when no active owner exists in the system.
+ */
+export async function setupOwner(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    // Block if an owner already exists
+    const { count, error: countError } = await supabaseAdmin
+      .from("apartment_owners")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "active");
+
+    if (countError) {
+      sendError(res, countError.message, 500);
+      return;
+    }
+
+    if ((count ?? 0) > 0) {
+      sendError(res, "System is already set up. Owner account exists.", 403);
+      return;
+    }
+
+    const { first_name, last_name, email, phone, password, sex, birthdate } = req.body;
+
+    if (!first_name || !email || !password) {
+      sendError(res, "First name, email, and password are required", 400);
+      return;
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    if (!isValidEmailFormat(normalizedEmail)) {
+      sendError(res, "Please enter a valid email address", 400);
+      return;
+    }
+
+    if (String(password).length < 8) {
+      sendError(res, "Password must be at least 8 characters", 400);
+      return;
+    }
+
+    // Create Supabase auth user directly (no email verification needed for owner/admin)
+    const { data: authData, error: authError } =
+      await supabaseAdmin.auth.admin.createUser({
+        email: normalizedEmail,
+        password,
+        email_confirm: true, // Auto-confirm email
+        user_metadata: {
+          role: "owner",
+          name: `${first_name} ${last_name || ""}`.trim(),
+        },
+        app_metadata: {
+          role: "owner",
+        },
+      });
+
+    if (authError || !authData.user) {
+      sendError(res, authError?.message || "Failed to create auth account", 500);
+      return;
+    }
+
+    // Create apartment_owners record
+    const { data: ownerData, error: ownerError } = await supabaseAdmin
+      .from("apartment_owners")
+      .insert({
+        auth_user_id: authData.user.id,
+        first_name: first_name.trim(),
+        last_name: (last_name || "").trim(),
+        email: normalizedEmail,
+        phone: phone || null,
+        sex: sex || null,
+        birthdate: birthdate || null,
+        status: "active",
+      })
+      .select()
+      .single();
+
+    if (ownerError) {
+      // Cleanup: delete auth user if DB insert fails
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      sendError(res, ownerError.message, 500);
+      return;
+    }
+
+    sendSuccess(
+      res,
+      { owner: ownerData },
+      "Owner account created successfully. You can now log in.",
+      201
+    );
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}

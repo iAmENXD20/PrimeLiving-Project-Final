@@ -22,6 +22,7 @@ import {
   addOccupant,
   updateOccupant,
   deleteOccupant,
+  uploadOccupantIdPhoto,
 } from "../controllers/occupants.controller";
 
 const router = Router();
@@ -36,6 +37,7 @@ router.delete("/properties/:id", authorize("owner"), invalidateCache(["apartment
 
 // Occupant routes
 router.get("/occupants/:unitId", authorize("owner", "manager", "tenant"), getOccupants);
+router.post("/occupants/upload-id", authorize("tenant"), uploadOccupantIdPhoto);
 router.post("/occupants", authorize("tenant"), addOccupant);
 router.put("/occupants/:id", authorize("tenant"), updateOccupant);
 router.delete("/occupants/:id", authorize("tenant"), deleteOccupant);

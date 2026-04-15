@@ -37,11 +37,12 @@ export default function TenantDashboard() {
       try {
         const data = await getCurrentTenant()
         if (data) {
-          let ownerId: string | null = data.apartmentowner_id || null
-          if (data.unit_id) {
-            const aptInfo = await getTenantApartmentInfo(data.unit_id)
-            ownerId = aptInfo?.apartmentowner_id || ownerId
-          }
+          // Parallelize apartment info + notification count
+          const [aptInfo, count] = await Promise.all([
+            data.unit_id ? getTenantApartmentInfo(data.unit_id) : Promise.resolve(null),
+            getUnreadNotificationCount(data.id, data.apartmentowner_id || null),
+          ])
+          const ownerId = aptInfo?.apartmentowner_id || data.apartmentowner_id || null
           setTenant({
             id: data.id,
             first_name: data.first_name,
@@ -52,9 +53,6 @@ export default function TenantDashboard() {
             status: data.status,
             contract_status: data.contract_status || 'active',
           })
-
-          // Load unread notification count
-          const count = await getUnreadNotificationCount(data.id, ownerId)
           setNotificationCount(count)
         }
       } catch (err) {

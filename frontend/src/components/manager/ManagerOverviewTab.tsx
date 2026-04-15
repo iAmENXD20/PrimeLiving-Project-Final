@@ -67,12 +67,12 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
           }
         }
         // Fallback to owner-level data only if manager data didn't resolve
-        if (!branchResolved && ownerId) {
-          const name = await getOwnerApartmentName(ownerId)
+        if ((!branchResolved || !addressResolved) && ownerId) {
+          const [name, addr] = await Promise.all([
+            branchResolved ? Promise.resolve(null) : getOwnerApartmentName(ownerId),
+            addressResolved ? Promise.resolve(null) : getOwnerApartmentAddress(ownerId),
+          ])
           if (name) setApartmentBranch(name)
-        }
-        if (!addressResolved && ownerId) {
-          const addr = await getOwnerApartmentAddress(ownerId)
           if (addr) setApartmentAddress(addr)
         }
       } catch (err) {

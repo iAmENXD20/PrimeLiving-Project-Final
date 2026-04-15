@@ -7,6 +7,7 @@ import { useEmailValidation } from '@/hooks/useEmailValidation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatPhone } from '@/lib/utils'
 import {
   getManagerTenants,
   createTenantAccount,
@@ -366,7 +367,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                         {tenant.email || '—'}
                       </td>
                       <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                        {tenant.phone || '—'}
+                        {formatPhone(tenant.phone) || '—'}
                       </td>
                       <td className={`py-3.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                         {tenant.apartment_name || '—'}
@@ -663,71 +664,12 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                     {copiedField === 'Email' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
-
-                <div className={`rounded-lg p-3 ${isDark ? 'bg-emerald-500/10 border border-emerald-500/25' : 'bg-emerald-50 border border-emerald-200'}`}>
-                  <p className={`text-xs font-medium ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Status</p>
-                  <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>Invited</p>
-                </div>
               </div>
 
               <div className={`mt-4 rounded-lg p-3 ${isDark ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-yellow-50 border border-yellow-200'}`}>
                 <p className={`text-xs ${isDark ? 'text-yellow-400' : 'text-yellow-700'}`}>
-                  The tenant should check their email to accept the invite and set their own password.
+                  The tenant should check their email to accept the invite and set up their account.
                 </p>
-              </div>
-
-              {/* Email Send Section */}
-              <div className="mt-5 space-y-3">
-                <Label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Send invite reminder via Email
-                </Label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-                    <input
-                      type="email"
-                      value={credentials.email}
-                      readOnly
-                      className={`w-full pl-10 pr-4 py-2.5 rounded-lg border text-sm transition-colors ${
-                        isDark
-                          ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500 focus:border-primary'
-                          : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-primary'
-                      } focus:outline-none`}
-                    />
-                  </div>
-                  <Button
-                    onClick={async () => {
-                      setEmailSending(true)
-                      try {
-                        await new Promise((resolve) => setTimeout(resolve, 1500))
-                        setEmailSent(true)
-                        setEmailCooldown(30)
-                        toast.success(`Invite reminder sent to ${credentials.email}`)
-                      } catch {
-                        toast.error('Failed to send email')
-                      } finally {
-                        setEmailSending(false)
-                      }
-                    }}
-                    disabled={emailSending || emailCooldown > 0}
-                    className="gap-2 bg-primary hover:bg-primary/90 text-white font-semibold disabled:opacity-50"
-                  >
-                    <Send className="w-4 h-4" />
-                    {emailSending
-                      ? 'Sending...'
-                      : emailCooldown > 0
-                      ? `Resend in ${emailCooldown}s`
-                      : emailSent
-                      ? 'Resend Email'
-                      : 'Send Email'}
-                  </Button>
-                </div>
-                {emailSent && (
-                  <p className={`text-xs flex items-center gap-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                    <Check className="w-3.5 h-3.5" />
-                    Invite reminder sent successfully to {credentials.email}
-                  </p>
-                )}
               </div>
 
               <div className="flex justify-end mt-6">
@@ -793,7 +735,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                 <div className="space-y-4">
                   {[
                     { label: 'Name', value: `${viewTenant.first_name} ${viewTenant.last_name}`.trim() },
-                    { label: 'Phone', value: viewTenant.phone || '—' },
+                    { label: 'Phone', value: formatPhone(viewTenant.phone) || '—' },
                     { label: 'Branch', value: unitInfo?.branch || viewTenant.apartment_name || '—' },
                     { label: 'Address', value: unitInfo?.address || '—' },
                     { label: 'Unit', value: unitInfo?.name || '—' },

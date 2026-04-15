@@ -1,9 +1,8 @@
-import { Response } from "express";
+﻿import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 import { sendSmsToMany } from "../utils/sms";
-import { sendEmail, maintenanceRequestEmailHtml } from "../utils/email";
 import { createNotification, createNotifications } from "../utils/notifications";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 
@@ -55,7 +54,8 @@ export async function getMaintenanceRequests(
     let query = supabaseAdmin
       .from("maintenance")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500);
 
     if (req.query.apartmentowner_id) {
       query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
@@ -201,7 +201,7 @@ export async function createMaintenanceRequest(
 
     await sendSmsToMany(
       (managers || []).map((manager: any) => manager.phone),
-      `[Geeb Apartment] New maintenance request from ${tenantName}: ${title} (${priority})`,
+      `[E-AMS] New maintenance request from ${tenantName}: ${title} (${priority})`,
       { unit_id, apartmentowner_id }
     );
 
@@ -216,33 +216,6 @@ export async function createMaintenanceRequest(
         message: `${tenantName} submitted: ${title}`,
       }))
     );
-
-    // Fetch unit name for email context
-    let unitName: string | undefined;
-    if (unit_id) {
-      const { data: unitData } = await supabaseAdmin
-        .from("units")
-        .select("unit_name")
-        .eq("id", unit_id)
-        .maybeSingle();
-      unitName = unitData?.unit_name || undefined;
-    }
-
-    // Send email notification to managers
-    const managerEmails = (managers || []).map((m: any) => m.email).filter(Boolean);
-    if (managerEmails.length > 0) {
-      sendEmail({
-        to: managerEmails,
-        subject: `🔧 New Maintenance Request: ${title}`,
-        html: maintenanceRequestEmailHtml({
-          tenantName,
-          title,
-          description,
-          priority,
-          unit: unitName,
-        }),
-      });
-    }
 
     // Log activity for apartment_logs
     logActivity({
@@ -296,7 +269,7 @@ export async function updateMaintenanceStatus(
 
       await sendSmsToMany(
         [tenant?.phone],
-        `[Geeb Apartment] Your maintenance request "${data.title}" is now ${status.replace("_", " ")}.`,
+        `[E-AMS] Your maintenance request "${data.title}" is now ${status.replace("_", " ")}.`,
         { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
       );
 
@@ -329,6 +302,103 @@ export async function updateMaintenanceStatus(
         entity_id: id,
         description: `Maintenance "${data.title}" status changed to ${status}`,
         metadata: { title: data.title, status },
+      });
+    }
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * PUT /api/maintenance/:id/review
+ * Tenant submits a review for a resolved maintenance request, then it becomes closed
+ */
+export async function reviewMaintenanceRequest(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { rating, comment } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      sendError(res, "Rating must be between 1 and 5", 400);
+      return;
+    }
+
+    // Verify the request is in "resolved" status
+    const { data: existing } = await supabaseAdmin
+      .from("maintenance")
+      .select("status, tenant_id, title, apartmentowner_id, unit_id")
+      .eq("id", id)
+      .single();
+
+    if (!existing) {
+      sendError(res, "Maintenance request not found", 404);
+      return;
+    }
+
+    if (existing.status !== "resolved") {
+      sendError(res, "Only resolved requests can be reviewed", 400);
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("maintenance")
+      .update({
+        review_rating: rating,
+        review_comment: comment || null,
+        reviewed_at: new Date().toISOString(),
+        status: "closed",
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      sendError(res, error.message, 500);
+      return;
+    }
+
+    // Notify managers that the request was reviewed and closed
+    if (existing.apartmentowner_id) {
+      const { data: managers } = await supabaseAdmin
+        .from("managers")
+        .select("id")
+        .eq("apartmentowner_id", existing.apartmentowner_id)
+        .eq("status", "active");
+
+      if (managers?.length) {
+        for (const mgr of managers) {
+          await createNotification({
+            apartmentowner_id: existing.apartmentowner_id,
+            unit_id: existing.unit_id,
+            recipient_role: "manager",
+            recipient_id: mgr.id,
+            type: "maintenance_status_updated",
+            title: "Maintenance Reviewed",
+            message: `Tenant reviewed "${existing.title}" with ${rating}/5 stars.`,
+          });
+        }
+      }
+    }
+
+    sendSuccess(res, data, "Review submitted and request closed");
+
+    if (existing.apartmentowner_id) {
+      const actorName = req.user?.id
+        ? await resolveActorName(req.user.id, req.user.role, req.user.email)
+        : "Tenant";
+      logActivity({
+        apartmentowner_id: existing.apartmentowner_id,
+        actor_id: req.user?.id || null,
+        actor_name: actorName,
+        actor_role: "tenant",
+        action: "maintenance_reviewed",
+        entity_type: "maintenance",
+        entity_id: id,
+        description: `Maintenance "${existing.title}" reviewed with ${rating}/5 stars and closed`,
+        metadata: { title: existing.title, rating, comment },
       });
     }
   } catch (err: any) {

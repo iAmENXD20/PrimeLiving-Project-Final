@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Trash2, Megaphone, Send } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import { formatPhone } from '@/lib/utils'
 import {
   getAnnouncements,
   createAnnouncement,
@@ -260,7 +261,7 @@ export default function ManagerAnnouncementsTab({ managerId, managerName }: Mana
                         </span>
                       )}
                       <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {tenant.phone || 'No phone'}
+                        {formatPhone(tenant.phone) || 'No phone'}
                       </span>
                     </label>
                   )

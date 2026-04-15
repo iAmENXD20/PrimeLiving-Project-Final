@@ -10,6 +10,7 @@ import {
   getOwnerManagers,
   getOwnerPayments,
   getOwnerApartmentLogs,
+  getOwnerTenants,
   type MaintenanceRequest,
   type UnitWithTenant,
   type OwnerPayment,
@@ -35,6 +36,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
   const [paidTenantCount, setPaidTenantCount] = useState(0)
   const [allPayments, setAllPayments] = useState<OwnerPayment[]>([])
   const [activityLogs, setActivityLogs] = useState<ApartmentLog[]>([])
+  const [tenantNameMap, setTenantNameMap] = useState<Map<string, string>>(new Map())
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -66,7 +68,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
   useEffect(() => {
     async function load() {
       try {
-        const [s, requests, addr, unitList, managers, payments, logs] = await Promise.all([
+        const [s, requests, addr, unitList, managers, payments, logs, tenants] = await Promise.all([
           selectedMonth === 0
             ? getOwnerDashboardStats(ownerId)
             : getOwnerDashboardStats(ownerId, { month: selectedMonth, year: selectedYear }),
@@ -76,7 +78,15 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
           getOwnerManagers(ownerId),
           getOwnerPayments(ownerId),
           getOwnerApartmentLogs(ownerId),
+          getOwnerTenants(ownerId, true),
         ])
+
+        // Build tenant ID → name lookup for activity logs
+        const tMap = new Map<string, string>()
+        for (const t of tenants || []) {
+          tMap.set(t.id, `${t.first_name} ${t.last_name}`.trim())
+        }
+        setTenantNameMap(tMap)
         setStats(s)
         setRecentMaintenance(requests)
         setApartmentAddress(addr)
@@ -180,12 +190,17 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
     })),
     ...activityLogs.map((log) => {
       const meta = log.metadata as Record<string, string>
-      const tenantName = meta?.first_name && meta?.last_name ? `${meta.first_name} ${meta.last_name}` : 'A tenant'
+      // Resolve tenant name: prefer metadata names, then lookup by tenant_id, then fallback
+      const tenantName = meta?.first_name && meta?.last_name
+        ? `${meta.first_name} ${meta.last_name}`.trim()
+        : meta?.tenant_id && tenantNameMap.get(meta.tenant_id)
+          ? tenantNameMap.get(meta.tenant_id)!
+          : 'A tenant'
       return {
         id: `a-${log.id}`,
         type: 'activity' as const,
         description: `${tenantName} moved in`,
-        detail: log.description,
+        detail: `Assigned tenant ${tenantName} to unit`,
         date: log.created_at,
         badge: 'move-in',
         badgeColor: 'bg-blue-500/15 text-blue-400',

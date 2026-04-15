@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Search, Bell, ChevronDown, X, Building2, Wrench, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Bell, ChevronDown, X, Building2, Wrench, ChevronLeft, ChevronRight, Star } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
@@ -11,7 +11,7 @@ import {
 import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 
-const STATUSES = ['all', 'pending', 'in_progress', 'resolved'] as const
+const STATUSES = ['all', 'pending', 'in_progress', 'resolved', 'closed'] as const
 type StatusFilter = (typeof STATUSES)[number]
 
 const PRIORITIES = ['all', 'low', 'medium', 'high', 'urgent'] as const
@@ -21,6 +21,7 @@ const statusColor: Record<string, string> = {
   pending: 'bg-yellow-500/15 text-yellow-500',
   in_progress: 'bg-blue-400/15 text-blue-400',
   resolved: 'bg-green-400/15 text-green-500',
+  closed: 'bg-gray-400/15 text-gray-400',
 }
 
 const priorityColor: Record<string, string> = {
@@ -447,6 +448,32 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
                       <Bell className="w-3.5 h-3.5" />
                       {alertingId === viewRequest.id ? 'Sending...' : 'Alert Manager'}
                     </button>
+                  )}
+                </div>
+              )}
+
+              {/* Tenant Review */}
+              {viewRequest.status === 'resolved' && !viewRequest.review_rating && (
+                <div className={`rounded-lg border p-3 ${isDark ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-yellow-200 bg-yellow-50'}`}>
+                  <p className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Waiting for tenant review before closing.</p>
+                </div>
+              )}
+              {viewRequest.review_rating && (
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Tenant Review</label>
+                  <div className="flex items-center gap-1 mb-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`w-4 h-4 ${star <= viewRequest.review_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                      />
+                    ))}
+                    <span className={`ml-1.5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {viewRequest.review_rating}/5
+                    </span>
+                  </div>
+                  {viewRequest.review_comment && (
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{viewRequest.review_comment}"</p>
                   )}
                 </div>
               )}

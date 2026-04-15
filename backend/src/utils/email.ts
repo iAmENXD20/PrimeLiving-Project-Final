@@ -90,3 +90,57 @@ export function maintenanceRequestEmailHtml({
     </div>
   `;
 }
+
+export function accountApprovedEmailHtml({
+  name,
+  role,
+}: {
+  name: string;
+  role: "manager" | "tenant";
+}): string {
+  const roleLabel = role === "manager" ? "Apartment Manager" : "Apartment Tenant";
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+            <tr>
+              <td style="background:#064E3B;padding:24px 28px;">
+                <h1 style="margin:0;font-size:24px;line-height:30px;color:#ffffff;">Welcome ${roleLabel}!</h1>
+                <p style="margin:8px 0 0;font-size:14px;line-height:20px;color:#cbd5e1;">Account approved</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                <p style="margin:0 0 16px;font-size:15px;line-height:24px;">Hi ${name},</p>
+                <p style="margin:0 0 16px;font-size:15px;line-height:24px;">
+                  Great news! Your account has been <strong>verified and approved</strong> by the property owner. You can now log in to PrimeLiving and start using the system.
+                </p>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;margin:16px 0;">
+                  <tr>
+                    <td style="padding:16px 18px;text-align:center;">
+                      <p style="margin:0;font-size:15px;font-weight:700;color:#065f46;">✅ Your account is now active</p>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:0 0 16px;font-size:14px;line-height:22px;color:#334155;">
+                  You can sign in using your email and the password you set during registration. If you have any questions, please contact the property owner.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 28px;">
+                <p style="margin:0;font-size:12px;line-height:18px;color:#64748b;">PrimeLiving Property Management</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}

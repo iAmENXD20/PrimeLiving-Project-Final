@@ -220,7 +220,7 @@ export async function createOwner(
           role: "owner",
           name: `${first_name} ${last_name}`.trim(),
           login_email: normalizedEmail,
-          app_name: "Geeb Apartment",
+          app_name: "E-AMS",
         },
       });
 

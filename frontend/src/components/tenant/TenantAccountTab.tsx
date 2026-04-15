@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
+import { formatPhone } from '@/lib/utils'
 import {
   getUnitOccupants,
   addUnitOccupant,
@@ -16,15 +17,6 @@ import {
   uploadOccupantIdPhoto,
   type UnitOccupant,
 } from '@/lib/tenantApi'
-
-function formatPhoneTo63(phone: string): string {
-  if (!phone) return ''
-  const digits = phone.replace(/\D/g, '')
-  if (digits.startsWith('63')) return `+63 ${digits.slice(2)}`
-  if (digits.startsWith('0')) return `+63 ${digits.slice(1)}`
-  if (digits.startsWith('9') && digits.length === 10) return `+63 ${digits}`
-  return phone
-}
 
 const passwordSchema = z
   .object({
@@ -64,6 +56,8 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
   const [apartmentName, setApartmentName] = useState<string | null>(null)
   const [ownerName, setOwnerName] = useState<string | null>(null)
   const [propertyAddress, setPropertyAddress] = useState<string | null>(null)
+  const [birthdate, setBirthdate] = useState<string>('')
+  const [birthdateSaving, setBirthdateSaving] = useState(false)
   const [unitId, setUnitId] = useState<string | null>(null)
   const [maxOccupancy, setMaxOccupancy] = useState<number | null>(null)
   const [occupants, setOccupants] = useState<UnitOccupant[]>([])
@@ -73,6 +67,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
   const [newOccLastName, setNewOccLastName] = useState('')
   const [newOccSex, setNewOccSex] = useState('')
   const [newOccPhone, setNewOccPhone] = useState('')
+  const [newOccBirthdate, setNewOccBirthdate] = useState('')
   const [newOccupantIdFile, setNewOccupantIdFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -83,7 +78,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
         tenantId
           ? supabase
               .from('tenants')
-              .select('status, move_in_date, unit_id, apartmentowner_id, apartment_id')
+              .select('status, move_in_date, unit_id, apartmentowner_id, apartment_id, birthdate')
               .eq('id', tenantId)
               .maybeSingle()
           : Promise.resolve({ data: null } as any),
@@ -96,6 +91,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
 
       if (tenantRes?.data?.status) setTenantStatus(tenantRes.data.status)
       if (tenantRes?.data?.move_in_date) setMoveInDate(tenantRes.data.move_in_date)
+      if (tenantRes?.data?.birthdate) setBirthdate(tenantRes.data.birthdate)
 
       if (resolvedApartmentId) {
         setUnitId(resolvedApartmentId)
@@ -280,9 +276,38 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                     setPhoneSaving(false)
                   }
                 }}
-                placeholder="9XXXXXXXXX"
+                placeholder="9XX XXX XXXX"
                 maxLength={10}
               />
+            </div>
+          </div>
+          <div>
+            <Label className={`text-sm ${labelClass}`}>Birthdate</Label>
+            <div className="flex items-center gap-2 mt-1">
+              <Input
+                type="date"
+                className={`text-base ${inputClass}`}
+                value={birthdate}
+                onChange={(e) => setBirthdate(e.target.value)}
+                onBlur={async () => {
+                  if (!tenantId) return
+                  setBirthdateSaving(true)
+                  try {
+                    const { error } = await supabase.from('tenants').update({ birthdate: birthdate || null }).eq('id', tenantId)
+                    if (error) throw error
+                    toast.success('Birthdate updated!')
+                  } catch {
+                    toast.error('Failed to update birthdate')
+                  } finally {
+                    setBirthdateSaving(false)
+                  }
+                }}
+              />
+              {birthdate && (
+                <span className={`text-sm whitespace-nowrap ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {Math.floor((Date.now() - new Date(birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs old
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -342,7 +367,8 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                           </span>
                           <div className={`flex items-center gap-3 text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                             {occ.sex && <span>{occ.sex}</span>}
-                            {occ.phone && <span>{occ.phone}</span>}
+                            {occ.birthdate && <span>{Math.floor((Date.now() - new Date(occ.birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs old</span>}
+                            {occ.phone && <span>{formatPhone(occ.phone)}</span>}
                           </div>
                         </div>
                       </div>
@@ -405,42 +431,56 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                       </div>
                       <div>
                         <Label className={`text-sm ${labelClass}`}>Contact Number</Label>
-                        <Input
-                          className={`mt-1 ${inputClass}`}
-                          value={newOccPhone}
-                          onChange={(e) => setNewOccPhone(e.target.value)}
-                          placeholder="09XXXXXXXXX"
-                          maxLength={11}
-                        />
+                        <div className="relative mt-1">
+                          <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium select-none ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+63</span>
+                          <Input
+                            className={`pl-12 ${inputClass}`}
+                            value={newOccPhone}
+                            onChange={(e) => setNewOccPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                            placeholder="9XX XXX XXXX"
+                            maxLength={10}
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <Label className={`text-sm ${labelClass}`}>Valid ID (photo)</Label>
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => setNewOccupantIdFile(e.target.files?.[0] || null)}
-                      />
-                      <div className="mt-1 flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="gap-2"
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          <Upload className="w-4 h-4" />
-                          {newOccupantIdFile ? 'Change File' : 'Upload ID'}
-                        </Button>
-                        {newOccupantIdFile && (
-                          <span className={`text-sm flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {newOccupantIdFile.name}
-                            <button onClick={() => { setNewOccupantIdFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}>
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </span>
-                        )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label className={`text-sm ${labelClass}`}>Birthdate</Label>
+                        <Input
+                          type="date"
+                          className={`mt-1 ${inputClass}`}
+                          value={newOccBirthdate}
+                          onChange={(e) => setNewOccBirthdate(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label className={`text-sm ${labelClass}`}>Valid ID (photo)</Label>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => setNewOccupantIdFile(e.target.files?.[0] || null)}
+                        />
+                        <div className="mt-1 flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="gap-2"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            <Upload className="w-4 h-4" />
+                            {newOccupantIdFile ? 'Change File' : 'Upload ID'}
+                          </Button>
+                          {newOccupantIdFile && (
+                            <span className={`text-sm flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {newOccupantIdFile.name}
+                              <button onClick={() => { setNewOccupantIdFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}>
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <Button
@@ -461,6 +501,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                             last_name: newOccLastName.trim(),
                             sex: newOccSex || undefined,
                             phone: newOccPhone || undefined,
+                            birthdate: newOccBirthdate || undefined,
                             id_photo_url: photoUrl,
                           })
                           setOccupants(prev => [...prev, occ])
@@ -468,6 +509,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                           setNewOccLastName('')
                           setNewOccSex('')
                           setNewOccPhone('')
+                          setNewOccBirthdate('')
                           setNewOccupantIdFile(null)
                           if (fileInputRef.current) fileInputRef.current.value = ''
                           toast.success('Occupant added')

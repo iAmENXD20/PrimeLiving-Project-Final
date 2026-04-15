@@ -31,6 +31,9 @@ export interface TenantMaintenanceRequest {
   priority: 'low' | 'medium' | 'high' | 'urgent'
   status: 'pending' | 'in_progress' | 'resolved' | 'closed'
   photo_url: string | null
+  review_rating: number | null
+  review_comment: string | null
+  reviewed_at: string | null
   created_at: string
   updated_at: string
 }
@@ -184,6 +187,14 @@ export async function uploadMaintenancePhoto(file: File, tenantId: string): Prom
     data_url: dataUrl,
   })
   return result.photo_url
+}
+
+export async function reviewMaintenanceRequest(id: string, rating: number, comment?: string): Promise<TenantMaintenanceRequest> {
+  return api.put<TenantMaintenanceRequest>(`/maintenance/${id}/review`, { rating, comment })
+}
+
+export async function updateMaintenanceStatus(id: string, status: TenantMaintenanceRequest['status']): Promise<TenantMaintenanceRequest> {
+  return api.put<TenantMaintenanceRequest>(`/maintenance/${id}/status`, { status })
 }
 
 // ── Payments ───────────────────────────────────────────────
@@ -361,6 +372,7 @@ export interface UnitOccupant {
   last_name: string
   sex: string | null
   phone: string | null
+  birthdate: string | null
   id_photo_url: string | null
   created_at: string
   updated_at: string
@@ -370,7 +382,7 @@ export async function getUnitOccupants(unitId: string): Promise<UnitOccupant[]> 
   return api.get<UnitOccupant[]>(`/apartments/occupants/${unitId}`)
 }
 
-export async function addUnitOccupant(data: { unit_id: string; tenant_id: string; first_name: string; last_name: string; sex?: string; phone?: string; full_name?: string; id_photo_url?: string }): Promise<UnitOccupant> {
+export async function addUnitOccupant(data: { unit_id: string; tenant_id: string; first_name: string; last_name: string; sex?: string; phone?: string; birthdate?: string; full_name?: string; id_photo_url?: string }): Promise<UnitOccupant> {
   return api.post<UnitOccupant>('/apartments/occupants', {
     ...data,
     full_name: data.full_name || `${data.first_name} ${data.last_name}`.trim(),
@@ -386,12 +398,12 @@ export async function deleteUnitOccupant(id: string): Promise<void> {
 }
 
 export async function uploadOccupantIdPhoto(file: File, tenantId: string): Promise<string> {
-  const ext = file.name.split('.').pop()
-  const path = `occupant-ids/${tenantId}/${Date.now()}.${ext}`
-  const { error } = await supabase.storage.from('documents').upload(path, file, { upsert: true })
-  if (error) throw error
-  const { data } = supabase.storage.from('documents').getPublicUrl(path)
-  return data.publicUrl
+  const dataUrl = await fileToDataUrl(file)
+  const result = await api.post<{ url: string }>('/apartments/occupants/upload-id', {
+    tenant_id: tenantId,
+    data_url: dataUrl,
+  })
+  return result.url
 }
 
 // ── Lease Renewal ───────────────────────────────

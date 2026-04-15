@@ -5,6 +5,8 @@ import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
 import { isValidEmailFormat } from "../utils/emailValidation";
 import { logActivity, resolveActorName } from "../utils/activityLog";
+import { sendEmail, accountApprovedEmailHtml } from "../utils/email";
+import { createNotification } from "../utils/notifications";
 
 function getInviteRedirectUrl(): string {
   return env.FRONTEND_URL.replace(/\/+$/, "") + "/invite/confirm";
@@ -274,7 +276,7 @@ export async function updateManager(
 
 /**
  * DELETE /api/managers/:id
- * Delete a manager
+ * Soft-delete a manager (set status to inactive, preserve data for history)
  */
 export async function deleteManager(
   req: AuthenticatedRequest,
@@ -283,7 +285,7 @@ export async function deleteManager(
   try {
     const { id } = req.params;
 
-    // Fetch record before deletion for logging
+    // Fetch record before soft-delete for logging
     const { data: manager } = await supabaseAdmin
       .from("apartment_managers")
       .select("first_name, last_name, apartmentowner_id")
@@ -292,7 +294,7 @@ export async function deleteManager(
 
     const { error } = await supabaseAdmin
       .from("apartment_managers")
-      .delete()
+      .update({ status: "inactive" })
       .eq("id", id);
 
     if (error) {
@@ -300,7 +302,7 @@ export async function deleteManager(
       return;
     }
 
-    sendSuccess(res, null, "Manager deleted successfully");
+    sendSuccess(res, null, "Manager deactivated successfully");
 
     if (manager) {
       const actorName = req.user?.id
@@ -424,19 +426,16 @@ export async function getManagerIdPhotos(
     let frontUrl = null;
     let backUrl = null;
 
-    if (manager.id_front_photo_url) {
-      const { data } = await supabaseAdmin.storage
-        .from("verification-ids")
-        .createSignedUrl(manager.id_front_photo_url, 300);
-      frontUrl = data?.signedUrl || null;
-    }
-
-    if (manager.id_back_photo_url) {
-      const { data } = await supabaseAdmin.storage
-        .from("verification-ids")
-        .createSignedUrl(manager.id_back_photo_url, 300);
-      backUrl = data?.signedUrl || null;
-    }
+    const [frontResult, backResult] = await Promise.all([
+      manager.id_front_photo_url
+        ? supabaseAdmin.storage.from("verification-ids").createSignedUrl(manager.id_front_photo_url, 300)
+        : Promise.resolve({ data: null }),
+      manager.id_back_photo_url
+        ? supabaseAdmin.storage.from("verification-ids").createSignedUrl(manager.id_back_photo_url, 300)
+        : Promise.resolve({ data: null }),
+    ]);
+    frontUrl = frontResult.data?.signedUrl || null;
+    backUrl = backResult.data?.signedUrl || null;
 
     sendSuccess(res, {
       id_type: manager.id_type,
@@ -462,7 +461,7 @@ export async function approveManager(
 
     const { data: manager, error: fetchError } = await supabaseAdmin
       .from("apartment_managers")
-      .select("id, status")
+      .select("id, status, email, first_name, last_name, apartmentowner_id, apartment_id")
       .eq("id", id)
       .single();
 
@@ -487,6 +486,29 @@ export async function approveManager(
     }
 
     sendSuccess(res, null, "Manager approved successfully");
+
+    // Send approval email (non-blocking)
+    const managerName = `${manager.first_name || ""} ${manager.last_name || ""}`.trim() || "Manager";
+    if (manager.email) {
+      sendEmail({
+        to: manager.email,
+        subject: "Your PrimeLiving Account Has Been Approved",
+        html: accountApprovedEmailHtml({ name: managerName, role: "manager" }),
+      }).catch((err) => console.error("[ApproveManager] Email failed:", err));
+    }
+
+    // Create in-app notification (non-blocking)
+    if (manager.apartmentowner_id) {
+      createNotification({
+        apartmentowner_id: manager.apartmentowner_id,
+        recipient_role: "manager",
+        recipient_id: manager.id,
+        type: "account_approved",
+        title: "Account Approved",
+        message: "Your account has been verified and approved. You can now access all manager features.",
+        apartment_id: manager.apartment_id || null,
+      }).catch((err) => console.error("[ApproveManager] Notification failed:", err));
+    }
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
