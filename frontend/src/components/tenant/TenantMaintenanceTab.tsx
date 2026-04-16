@@ -104,7 +104,7 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
   }, [loadRequests])
 
   useRealtimeSubscription(`tenant-maintenance-${tenantId}`, [
-    { table: 'maintenance_requests', filter: `tenant_id=eq.${tenantId}`, onChanged: loadRequests },
+    { table: 'maintenance', filter: `tenant_id=eq.${tenantId}`, onChanged: loadRequests },
   ])
 
   useEffect(() => {

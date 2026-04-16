@@ -86,7 +86,7 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
   // Real-time: auto-refresh when key data changes
   useRealtimeSubscription(`mgr-overview-${managerId}`, [
     { table: 'units', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: loadAll },
-    { table: 'maintenance_requests', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: loadAll },
+    { table: 'maintenance', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: loadAll },
     { table: 'payments', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: loadAll },
     { table: 'apartment_managers', filter: `id=eq.${managerId}`, onChanged: loadAll },
   ])

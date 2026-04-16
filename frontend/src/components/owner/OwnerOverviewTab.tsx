@@ -128,7 +128,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
     { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
     { table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
     { table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
-    { table: 'maintenance_requests', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
+    { table: 'maintenance', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
     { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
   ])
 

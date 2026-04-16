@@ -91,7 +91,7 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
 
   // Real-time: auto-refresh when maintenance requests change
   useRealtimeSubscription(`owner-maintenance-${ownerId}`, [
-    { table: 'maintenance_requests', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadRequests() },
+    { table: 'maintenance', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadRequests() },
   ])
 
   // Close dropdowns on outside click

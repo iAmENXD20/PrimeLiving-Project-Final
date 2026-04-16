@@ -114,7 +114,7 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
 
   // Real-time: auto-refresh when maintenance requests change
   useRealtimeSubscription(`mgr-maintenance-${managerId}`, [
-    { table: 'maintenance_requests', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadRequests() },
+    { table: 'maintenance', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadRequests() },
   ])
 
   async function performStatusChange(requestId: string, nextStatus: 'in_progress' | 'resolved' | 'closed') {

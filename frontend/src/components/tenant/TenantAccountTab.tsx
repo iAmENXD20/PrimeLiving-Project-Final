@@ -72,78 +72,78 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
   const [newOccupantIdFile, setNewOccupantIdFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    async function loadProfile() {
-      const [{ data: userData }, tenantRes] = await Promise.all([
-        supabase.auth.getUser(),
-        tenantId
-          ? supabase
-              .from('tenants')
-              .select('status, move_in_date, unit_id, apartmentowner_id, apartment_id, birthdate')
-              .eq('id', tenantId)
-              .maybeSingle()
-          : Promise.resolve({ data: null } as any),
-      ])
+  const loadProfile = useCallback(async () => {
+    const [{ data: userData }, tenantRes] = await Promise.all([
+      supabase.auth.getUser(),
+      tenantId
+        ? supabase
+            .from('tenants')
+            .select('status, move_in_date, unit_id, apartmentowner_id, apartment_id, birthdate')
+            .eq('id', tenantId)
+            .maybeSingle()
+        : Promise.resolve({ data: null } as any),
+    ])
 
-      setUserEmail(userData.user?.email ?? null)
+    setUserEmail(userData.user?.email ?? null)
 
-      const resolvedApartmentId = (tenantRes?.data?.unit_id as string | null) || apartmentId || null
-      const resolvedClientId = (tenantRes?.data?.apartmentowner_id as string | null) || ownerId || null
+    const resolvedApartmentId = (tenantRes?.data?.unit_id as string | null) || apartmentId || null
+    const resolvedClientId = (tenantRes?.data?.apartmentowner_id as string | null) || ownerId || null
 
-      if (tenantRes?.data?.status) setTenantStatus(tenantRes.data.status)
-      if (tenantRes?.data?.move_in_date) setMoveInDate(tenantRes.data.move_in_date)
-      if (tenantRes?.data?.birthdate) setBirthdate(tenantRes.data.birthdate)
+    if (tenantRes?.data?.status) setTenantStatus(tenantRes.data.status)
+    if (tenantRes?.data?.move_in_date) setMoveInDate(tenantRes.data.move_in_date)
+    if (tenantRes?.data?.birthdate) setBirthdate(tenantRes.data.birthdate)
 
-      if (resolvedApartmentId) {
-        setUnitId(resolvedApartmentId)
-        const { data: apartment } = await supabase
-          .from('units')
-          .select('name, max_occupancy')
-          .eq('id', resolvedApartmentId)
-          .maybeSingle()
-        setApartmentName(apartment?.name || null)
-        setMaxOccupancy(apartment?.max_occupancy ?? null)
+    if (resolvedApartmentId) {
+      setUnitId(resolvedApartmentId)
+      const { data: apartment } = await supabase
+        .from('units')
+        .select('name, max_occupancy')
+        .eq('id', resolvedApartmentId)
+        .maybeSingle()
+      setApartmentName(apartment?.name || null)
+      setMaxOccupancy(apartment?.max_occupancy ?? null)
 
-        // Load occupants
-        setOccupantsLoading(true)
-        try {
-          const occ = await getUnitOccupants(resolvedApartmentId)
-          setOccupants(occ)
-        } catch {
-          // silent
-        } finally {
-          setOccupantsLoading(false)
-        }
-      }
-
-      if (resolvedClientId) {
-        const { data: owner } = await supabase
-          .from('apartment_owners')
-          .select('first_name, last_name')
-          .eq('id', resolvedClientId)
-          .maybeSingle()
-        setOwnerName(owner ? `${owner.first_name} ${owner.last_name}`.trim() : null)
-      }
-
-      // Get property address from the apartment record
-      const resolvedAptId = tenantRes?.data?.apartment_id as string | null
-      if (resolvedAptId) {
-        const { data: aptData } = await supabase
-          .from('apartments')
-          .select('address')
-          .eq('id', resolvedAptId)
-          .maybeSingle()
-        setPropertyAddress(aptData?.address || null)
+      // Load occupants
+      setOccupantsLoading(true)
+      try {
+        const occ = await getUnitOccupants(resolvedApartmentId)
+        setOccupants(occ)
+      } catch {
+        // silent
+      } finally {
+        setOccupantsLoading(false)
       }
     }
 
+    if (resolvedClientId) {
+      const { data: owner } = await supabase
+        .from('apartment_owners')
+        .select('first_name, last_name')
+        .eq('id', resolvedClientId)
+        .maybeSingle()
+      setOwnerName(owner ? `${owner.first_name} ${owner.last_name}`.trim() : null)
+    }
+
+    // Get property address from the apartment record
+    const resolvedAptId = tenantRes?.data?.apartment_id as string | null
+    if (resolvedAptId) {
+      const { data: aptData } = await supabase
+        .from('apartments')
+        .select('address')
+        .eq('id', resolvedAptId)
+        .maybeSingle()
+      setPropertyAddress(aptData?.address || null)
+    }
+  }, [tenantId, apartmentId, ownerId])
+
+  useEffect(() => {
     loadProfile().catch(() => {
       // silent fallback
     })
-  }, [tenantId, apartmentId, ownerId])
+  }, [loadProfile])
 
   useRealtimeSubscription(`tenant-account-${tenantId}`, [
-    { table: 'tenants', filter: `id=eq.${tenantId}`, onChanged: () => window.location.reload() },
+    { table: 'tenants', filter: `id=eq.${tenantId}`, onChanged: () => loadProfile() },
   ])
 
   const {

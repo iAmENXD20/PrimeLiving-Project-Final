@@ -69,7 +69,7 @@ export default function OwnerAnalyticsTab({ ownerId }: OwnerAnalyticsTabProps) {
   useRealtimeSubscription(`owner-analytics-${ownerId}`, [
     { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAnalytics() },
     { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAnalytics() },
-    { table: 'maintenance_requests', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAnalytics() },
+    { table: 'maintenance', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAnalytics() },
     { table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAnalytics() },
   ])
 

@@ -106,7 +106,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
   useEffect(() => { loadAll() }, [loadAll])
 
   useRealtimeSubscription(`tenant-overview-${tenantId}`, [
-    { table: 'maintenance_requests', filter: `tenant_id=eq.${tenantId}`, onChanged: loadAll },
+    { table: 'maintenance', filter: `tenant_id=eq.${tenantId}`, onChanged: loadAll },
     { table: 'payments', filter: `tenant_id=eq.${tenantId}`, onChanged: loadAll },
     { table: 'notifications', filter: `recipient_id=eq.${tenantId}`, onChanged: loadAll },
     { table: 'units', ...(apartmentId ? { filter: `id=eq.${apartmentId}` } : {}), onChanged: loadAll },

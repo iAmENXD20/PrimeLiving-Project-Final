@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-const API_CACHE_DEFAULT_TTL_SECONDS = Number(import.meta.env.VITE_API_CACHE_TTL_SECONDS || 60)
+const API_CACHE_DEFAULT_TTL_SECONDS = Number(import.meta.env.VITE_API_CACHE_TTL_SECONDS || 0)
 const API_CACHE_MAX_ENTRIES = Number(import.meta.env.VITE_API_CACHE_MAX_ENTRIES || 300)
 const API_CACHE_CLEANUP_INTERVAL_MS = Number(import.meta.env.VITE_API_CACHE_CLEANUP_INTERVAL_MS || 60000)
 const API_REQUEST_TIMEOUT_MS = Number(import.meta.env.VITE_API_REQUEST_TIMEOUT_MS || 15000)

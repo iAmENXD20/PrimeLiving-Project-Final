@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { clearApiCache } from '@/lib/apiClient'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 export interface RealtimeTableConfig {
@@ -57,6 +58,8 @@ export function useRealtimeSubscription(
         'postgres_changes' as any,
         filterConfig as any,
         (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          // Clear API cache so reload fetches fresh server data
+          clearApiCache()
           // Look up the latest callback via ref to avoid stale closures
           const current = tablesRef.current.find((t) => t.table === cfg.table && t.filter === cfg.filter)
           current?.onChanged(payload)

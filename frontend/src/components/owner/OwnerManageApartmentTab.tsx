@@ -301,17 +301,21 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     try {
       const maxOcc = editForm.max_occupancy.trim() === '' ? null : parseInt(editForm.max_occupancy, 10)
       const rent = editForm.monthly_rent.trim() === '' ? 0 : parseFloat(editForm.monthly_rent)
+      // Optimistic update: reflect changes instantly in UI
+      setUnits(prev => prev.map(u => u.id === selectedUnit.id ? { ...u, name: trimmed, monthly_rent: rent, max_occupancy: maxOcc, status: editForm.status } : u))
+      setSelectedUnit(null)
+      toast.success('Unit updated successfully')
       await updateUnit(selectedUnit.id, {
         name: trimmed,
         monthly_rent: rent,
         max_occupancy: maxOcc,
         status: editForm.status,
       })
-      await loadUnits()
-      toast.success('Unit updated successfully')
-      setSelectedUnit(null)
+      // Background refresh to sync with server
+      loadUnits()
     } catch {
       toast.error('Failed to update unit')
+      loadUnits() // Revert on error
     } finally {
       setSavingUnit(false)
     }
@@ -335,6 +339,10 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     setAddingUnit(true)
     try {
       const rent = addUnitForm.monthly_rent ? parseFloat(addUnitForm.monthly_rent) : 0
+      // Close modal immediately for instant feedback
+      setShowAddUnitModal(false)
+      setAddUnitForm({ monthly_rent: '', max_occupancy: '', count: '1' })
+      toast.success(count === 1 ? 'Unit added successfully' : `${count} units added successfully`)
       for (let i = 0; i < count; i++) {
         await createOwnerApartment({
           name: `Unit ${startNum + i}`,
@@ -343,13 +351,10 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
           ...(selectedProperty ? { apartment_id: selectedProperty.id } : {}),
         })
       }
-      await loadUnits()
-      await loadProperties()
-      toast.success(count === 1 ? 'Unit added successfully' : `${count} units added successfully`)
-      setShowAddUnitModal(false)
-      setAddUnitForm({ monthly_rent: '', max_occupancy: '', count: '1' })
+      await Promise.all([loadUnits(), loadProperties()])
     } catch {
       toast.error('Failed to add unit')
+      loadUnits()
     } finally {
       setAddingUnit(false)
     }
