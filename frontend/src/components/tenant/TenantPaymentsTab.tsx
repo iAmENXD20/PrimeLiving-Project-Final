@@ -36,7 +36,8 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
   // Payment form state
   const [tenantName, setTenantName] = useState('')
   const [selectedDuePaymentId, setSelectedDuePaymentId] = useState('')
-  const [selectedPaymentMode, setSelectedPaymentMode] = useState<'gcash' | 'maya' | 'bank_transfer'>('gcash')
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<'gcash' | 'maya' | 'bank_transfer' | 'others'>('gcash')
+  const [customPaymentMode, setCustomPaymentMode] = useState('')
   const [isPaymentModeOpen, setIsPaymentModeOpen] = useState(false)
   const paymentModeRef = useRef<HTMLDivElement>(null)
   const [isBillingMenuOpen, setIsBillingMenuOpen] = useState(false)
@@ -295,7 +296,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
         period_from: selectedDue.period_from,
         period_to: selectedDue.period_to,
         description: paymentDescription.trim() || `Tenant payment proof submitted for ${selectedDue.period_from} to ${selectedDue.period_to}`,
-        payment_mode: selectedPaymentMode,
+        payment_mode: selectedPaymentMode === 'others' ? (customPaymentMode.trim() || 'others') : selectedPaymentMode,
       })
 
       await refreshPaymentsAndDues()
@@ -580,7 +581,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
                         : 'bg-white border-gray-200 text-gray-900 hover:border-primary/40'
                     }`}
                   >
-                    <span>{selectedPaymentMode === 'gcash' ? 'GCash' : selectedPaymentMode === 'maya' ? 'Maya' : 'Bank Transfer'}</span>
+                    <span>{selectedPaymentMode === 'gcash' ? 'GCash' : selectedPaymentMode === 'maya' ? 'Maya' : selectedPaymentMode === 'bank_transfer' ? 'Bank Transfer' : customPaymentMode || 'Others'}</span>
                     <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPaymentModeOpen ? 'rotate-180' : ''}`} />
                   </button>
                   <div
@@ -590,11 +591,11 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
                         : 'opacity-0 scale-y-0 pointer-events-none'
                     } ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}
                   >
-                    {([['gcash', 'GCash'], ['maya', 'Maya'], ['bank_transfer', 'Bank Transfer']] as const).map(([value, label]) => (
+                    {([['gcash', 'GCash'], ['maya', 'Maya'], ['bank_transfer', 'Bank Transfer'], ['others', 'Others']] as const).map(([value, label]) => (
                       <button
                         key={value}
                         type="button"
-                        onClick={() => { setSelectedPaymentMode(value); setIsPaymentModeOpen(false) }}
+                        onClick={() => { setSelectedPaymentMode(value); if (value !== 'others') setIsPaymentModeOpen(false) }}
                         className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                           value === selectedPaymentMode
                             ? 'bg-primary text-white font-medium'
@@ -604,6 +605,23 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
                         {label}
                       </button>
                     ))}
+                    {selectedPaymentMode === 'others' && (
+                      <div className="px-4 py-2">
+                        <input
+                          type="text"
+                          value={customPaymentMode}
+                          onChange={(e) => setCustomPaymentMode(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && customPaymentMode.trim()) setIsPaymentModeOpen(false) }}
+                          placeholder="Enter payment mode..."
+                          autoFocus
+                          className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                            isDark
+                              ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder-gray-500'
+                              : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                          }`}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
