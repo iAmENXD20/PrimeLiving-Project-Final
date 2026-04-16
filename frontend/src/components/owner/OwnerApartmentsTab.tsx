@@ -2,6 +2,7 @@ import { Plus, X } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,6 +29,11 @@ export default function OwnerApartmentsTab({ ownerId }: OwnerApartmentsTabProps)
   useEffect(() => {
     loadUnits()
   }, [ownerId])
+
+  // Real-time: auto-refresh when units change
+  useRealtimeSubscription(`owner-apartments-${ownerId}`, [
+    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadUnits() },
+  ])
 
   async function loadUnits() {
     try {

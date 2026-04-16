@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { useEmailValidation } from '@/hooks/useEmailValidation'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import {
   getOwnerManagers,
   createOwnerManager,
@@ -13,7 +14,6 @@ import {
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
-import { supabase } from '@/lib/supabase'
 
 interface OwnerManagersTabProps {
   ownerId: string
@@ -54,19 +54,12 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
   useEffect(() => {
     loadManagers()
     getOwnerApartments(ownerId).then((data) => setApartments(data || [])).catch(() => {})
-
-    // Real-time: auto-refresh managers list when any row changes
-    const channel = supabase
-      .channel('managers-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}` },
-        () => { loadManagers() }
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
   }, [ownerId])
+
+  // Real-time: auto-refresh managers list when any row changes
+  useRealtimeSubscription(`owner-managers-${ownerId}`, [
+    { table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadManagers() },
+  ])
 
   async function loadManagers() {
     try {

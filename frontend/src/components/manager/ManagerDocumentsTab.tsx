@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Upload, FileText, Trash2, Download, Search, ChevronDown } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import {
   getDocuments,
   uploadDocument,
@@ -20,9 +21,10 @@ import TablePagination from '@/components/ui/table-pagination'
 
 interface ManagerDocumentsTabProps {
   managerId: string
+  ownerId?: string
 }
 
-export default function ManagerDocumentsTab({ managerId }: ManagerDocumentsTabProps) {
+export default function ManagerDocumentsTab({ managerId, ownerId }: ManagerDocumentsTabProps) {
   const { isDark } = useTheme()
   const [documents, setDocuments] = useState<Document[]>([])
   const [units, setUnits] = useState<UnitWithTenant[]>([])
@@ -92,6 +94,11 @@ export default function ManagerDocumentsTab({ managerId }: ManagerDocumentsTabPr
   }
 
   useEffect(() => { load() }, [managerId])
+
+  // Real-time: auto-refresh when documents change
+  useRealtimeSubscription(`mgr-documents-${managerId}`, [
+    { table: 'documents', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => load() },
+  ])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

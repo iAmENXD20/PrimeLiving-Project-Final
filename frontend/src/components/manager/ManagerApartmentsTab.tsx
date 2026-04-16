@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,9 +26,10 @@ import {
 
 interface ManagerApartmentsTabProps {
   managerId: string
+  ownerId?: string
 }
 
-export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTabProps) {
+export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApartmentsTabProps) {
   const { isDark } = useTheme()
   const todayDate = new Date().toISOString().split('T')[0]
   const [units, setUnits] = useState<UnitWithTenant[]>([])
@@ -55,6 +57,13 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
   useEffect(() => {
     loadUnits()
   }, [managerId])
+
+  // Real-time: auto-refresh when units or tenants change
+  useRealtimeSubscription(`mgr-apartments-${managerId}`, [
+    { table: 'units', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadUnits() },
+    { table: 'tenants', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadUnits() },
+    { table: 'apartment_managers', filter: `id=eq.${managerId}`, onChanged: () => loadUnits() },
+  ])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -331,6 +340,14 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                         {unit.tenant_name || '—'}
                       </span>
                     </div>
+                    {unit.tenant_id && (
+                      <div className="flex justify-between">
+                        <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Tenant ID</span>
+                        <span className={`truncate ml-2 text-xs font-mono ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {unit.tenant_id}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Contact</span>
                       <span className={`truncate ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -493,6 +510,7 @@ export default function ManagerApartmentsTab({ managerId }: ManagerApartmentsTab
                 <div className={`rounded-lg border p-3 text-sm space-y-2 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
                   <p className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>Selected Tenant Details</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>ID: <span className={`font-mono text-xs ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedTenantDetails.id || '—'}</span></p>
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Email: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedTenantDetails.email || '—'}</span></p>
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Phone: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{formatPhone(selectedTenantDetails.phone) || '—'}</span></p>
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Status: <span className={`capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedTenantDetails.status || '—'}</span></p>

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, PhilippinePeso, Upload, Trash2, QrCode, Image as ImageIcon, ChevronDown, CheckCircle2, XCircle, X, Receipt, Clock, Download, Users, UserCheck, UserX } from 'lucide-react'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 const LazyBarChart = lazy(() => import('recharts').then(m => ({ default: m.BarChart })))
 const LazyBar = lazy(() => import('recharts').then(m => ({ default: m.Bar })))
 const LazyXAxis = lazy(() => import('recharts').then(m => ({ default: m.XAxis })))
@@ -181,6 +182,11 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
   }
 
   useEffect(() => { load(); loadApprovals() }, [ownerId])
+
+  // Real-time: auto-refresh when payments change
+  useRealtimeSubscription(`owner-payments-${ownerId}`, [
+    { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => { load(); loadApprovals() } },
+  ])
 
   // Close dropdowns on outside click
   useEffect(() => {

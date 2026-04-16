@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Search, PhilippinePeso, Eye, Calendar, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Clock, CheckCircle2, XCircle, X, Receipt, Plus, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import {
   getPayments,
   getPendingCashVerifications,
@@ -22,6 +23,7 @@ import TablePagination from '@/components/ui/table-pagination'
 
 interface ManagerPaymentsTabProps {
   managerId: string
+  ownerId?: string
 }
 
 const STATUS_OPTIONS = ['all', 'paid', 'pending', 'verified', 'overdue', 'late'] as const
@@ -54,7 +56,7 @@ const filterLabel: Record<string, string> = {
   late: 'Late Payment',
 }
 
-export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProps) {
+export default function ManagerPaymentsTab({ managerId, ownerId }: ManagerPaymentsTabProps) {
   const { isDark } = useTheme()
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
@@ -228,6 +230,11 @@ export default function ManagerPaymentsTab({ managerId }: ManagerPaymentsTabProp
   }
 
   useEffect(() => { load(); loadVerifications(); loadTenants(); loadUnits() }, [managerId])
+
+  // Real-time: auto-refresh when payments change
+  useRealtimeSubscription(`mgr-payments-${managerId}`, [
+    { table: 'payments', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => { load(); loadVerifications() } },
+  ])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

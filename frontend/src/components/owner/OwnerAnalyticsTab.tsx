@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   BarChart,
   Bar,
@@ -15,6 +15,7 @@ import {
   Legend,
 } from 'recharts'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import {
   getRevenueByMonth,
   getMaintenanceRequestsByMonth,
@@ -36,34 +37,41 @@ export default function OwnerAnalyticsTab({ ownerId }: OwnerAnalyticsTabProps) {
   const [statusData, setStatusData] = useState<{ name: string; value: number }[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [rev, maint, units, mgrs] = await Promise.all([
-          getRevenueByMonth(ownerId),
-          getMaintenanceRequestsByMonth(ownerId),
-          getOwnerUnits(ownerId),
-          getOwnerManagers(ownerId),
-        ])
-        setRevenueData(rev)
-        setMaintenanceData(maint)
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const [rev, maint, units, mgrs] = await Promise.all([
+        getRevenueByMonth(ownerId),
+        getMaintenanceRequestsByMonth(ownerId),
+        getOwnerUnits(ownerId),
+        getOwnerManagers(ownerId),
+      ])
+      setRevenueData(rev)
+      setMaintenanceData(maint)
 
-        const occupiedCount = units.filter((u) => u.tenant_name).length
-        const availableCount = units.length - occupiedCount
+      const occupiedCount = units.filter((u) => u.tenant_name).length
+      const availableCount = units.length - occupiedCount
 
-        setStatusData([
-          { name: 'Apartment Managers', value: mgrs.length },
-          { name: 'Occupied', value: occupiedCount },
-          { name: 'Vacant', value: availableCount },
-        ])
-      } catch (err) {
-        console.error('Failed to load analytics:', err)
-      } finally {
-        setLoading(false)
-      }
+      setStatusData([
+        { name: 'Apartment Managers', value: mgrs.length },
+        { name: 'Occupied', value: occupiedCount },
+        { name: 'Vacant', value: availableCount },
+      ])
+    } catch (err) {
+      console.error('Failed to load analytics:', err)
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [ownerId])
+
+  useEffect(() => { loadAnalytics() }, [ownerId])
+
+  // Real-time: auto-refresh when key data changes
+  useRealtimeSubscription(`owner-analytics-${ownerId}`, [
+    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAnalytics() },
+    { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAnalytics() },
+    { table: 'maintenance_requests', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAnalytics() },
+    { table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAnalytics() },
+  ])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'

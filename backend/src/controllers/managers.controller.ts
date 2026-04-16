@@ -2,7 +2,7 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError } from "../utils/helpers";
+import { sendSuccess, sendError, invalidateManagerScope } from "../utils/helpers";
 import { withAdminRetry } from "../utils/adminRetry";
 import { isValidEmailFormat } from "../utils/emailValidation";
 import { logActivity, resolveActorName } from "../utils/activityLog";
@@ -246,6 +246,11 @@ export async function updateManager(
       return;
     }
 
+    // Invalidate cached manager scope when apartment assignment changes
+    if ("apartment_id" in updates) {
+      invalidateManagerScope(id);
+    }
+
     sendSuccess(res, data, "Manager updated successfully");
 
     if (oldRecord && data) {
@@ -304,6 +309,9 @@ export async function deleteManager(
       sendError(res, error.message, 500);
       return;
     }
+
+    // Clean up cached scope for the deleted manager
+    invalidateManagerScope(id);
 
     sendSuccess(res, null, "Manager deactivated successfully");
 

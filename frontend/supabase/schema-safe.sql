@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS units (
   total_units INTEGER DEFAULT 0,
   payment_due_day INTEGER DEFAULT NULL CHECK (payment_due_day >= 1 AND payment_due_day <= 31),
   max_occupancy INTEGER DEFAULT NULL,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'under_renovation')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { ClipboardList, Filter, Trash2, X, RefreshCcw, Search, Download, ArrowUp, ArrowDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { Button } from '@/components/ui/button'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
 import { TableSkeleton } from '@/components/ui/skeleton'
@@ -108,6 +109,11 @@ export default function OwnerApartmentLogsTab({ ownerId }: OwnerApartmentLogsTab
   useEffect(() => {
     loadLogs()
   }, [ownerId])
+
+  // Real-time: auto-refresh when activity logs change
+  useRealtimeSubscription(`owner-logs-${ownerId}`, [
+    { table: 'apartment_logs', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadLogs() },
+  ])
 
   async function loadLogs() {
     try {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, Trash2, Megaphone } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import {
   getOwnerAnnouncements,
   createOwnerAnnouncement,
@@ -39,6 +40,11 @@ export default function OwnerAnnouncementsTab({ ownerId, ownerName }: OwnerAnnou
   }
 
   useEffect(() => { load() }, [ownerId])
+
+  // Real-time: auto-refresh when announcements change
+  useRealtimeSubscription(`owner-announcements-${ownerId}`, [
+    { table: 'announcements', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => load() },
+  ])
 
   const handleCreate = async () => {
     if (!title.trim() || !message.trim()) return

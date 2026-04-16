@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, FileText, Download, Eye, X } from 'lucide-react'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { useTheme } from '../../context/ThemeContext'
 import { getTenantDocuments, type TenantDocument } from '../../lib/tenantApi'
 import { TableSkeleton } from '@/components/ui/skeleton'
@@ -20,21 +21,23 @@ export default function TenantDocumentsTab({ tenantId, ownerId }: TenantDocument
   const [viewingDoc, setViewingDoc] = useState<TenantDocument | null>(null)
   const pageSize = 10
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true)
-        const data = await getTenantDocuments(tenantId, ownerId)
-        setDocuments(data)
-      } catch (error) {
-        console.error('Failed to load tenant documents:', error)
-      } finally {
-        setLoading(false)
-      }
+  const loadDocs = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await getTenantDocuments(tenantId, ownerId)
+      setDocuments(data)
+    } catch (error) {
+      console.error('Failed to load tenant documents:', error)
+    } finally {
+      setLoading(false)
     }
-
-    load()
   }, [tenantId, ownerId])
+
+  useEffect(() => { loadDocs() }, [loadDocs])
+
+  useRealtimeSubscription(`tenant-docs-${tenantId}`, [
+    { table: 'documents', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: loadDocs },
+  ])
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()

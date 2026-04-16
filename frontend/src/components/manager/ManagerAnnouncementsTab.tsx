@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Trash2, Megaphone, Send } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { formatPhone } from '@/lib/utils'
 import {
   getAnnouncements,
@@ -17,9 +18,10 @@ import { TableSkeleton } from '@/components/ui/skeleton'
 interface ManagerAnnouncementsTabProps {
   managerId: string
   managerName: string
+  ownerId?: string
 }
 
-export default function ManagerAnnouncementsTab({ managerId, managerName }: ManagerAnnouncementsTabProps) {
+export default function ManagerAnnouncementsTab({ managerId, managerName, ownerId }: ManagerAnnouncementsTabProps) {
   const { isDark } = useTheme()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,6 +64,11 @@ export default function ManagerAnnouncementsTab({ managerId, managerName }: Mana
   }
 
   useEffect(() => { load() }, [managerId])
+
+  // Real-time: auto-refresh when announcements change
+  useRealtimeSubscription(`mgr-announcements-${managerId}`, [
+    { table: 'announcements', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => load() },
+  ])
 
   const handleCreate = async () => {
     if (!title.trim() || !message.trim()) return

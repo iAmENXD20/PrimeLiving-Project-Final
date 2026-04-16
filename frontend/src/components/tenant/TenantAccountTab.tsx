@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -140,6 +141,10 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
       // silent fallback
     })
   }, [tenantId, apartmentId, ownerId])
+
+  useRealtimeSubscription(`tenant-account-${tenantId}`, [
+    { table: 'tenants', filter: `id=eq.${tenantId}`, onChanged: () => window.location.reload() },
+  ])
 
   const {
     register,

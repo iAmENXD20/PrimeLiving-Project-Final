@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { getOwnerPayments, getOwnerProperties, getExpenses, createExpense, deleteExpense, type OwnerPayment, type Property, type Expense } from '../../lib/ownerApi'
 import { PhilippinePeso, TrendingUp, Calendar, Download, ChevronDown, Plus, Trash2, X, Printer, FileText, AlertTriangle } from 'lucide-react'
 import { TableSkeleton } from '@/components/ui/skeleton'
@@ -80,13 +81,21 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
   const [showTaxNotice, setShowTaxNotice] = useState(false)
   const [pendingExportFn, setPendingExportFn] = useState<(() => void) | null>(null)
 
-  useEffect(() => {
+  const loadReports = useCallback(() => {
     setLoading(true)
     Promise.all([getOwnerPayments(ownerId), getOwnerProperties(ownerId), getExpenses(ownerId)])
       .then(([p, props, exp]) => { setPayments(p); setProperties(props); setExpenses(exp) })
       .catch(() => { setPayments([]); setProperties([]); setExpenses([]) })
       .finally(() => setLoading(false))
   }, [ownerId])
+
+  useEffect(() => { loadReports() }, [ownerId])
+
+  // Real-time: auto-refresh when payments or expenses change
+  useRealtimeSubscription(`owner-audit-${ownerId}`, [
+    { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadReports() },
+    { table: 'expenses', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadReports() },
+  ])
 
   // Close dropdowns on outside click
   useEffect(() => {

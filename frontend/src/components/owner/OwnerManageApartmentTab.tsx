@@ -2,6 +2,7 @@ import { Search, Plus, MoreHorizontal, Edit2, Trash2, X, Copy, Check, Send, Mail
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,7 +11,6 @@ import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
 import { formatPhone } from '@/lib/utils'
 import AddressSelector, { type StructuredAddress } from '@/components/ui/AddressSelector'
-import { supabase } from '@/lib/supabase'
 import {
   getOwnerUnits,
   getOwnerTenants,
@@ -26,6 +26,7 @@ import {
   updateUnit,
   createOwnerApartment,
   approveTenant,
+  deleteOwnerTenant,
   getOwnerProperties,
   createOwnerProperty,
   updateOwnerProperty,
@@ -71,7 +72,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   const [unitPage, setUnitPage] = useState(1)
   const unitPageSize = 9
   const [confirmAction, setConfirmAction] = useState<
-    { type: 'unit'; id: string; name: string } | { type: 'manager'; id: string; name: string } | null
+    { type: 'unit'; id: string; name: string } | { type: 'manager'; id: string; name: string } | { type: 'tenant'; id: string; name: string } | null
   >(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -161,24 +162,15 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     loadUnits()
     loadManagers()
     loadTenants()
-
-    // Real-time: auto-refresh when manager or tenant status changes
-    const channel = supabase
-      .channel('user-management-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}` },
-        () => { loadManagers() }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}` },
-        () => { loadTenants() }
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
   }, [ownerId])
+
+  // Real-time: auto-refresh all data when any related table changes
+  useRealtimeSubscription(`owner-manage-${ownerId}`, [
+    { table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadManagers() },
+    { table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadTenants() },
+    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => { loadUnits(); loadProperties() } },
+    { table: 'apartments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadProperties() },
+  ])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -475,6 +467,10 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
         await deleteOwnerApartment(confirmAction.id)
         await loadUnits()
         toast.success(`${confirmAction.name} deleted successfully`)
+      } else if (confirmAction.type === 'tenant') {
+        await deleteOwnerTenant(confirmAction.id)
+        await loadTenants()
+        toast.success('Tenant declined')
       } else {
         await deleteOwnerManager(confirmAction.id)
         await loadManagers()
@@ -582,6 +578,11 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     const manager = managers.find((item) => item.id === id)
     setConfirmAction({ type: 'manager', id, name: manager ? `${manager.first_name} ${manager.last_name}` : 'this manager' })
     setOpenMenu(null)
+  }
+
+  function handleDeleteTenant(id: string) {
+    const tenant = ownerTenants.find((t) => t.id === id)
+    setConfirmAction({ type: 'tenant', id, name: tenant ? `${tenant.first_name} ${tenant.last_name}` : 'this tenant' })
   }
 
   const filtered = useMemo(() => managers.filter(
@@ -2007,13 +2008,15 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
       <ConfirmationModal
         open={Boolean(confirmAction)}
         isDark={isDark}
-        title={confirmAction ? `Delete ${confirmAction.name}?` : 'Delete item?'}
+        title={confirmAction ? `${confirmAction.type === 'unit' ? 'Delete' : 'Decline'} ${confirmAction.name}?` : 'Confirm action?'}
         description={
           confirmAction?.type === 'unit'
             ? 'This will permanently delete this unit and remove any tenants assigned to it. This action cannot be undone.'
-            : 'This will deactivate this manager account. This action cannot be undone.'
+            : confirmAction?.type === 'tenant'
+            ? 'This will decline and remove this tenant account. This action cannot be undone.'
+            : 'This will decline and deactivate this manager account. This action cannot be undone.'
         }
-        confirmText="Delete"
+        confirmText={confirmAction?.type === 'unit' ? 'Delete' : 'Decline'}
         loading={deleting}
         onCancel={() => setConfirmAction(null)}
         onConfirm={confirmDeleteAction}
@@ -2231,28 +2234,18 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   </div>
                 )
               })()}
-              <div className="flex gap-2">
+              {viewManager.status !== 'active' && (
                 <Button
                   variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setViewManager(null)
-                    openEditModal(viewManager)
-                  }}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  className={`flex-1 ${isDark ? 'text-red-400 hover:bg-red-500/10 border-red-500/30' : 'text-red-500 hover:bg-red-50 border-red-200'}`}
+                  className={`w-full ${isDark ? 'text-red-400 hover:bg-red-500/10 border-red-500/30' : 'text-red-500 hover:bg-red-50 border-red-200'}`}
                   onClick={() => {
                     setViewManager(null)
                     handleDeleteManager(viewManager.id)
                   }}
                 >
-                  Delete
+                  Decline
                 </Button>
-              </div>
+              )}
             </div>
             </div>
           </div>
@@ -2387,9 +2380,19 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   {approvingTenant ? 'Approving...' : 'Approve Tenant'}
                 </Button>
               )}
-              <Button variant="outline" className="w-full" onClick={() => setViewTenant(null)}>
-                Close
-              </Button>
+              {viewTenant.status !== 'active' && (
+                <Button
+                  variant="outline"
+                  className={`w-full ${isDark ? 'text-red-400 hover:bg-red-500/10 border-red-500/30' : 'text-red-500 hover:bg-red-50 border-red-200'}`}
+                  onClick={() => {
+                    const tenantId = viewTenant.id
+                    setViewTenant(null)
+                    handleDeleteTenant(tenantId)
+                  }}
+                >
+                  Decline
+                </Button>
+              )}
             </div>
             </div>
           </div>

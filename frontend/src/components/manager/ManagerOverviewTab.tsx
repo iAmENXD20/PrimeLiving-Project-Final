@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Users, AlertTriangle, MapPin, Building2, CheckCircle, XCircle, Wrench, PhilippinePeso, Clock, Eye, X } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { getManagerDashboardStats, getManagerMaintenanceRequests, getPayments, getManagedApartments, type MaintenanceRequest, type Payment } from '../../lib/managerApi'
 import { getOwnerApartmentAddress, getOwnerApartmentName } from '../../lib/ownerApi'
 import { CardsSkeleton, TableSkeleton } from '@/components/ui/skeleton'
@@ -28,61 +29,67 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
   const [page, setPage] = useState(1)
   const pageSize = 10
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [s, requests, units, paymentData] = await Promise.all([
-          getManagerDashboardStats(managerId),
-          getManagerMaintenanceRequests(managerId),
-          getManagedApartments(managerId),
-          getPayments(managerId),
-        ])
-        setStats(s)
-        setRecentRequests(requests)
-        setPayments(paymentData)
+  const loadAll = useCallback(async () => {
+    try {
+      setLoading(true)
+      const [s, requests, units, paymentData] = await Promise.all([
+        getManagerDashboardStats(managerId),
+        getManagerMaintenanceRequests(managerId),
+        getManagedApartments(managerId),
+        getPayments(managerId),
+      ])
+      setStats(s)
+      setRecentRequests(requests)
+      setPayments(paymentData)
 
-        // Get apartment branch + address from the manager's first unit
-        let branchResolved = false
-        let addressResolved = false
-        const firstUnit = units?.[0]
-        if (firstUnit) {
-          const aptCode = firstUnit.apartment_name || null
-          const unitName = firstUnit.name || null
-          if (aptCode && unitName) {
-            setApartmentBranch(`${aptCode} — ${unitName}`)
-            branchResolved = true
-          } else if (aptCode || unitName) {
-            setApartmentBranch(aptCode || unitName || null)
-            branchResolved = true
-          }
-          const addrParts = [
-            firstUnit.apartment_address_street,
-            firstUnit.apartment_address_barangay,
-            firstUnit.apartment_address_city,
-            firstUnit.apartment_address_province,
-          ].filter(Boolean)
-          if (addrParts.length > 0) {
-            setApartmentAddress(addrParts.join(', '))
-            addressResolved = true
-          }
+      let branchResolved = false
+      let addressResolved = false
+      const firstUnit = units?.[0]
+      if (firstUnit) {
+        const aptCode = firstUnit.apartment_name || null
+        const unitName = firstUnit.name || null
+        if (aptCode && unitName) {
+          setApartmentBranch(`${aptCode} — ${unitName}`)
+          branchResolved = true
+        } else if (aptCode || unitName) {
+          setApartmentBranch(aptCode || unitName || null)
+          branchResolved = true
         }
-        // Fallback to owner-level data only if manager data didn't resolve
-        if ((!branchResolved || !addressResolved) && ownerId) {
-          const [name, addr] = await Promise.all([
-            branchResolved ? Promise.resolve(null) : getOwnerApartmentName(ownerId),
-            addressResolved ? Promise.resolve(null) : getOwnerApartmentAddress(ownerId),
-          ])
-          if (name) setApartmentBranch(name)
-          if (addr) setApartmentAddress(addr)
+        const addrParts = [
+          firstUnit.apartment_address_street,
+          firstUnit.apartment_address_barangay,
+          firstUnit.apartment_address_city,
+          firstUnit.apartment_address_province,
+        ].filter(Boolean)
+        if (addrParts.length > 0) {
+          setApartmentAddress(addrParts.join(', '))
+          addressResolved = true
         }
-      } catch (err) {
-        console.error('Failed to load manager overview:', err)
-      } finally {
-        setLoading(false)
       }
+      if ((!branchResolved || !addressResolved) && ownerId) {
+        const [name, addr] = await Promise.all([
+          branchResolved ? Promise.resolve(null) : getOwnerApartmentName(ownerId),
+          addressResolved ? Promise.resolve(null) : getOwnerApartmentAddress(ownerId),
+        ])
+        if (name) setApartmentBranch(name)
+        if (addr) setApartmentAddress(addr)
+      }
+    } catch (err) {
+      console.error('Failed to load manager overview:', err)
+    } finally {
+      setLoading(false)
     }
-    load()
-  }, [managerId])
+  }, [managerId, ownerId])
+
+  useEffect(() => { loadAll() }, [loadAll])
+
+  // Real-time: auto-refresh when key data changes
+  useRealtimeSubscription(`mgr-overview-${managerId}`, [
+    { table: 'units', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: loadAll },
+    { table: 'maintenance_requests', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: loadAll },
+    { table: 'payments', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: loadAll },
+    { table: 'apartment_managers', filter: `id=eq.${managerId}`, onChanged: loadAll },
+  ])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -236,7 +243,7 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
             </p>
           )}
 
-          <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
+          <div className="space-y-2 overflow-y-auto flex-1 min-h-0 max-h-[480px]">
             {paginatedHistory.map((item, idx) => (
               <div
                 key={item.id}

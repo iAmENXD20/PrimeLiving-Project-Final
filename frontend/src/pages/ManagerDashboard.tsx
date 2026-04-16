@@ -142,13 +142,13 @@ export default function ManagerDashboard() {
       case 'overview':
         return <ManagerOverviewTab key={`overview-${refreshKey}`} managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
       case 'maintenance':
-        return <ManagerMaintenanceTab key={`maintenance-${refreshKey}`} managerId={manager.id} />
+        return <ManagerMaintenanceTab key={`maintenance-${refreshKey}`} managerId={manager.id} ownerId={manager.ownerId || ''} />
       case 'manage-apartment':
-        return <ManagerManageApartmentTab key={`manage-${refreshKey}`} managerId={manager.id} managerName={manager.name} />
+        return <ManagerManageApartmentTab key={`manage-${refreshKey}`} managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
       case 'payments':
-        return <ManagerPaymentsTab key={`payments-${refreshKey}`} managerId={manager.id} />
+        return <ManagerPaymentsTab key={`payments-${refreshKey}`} managerId={manager.id} ownerId={manager.ownerId || ''} />
       case 'documents':
-        return <ManagerDocumentsTab key={`documents-${refreshKey}`} managerId={manager.id} />
+        return <ManagerDocumentsTab key={`documents-${refreshKey}`} managerId={manager.id} ownerId={manager.ownerId || ''} />
       case 'notifications':
         return <ManagerNotificationsTab key={`notifications-${refreshKey}`} managerId={manager.id} ownerId={manager.ownerId || ''} onRead={refreshNotificationCount} />
       case 'settings':

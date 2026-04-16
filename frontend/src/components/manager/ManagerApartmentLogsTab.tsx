@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { ClipboardList, Filter, X, RefreshCcw, Search, Download, ArrowUp, ArrowDown } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { Button } from '@/components/ui/button'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import TablePagination from '@/components/ui/table-pagination'
@@ -13,6 +14,7 @@ import {
 interface ManagerApartmentLogsTabProps {
   managerId: string
   managerName: string
+  ownerId?: string
 }
 
 function formatTimestamp(dateStr: string) {
@@ -81,7 +83,7 @@ function formatFieldChanges(log: ManagerApartmentLog): { field: string; from: st
     }))
 }
 
-export default function ManagerApartmentLogsTab({ managerId }: ManagerApartmentLogsTabProps) {
+export default function ManagerApartmentLogsTab({ managerId, ownerId }: ManagerApartmentLogsTabProps) {
   const { isDark } = useTheme()
   const [logs, setLogs] = useState<ManagerApartmentLog[]>([])
   const [loading, setLoading] = useState(true)
@@ -102,6 +104,11 @@ export default function ManagerApartmentLogsTab({ managerId }: ManagerApartmentL
   useEffect(() => {
     loadLogs()
   }, [managerId])
+
+  // Real-time: auto-refresh when activity logs change
+  useRealtimeSubscription(`mgr-logs-${managerId}`, [
+    { table: 'apartment_logs', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadLogs() },
+  ])
 
   async function loadLogs() {
     try {

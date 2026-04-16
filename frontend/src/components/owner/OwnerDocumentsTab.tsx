@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Upload, FileText, Trash2, Download, Search, ChevronDown } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import {
   getOwnerDocuments,
   uploadOwnerDocument,
@@ -66,6 +67,11 @@ export default function OwnerDocumentsTab({ ownerId, ownerName }: OwnerDocuments
   }
 
   useEffect(() => { load() }, [ownerId])
+
+  // Real-time: auto-refresh when documents change
+  useRealtimeSubscription(`owner-documents-${ownerId}`, [
+    { table: 'documents', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => load() },
+  ])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

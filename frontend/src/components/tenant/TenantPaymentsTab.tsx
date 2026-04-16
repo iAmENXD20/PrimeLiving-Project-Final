@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { createPortal } from 'react-dom'
 import { PhilippinePeso, QrCode, CreditCard, Upload, Trash2, Receipt, Eye, FileText, X, CheckCircle2, Clock, XCircle, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
@@ -70,51 +71,54 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
     }
   }
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [paymentsResult, duesResult, paymentDetailsResult, tenantResult] = await Promise.allSettled([
-          getTenantPayments(tenantId),
-          getTenantDueSchedule(tenantId),
-          getOwnerPaymentDetails(tenantId),
-          getCurrentTenant(),
-        ])
+  const loadPayments = useCallback(async () => {
+    try {
+      setLoading(true)
+      const [paymentsResult, duesResult, paymentDetailsResult, tenantResult] = await Promise.allSettled([
+        getTenantPayments(tenantId),
+        getTenantDueSchedule(tenantId),
+        getOwnerPaymentDetails(tenantId),
+        getCurrentTenant(),
+      ])
 
-        if (paymentsResult.status === 'fulfilled') {
-          setPayments(paymentsResult.value)
-        } else {
-          console.error('Failed to load payments:', paymentsResult.reason)
-          setPayments([])
-        }
-
-        if (duesResult.status === 'fulfilled') {
-          setDuePayments(duesResult.value)
-        } else {
-          console.error('Failed to load due schedule:', duesResult.reason)
-          setDuePayments([])
-        }
-
-        if (paymentDetailsResult.status === 'fulfilled') {
-          setQrUrl(paymentDetailsResult.value.qr_url)
-          setPaymentInfo(paymentDetailsResult.value.payment_info)
-        } else {
-          setQrUrl(null)
-          setPaymentInfo(null)
-        }
-
-        if (tenantResult.status === 'fulfilled' && tenantResult.value?.first_name) {
-          setTenantName(`${tenantResult.value.first_name} ${tenantResult.value.last_name}`.trim())
-        }
-
-        // Load saved receipt
-        const savedReceipt = localStorage.getItem(`receipt_${tenantId}`)
-        if (savedReceipt) setReceiptUrl(savedReceipt)
-      } finally {
-        setLoading(false)
+      if (paymentsResult.status === 'fulfilled') {
+        setPayments(paymentsResult.value)
+      } else {
+        console.error('Failed to load payments:', paymentsResult.reason)
+        setPayments([])
       }
+
+      if (duesResult.status === 'fulfilled') {
+        setDuePayments(duesResult.value)
+      } else {
+        console.error('Failed to load due schedule:', duesResult.reason)
+        setDuePayments([])
+      }
+
+      if (paymentDetailsResult.status === 'fulfilled') {
+        setQrUrl(paymentDetailsResult.value.qr_url)
+        setPaymentInfo(paymentDetailsResult.value.payment_info)
+      } else {
+        setQrUrl(null)
+        setPaymentInfo(null)
+      }
+
+      if (tenantResult.status === 'fulfilled' && tenantResult.value?.first_name) {
+        setTenantName(`${tenantResult.value.first_name} ${tenantResult.value.last_name}`.trim())
+      }
+
+      const savedReceipt = localStorage.getItem(`receipt_${tenantId}`)
+      if (savedReceipt) setReceiptUrl(savedReceipt)
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [tenantId, ownerId, apartmentId])
+
+  useEffect(() => { loadPayments() }, [loadPayments])
+
+  useRealtimeSubscription(`tenant-payments-${tenantId}`, [
+    { table: 'payments', filter: `tenant_id=eq.${tenantId}`, onChanged: loadPayments },
+  ])
 
   useEffect(() => {
     const interval = setInterval(() => {

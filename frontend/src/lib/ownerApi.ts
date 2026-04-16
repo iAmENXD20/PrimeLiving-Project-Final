@@ -211,6 +211,10 @@ export async function approveTenant(tenantId: string): Promise<void> {
   await api.put(`/tenants/${tenantId}/approve`, {})
 }
 
+export async function deleteOwnerTenant(tenantId: string): Promise<void> {
+  await api.delete(`/tenants/${tenantId}`)
+}
+
 export async function getTenantIdPhotos(id: string) {
   return api.get<{ id_type: string; id_type_other: string | null; front_url: string | null; back_url: string | null }>(`/tenants/${id}/id-photos`)
 }

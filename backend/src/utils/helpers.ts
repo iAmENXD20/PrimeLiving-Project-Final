@@ -52,7 +52,44 @@ export function generateRandomPassword(length: number = 12): string {
  * Uses a short-lived in-memory cache (30s) to avoid redundant DB queries
  * when multiple endpoints are called in quick succession.
  */
+const MANAGER_SCOPE_TTL_MS = 300_000; // 5 minutes
+const MANAGER_SCOPE_MAX_ENTRIES = 100;
 const managerScopeCache = new Map<string, { data: { apartmentIds: string[]; unitIds: string[] }; expires: number }>();
+
+/**
+ * Invalidate the manager scope cache for a specific manager.
+ * Call this whenever a manager's apartment assignment changes or
+ * when units are added/removed from a property managed by them.
+ */
+export function invalidateManagerScope(managerId: string): void {
+  managerScopeCache.delete(managerId);
+}
+
+/**
+ * Invalidate scope cache for all managers assigned to a specific property (apartment).
+ * Call this when units are created/deleted under a property so that any
+ * manager assigned to that property gets a fresh unit list on next request.
+ */
+export async function invalidateManagerScopeByProperty(propertyId: string): Promise<void> {
+  const { data: managers } = await supabaseAdmin
+    .from("apartment_managers")
+    .select("id")
+    .eq("apartment_id", propertyId);
+
+  if (managers && managers.length > 0) {
+    for (const m of managers) {
+      managerScopeCache.delete(m.id);
+    }
+  }
+}
+
+/**
+ * Invalidate the entire manager scope cache.
+ * Use sparingly — prefer targeted invalidation.
+ */
+export function invalidateAllManagerScopes(): void {
+  managerScopeCache.clear();
+}
 
 export async function getManagerScope(managerId: string): Promise<{ apartmentIds: string[]; unitIds: string[] }> {
   const cached = managerScopeCache.get(managerId);
@@ -70,7 +107,7 @@ export async function getManagerScope(managerId: string): Promise<{ apartmentIds
 
   if (apartmentIds.length === 0) {
     const result = { apartmentIds: [], unitIds: [] };
-    managerScopeCache.set(managerId, { data: result, expires: Date.now() + 300_000 });
+    managerScopeCache.set(managerId, { data: result, expires: Date.now() + MANAGER_SCOPE_TTL_MS });
     return result;
   }
 
@@ -82,10 +119,10 @@ export async function getManagerScope(managerId: string): Promise<{ apartmentIds
   const unitIds = (units || []).map((u: any) => u.id);
 
   const result = { apartmentIds, unitIds };
-  managerScopeCache.set(managerId, { data: result, expires: Date.now() + 300_000 });
+  managerScopeCache.set(managerId, { data: result, expires: Date.now() + MANAGER_SCOPE_TTL_MS });
 
   // Cleanup stale entries periodically
-  if (managerScopeCache.size > 100) {
+  if (managerScopeCache.size > MANAGER_SCOPE_MAX_ENTRIES) {
     const now = Date.now();
     for (const [key, val] of managerScopeCache) {
       if (val.expires <= now) managerScopeCache.delete(key);

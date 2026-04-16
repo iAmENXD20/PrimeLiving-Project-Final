@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Wrench, PhilippinePeso, CheckCircle2, AlertTriangle, MapPin, Building2, Clock, Eye, X, RefreshCw, Bell } from 'lucide-react'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { useTheme } from '../../context/ThemeContext'
 import {
   getTenantDashboardStats,
@@ -48,63 +49,68 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
   const [showContractDetails, setShowContractDetails] = useState(false)
   const pageSize = 10
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [s, requests, paymentData, notifs] = await Promise.all([
-          getTenantDashboardStats(tenantId, apartmentId),
-          getTenantMaintenanceRequests(tenantId),
-          getTenantPayments(tenantId),
-          getTenantNotifications(tenantId, ownerId),
-        ])
-        setStats(s)
-        setRecentMaintenance(requests)
-        setPayments(paymentData)
-        setNotifications(notifs)
+  const loadAll = useCallback(async () => {
+    try {
+      setLoading(true)
+      const [s, requests, paymentData, notifs] = await Promise.all([
+        getTenantDashboardStats(tenantId, apartmentId),
+        getTenantMaintenanceRequests(tenantId),
+        getTenantPayments(tenantId),
+        getTenantNotifications(tenantId, ownerId),
+      ])
+      setStats(s)
+      setRecentMaintenance(requests)
+      setPayments(paymentData)
+      setNotifications(notifs)
 
-        if (apartmentId) {
-          const info = await getTenantApartmentInfo(apartmentId)
-          setApartmentInfo(info)
-          // Show "Apartment Code — Unit Name" format
-          const aptCode = info?.apartment_name || null
-          const unitName = info?.name || null
-          if (aptCode && unitName) {
-            setApartmentBranch(`${aptCode} — ${unitName}`)
-          } else {
-            setApartmentBranch(aptCode || unitName || null)
-          }
-          setApartmentAddress(info?.apartment_address || info?.address || null)
-
-          // Parallelize fallback calls if needed
-          const needAddressFallback = !info?.apartment_address && !info?.address
-          const needNameFallback = !info?.apartment_name && !info?.name
-          if (needAddressFallback || needNameFallback) {
-            const fallbackClientId = info?.apartmentowner_id || ownerId || null
-            if (fallbackClientId) {
-              const [fallbackAddress, fallbackName] = await Promise.all([
-                needAddressFallback ? getOwnerApartmentAddress(fallbackClientId) : Promise.resolve(null),
-                needNameFallback ? getOwnerApartmentName(fallbackClientId) : Promise.resolve(null),
-              ])
-              if (fallbackAddress) setApartmentAddress(fallbackAddress)
-              if (fallbackName) setApartmentBranch(fallbackName)
-            }
-          }
-        } else if (ownerId) {
-          const [fallbackAddress, fallbackApartmentName] = await Promise.all([
-            getOwnerApartmentAddress(ownerId),
-            getOwnerApartmentName(ownerId),
-          ])  
-          setApartmentBranch(fallbackApartmentName || null)
-          setApartmentAddress(fallbackAddress || null)
+      if (apartmentId) {
+        const info = await getTenantApartmentInfo(apartmentId)
+        setApartmentInfo(info)
+        const aptCode = info?.apartment_name || null
+        const unitName = info?.name || null
+        if (aptCode && unitName) {
+          setApartmentBranch(`${aptCode} — ${unitName}`)
+        } else {
+          setApartmentBranch(aptCode || unitName || null)
         }
-      } catch (err) {
-        console.error('Failed to load tenant overview:', err)
-      } finally {
-        setLoading(false)
+        setApartmentAddress(info?.apartment_address || info?.address || null)
+
+        const needAddressFallback = !info?.apartment_address && !info?.address
+        const needNameFallback = !info?.apartment_name && !info?.name
+        if (needAddressFallback || needNameFallback) {
+          const fallbackClientId = info?.apartmentowner_id || ownerId || null
+          if (fallbackClientId) {
+            const [fallbackAddress, fallbackName] = await Promise.all([
+              needAddressFallback ? getOwnerApartmentAddress(fallbackClientId) : Promise.resolve(null),
+              needNameFallback ? getOwnerApartmentName(fallbackClientId) : Promise.resolve(null),
+            ])
+            if (fallbackAddress) setApartmentAddress(fallbackAddress)
+            if (fallbackName) setApartmentBranch(fallbackName)
+          }
+        }
+      } else if (ownerId) {
+        const [fallbackAddress, fallbackApartmentName] = await Promise.all([
+          getOwnerApartmentAddress(ownerId),
+          getOwnerApartmentName(ownerId),
+        ])  
+        setApartmentBranch(fallbackApartmentName || null)
+        setApartmentAddress(fallbackAddress || null)
       }
+    } catch (err) {
+      console.error('Failed to load tenant overview:', err)
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [tenantId, apartmentId, ownerId])
+
+  useEffect(() => { loadAll() }, [loadAll])
+
+  useRealtimeSubscription(`tenant-overview-${tenantId}`, [
+    { table: 'maintenance_requests', filter: `tenant_id=eq.${tenantId}`, onChanged: loadAll },
+    { table: 'payments', filter: `tenant_id=eq.${tenantId}`, onChanged: loadAll },
+    { table: 'notifications', filter: `recipient_id=eq.${tenantId}`, onChanged: loadAll },
+    { table: 'units', ...(apartmentId ? { filter: `id=eq.${apartmentId}` } : {}), onChanged: loadAll },
+  ])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -412,9 +418,9 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
       </div>
 
       {/* Recent Histories + Calendar — equal halves */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0">
         {/* Left: Recent Histories */}
-        <div className={`${cardClass} flex flex-col max-h-[520px]`}>
+        <div className={`${cardClass} flex flex-col min-h-0`}>
           <div className="flex items-center gap-2 mb-3">
             <Clock className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
             <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Recent Histories</h3>
@@ -426,7 +432,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
             </p>
           )}
 
-          <div className="space-y-2 overflow-y-auto flex-1">
+          <div className="space-y-2 overflow-y-auto flex-1 min-h-0 max-h-[480px]">
             {paginatedHistory.map((item, idx) => (
               <div
                 key={item.id}
@@ -486,7 +492,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
 
         {/* Right: Calendar */}
         <CalendarWidget
-          className="max-h-[520px]"
+          className="h-full"
           deadlines={(() => {
             // Generate monthly billing dates from lease period
             if (apartmentInfo?.lease_start) {

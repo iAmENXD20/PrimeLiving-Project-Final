@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { supabaseAdmin, refreshAdminClient } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
-import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
+import { sendSuccess, sendError, getManagerScope, invalidateManagerScopeByProperty } from "../utils/helpers";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 
 async function getOrCreateApartmentForOwner(
@@ -151,6 +151,11 @@ export async function createApartment(
 
     sendSuccess(res, data, "Apartment created successfully", 201);
 
+    // Invalidate manager scope cache for managers assigned to this property
+    if (data?.apartment_id) {
+      invalidateManagerScopeByProperty(data.apartment_id).catch(() => {});
+    }
+
     if (data && payload.apartmentowner_id) {
       const actorName = req.user?.id
         ? await resolveActorName(req.user.id, req.user.role, req.user.email)
@@ -208,6 +213,14 @@ export async function createApartmentsBulk(
     }
 
     sendSuccess(res, data, `${data.length} apartments created successfully`, 201);
+
+    // Invalidate manager scope cache for any affected properties
+    const affectedPropertyIds = new Set(
+      (data || []).map((u: any) => u.apartment_id).filter(Boolean)
+    );
+    for (const propId of affectedPropertyIds) {
+      invalidateManagerScopeByProperty(propId).catch(() => {});
+    }
 
     const ownerIdForLog = preparedRows[0]?.apartmentowner_id;
     if (data && ownerIdForLog) {
@@ -313,10 +326,10 @@ export async function deleteApartment(
   try {
     const { id } = req.params;
 
-    // Fetch unit before deletion for logging
+    // Fetch unit before deletion for logging and cache invalidation
     const { data: unit } = await supabaseAdmin
       .from("units")
-      .select("name, apartmentowner_id")
+      .select("name, apartmentowner_id, apartment_id")
       .eq("id", id)
       .single();
 
@@ -338,6 +351,11 @@ export async function deleteApartment(
     if (error) {
       sendError(res, error.message, 500);
       return;
+    }
+
+    // Invalidate manager scope cache for managers assigned to this property
+    if (unit?.apartment_id) {
+      invalidateManagerScopeByProperty(unit.apartment_id).catch(() => {});
     }
 
     sendSuccess(res, null, "Apartment deleted successfully");

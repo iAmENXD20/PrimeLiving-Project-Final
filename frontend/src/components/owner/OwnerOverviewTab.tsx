@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Users, PhilippinePeso, Wrench, Building2, MapPin, UserCog, CreditCard, Clock, Eye, X } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import {
   getOwnerDashboardStats,
   getOwnerMaintenanceRequests,
@@ -64,63 +65,72 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
     { value: 12, label: 'December' },
   ]
 
-  // Load all data once on mount
-  useEffect(() => {
-    async function load() {
-      try {
-        const [s, requests, addr, unitList, managers, payments, logs, tenants] = await Promise.all([
-          selectedMonth === 0
-            ? getOwnerDashboardStats(ownerId)
-            : getOwnerDashboardStats(ownerId, { month: selectedMonth, year: selectedYear }),
-          getOwnerMaintenanceRequests(ownerId),
-          getOwnerApartmentAddress(ownerId),
-          getOwnerUnits(ownerId),
-          getOwnerManagers(ownerId),
-          getOwnerPayments(ownerId),
-          getOwnerApartmentLogs(ownerId),
-          getOwnerTenants(ownerId, true),
-        ])
+  // Load all overview data
+  const loadAll = useCallback(async () => {
+    try {
+      const [s, requests, addr, unitList, managers, payments, logs, tenants] = await Promise.all([
+        selectedMonth === 0
+          ? getOwnerDashboardStats(ownerId)
+          : getOwnerDashboardStats(ownerId, { month: selectedMonth, year: selectedYear }),
+        getOwnerMaintenanceRequests(ownerId),
+        getOwnerApartmentAddress(ownerId),
+        getOwnerUnits(ownerId),
+        getOwnerManagers(ownerId),
+        getOwnerPayments(ownerId),
+        getOwnerApartmentLogs(ownerId),
+        getOwnerTenants(ownerId, true),
+      ])
 
-        // Build tenant ID → name lookup for activity logs
-        const tMap = new Map<string, string>()
-        for (const t of tenants || []) {
-          tMap.set(t.id, `${t.first_name} ${t.last_name}`.trim())
-        }
-        setTenantNameMap(tMap)
-        setStats(s)
-        setRecentMaintenance(requests)
-        setApartmentAddress(addr)
-        setUnits(unitList)
-        setManagerCount((managers || []).length)
-        setAllPayments(payments || [])
-        setActivityLogs((logs || []).filter((l) => l.action === 'tenant_assigned_to_unit'))
-
-        // Count unique tenants who have paid this month
-        const now = new Date()
-        const currentMonth = now.getMonth()
-        const currentYear = now.getFullYear()
-        const paidTenantIds = new Set(
-          (payments || [])
-            .filter((p) => {
-              const payDate = new Date(p.payment_date)
-              return (
-                p.status === 'paid' &&
-                payDate.getMonth() === currentMonth &&
-                payDate.getFullYear() === currentYear &&
-                p.tenant_id
-              )
-            })
-            .map((p) => p.tenant_id)
-        )
-        setPaidTenantCount(paidTenantIds.size)
-      } catch (err) {
-        console.error('Failed to load owner overview:', err)
-      } finally {
-        setLoading(false)
+      // Build tenant ID → name lookup for activity logs
+      const tMap = new Map<string, string>()
+      for (const t of tenants || []) {
+        tMap.set(t.id, `${t.first_name} ${t.last_name}`.trim())
       }
+      setTenantNameMap(tMap)
+      setStats(s)
+      setRecentMaintenance(requests)
+      setApartmentAddress(addr)
+      setUnits(unitList)
+      setManagerCount((managers || []).length)
+      setAllPayments(payments || [])
+      setActivityLogs((logs || []).filter((l) => l.action === 'tenant_assigned_to_unit'))
+
+      // Count unique tenants who have paid this month
+      const now = new Date()
+      const currentMonth = now.getMonth()
+      const currentYear = now.getFullYear()
+      const paidTenantIds = new Set(
+        (payments || [])
+          .filter((p) => {
+            const payDate = new Date(p.payment_date)
+            return (
+              p.status === 'paid' &&
+              payDate.getMonth() === currentMonth &&
+              payDate.getFullYear() === currentYear &&
+              p.tenant_id
+            )
+          })
+          .map((p) => p.tenant_id)
+      )
+      setPaidTenantCount(paidTenantIds.size)
+    } catch (err) {
+      console.error('Failed to load owner overview:', err)
+    } finally {
+      setLoading(false)
     }
-    load()
-  }, [ownerId])
+  }, [ownerId, selectedMonth, selectedYear])
+
+  // Load all data once on mount
+  useEffect(() => { loadAll() }, [ownerId])
+
+  // Real-time: auto-refresh overview when any related table changes
+  useRealtimeSubscription(`owner-overview-${ownerId}`, [
+    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
+    { table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
+    { table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
+    { table: 'maintenance_requests', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
+    { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadAll() },
+  ])
 
   // Only refetch stats when month/year filter changes (not all data)
   useEffect(() => {
@@ -300,7 +310,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
             </p>
           )}
 
-          <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
+          <div className="space-y-2 overflow-y-auto flex-1 min-h-0 max-h-[480px]">
             {paginatedHistory.map((item, idx) => (
               <div
                 key={item.id}

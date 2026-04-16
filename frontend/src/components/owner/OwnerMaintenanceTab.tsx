@@ -3,6 +3,7 @@ import { Search, Bell, ChevronDown, X, Building2, Wrench, ChevronLeft, ChevronRi
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import {
   getOwnerMaintenanceRequests,
   createOwnerAnnouncement,
@@ -87,6 +88,11 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
   }
 
   useEffect(() => { loadRequests() }, [ownerId])
+
+  // Real-time: auto-refresh when maintenance requests change
+  useRealtimeSubscription(`owner-maintenance-${ownerId}`, [
+    { table: 'maintenance_requests', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadRequests() },
+  ])
 
   // Close dropdowns on outside click
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Bell, Trash2, CheckCircle2 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import {
   getManagerNotifications,
   markManagerNotificationRead,
@@ -52,13 +53,16 @@ export default function ManagerNotificationsTab({ managerId, ownerId, onRead }: 
     }
 
     load()
-    const interval = setInterval(load, 30000)
 
     return () => {
       mounted = false
-      clearInterval(interval)
     }
   }, [managerId, ownerId])
+
+  // Real-time: auto-refresh when notifications change
+  useRealtimeSubscription(`mgr-notifications-${managerId}`, [
+    { table: 'notifications', filter: `recipient_id=eq.${managerId}`, onChanged: () => loadNotifications() },
+  ])
 
   const unreadCount = notifications.filter((notification) => !notification.is_read).length
 

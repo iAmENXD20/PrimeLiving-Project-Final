@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { useEmailValidation } from '@/hooks/useEmailValidation'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,9 +24,10 @@ import { TableSkeleton } from '@/components/ui/skeleton'
 
 interface ManagerTenantsTabProps {
   managerId: string
+  ownerId: string
 }
 
-export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps) {
+export default function ManagerTenantsTab({ managerId, ownerId }: ManagerTenantsTabProps) {
   const { isDark } = useTheme()
   const [search, setSearch] = useState('')
   const [openMenu, setOpenMenu] = useState<string | null>(null)
@@ -64,6 +66,12 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
   useEffect(() => {
     loadData()
   }, [managerId])
+
+  // Real-time: auto-refresh when tenants change
+  useRealtimeSubscription(`mgr-tenants-${managerId}`, [
+    { table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadData() },
+    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadData() },
+  ])
 
   // Fetch ID photos when viewing a tenant
   useEffect(() => {
@@ -109,6 +117,8 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
       // Store apartmentowner_id from managed apartments for tenant creation
       if (apartments?.[0]?.apartmentowner_id) {
         ownerIdRef.current = apartments[0].apartmentowner_id
+      } else if (ownerId) {
+        ownerIdRef.current = ownerId
       }
       // Build unit data map for tenant detail view
       const map = new Map<string, { name: string; monthly_rent: number; branch: string; address: string }>()
@@ -379,7 +389,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                             tenant.status === 'active'
                               ? 'bg-emerald-500/15 text-emerald-400'
                               : tenant.status === 'pending'
-                              ? 'bg-amber-500/15 text-amber-400'
+                              ? 'bg-red-500/15 text-red-400'
                               : tenant.status === 'pending_verification'
                               ? 'bg-blue-500/15 text-blue-400'
                               : tenant.status === 'inactive'
@@ -429,22 +439,14 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
                               isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'
                             }`}
                           >
-                            <button
-                              onClick={() => openEditModal(tenant)}
-                              className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                                isDark
-                                  ? 'text-gray-300 hover:bg-white/5'
-                                  : 'text-gray-700 hover:bg-gray-50'
-                              }`}
-                            >
-                              <Edit2 className="w-3.5 h-3.5" /> Edit
-                            </button>
-                            <button
-                              onClick={() => setTenantToDelete(tenant)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" /> Delete
-                            </button>
+                            {tenant.status !== 'active' && (
+                              <button
+                                onClick={() => setTenantToDelete(tenant)}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Decline
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>
@@ -735,6 +737,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
               <div className="overflow-y-auto flex-1 px-6 pb-6">
                 <div className="space-y-4">
                   {[
+                    { label: 'Tenant ID', value: viewTenant.id },
                     { label: 'Name', value: `${viewTenant.first_name} ${viewTenant.last_name}`.trim() },
                     { label: 'Phone', value: formatPhone(viewTenant.phone) || '—' },
                     { label: 'Branch', value: unitInfo?.branch || viewTenant.apartment_name || '—' },

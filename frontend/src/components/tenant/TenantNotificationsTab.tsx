@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Bell, Megaphone, Check, Trash2 } from 'lucide-react'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { useTheme } from '../../context/ThemeContext'
 import {
   getTenantNotifications,
@@ -25,8 +26,9 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
   const [confirmAction, setConfirmAction] = useState<{ type: 'one'; id: string } | { type: 'all' } | null>(null)
   const [confirming, setConfirming] = useState(false)
 
-  async function loadNotifications() {
+  const loadNotifications = useCallback(async () => {
     try {
+      setLoading(true)
       const data = await getTenantNotifications(tenantId, ownerId)
       setNotifications(data)
     } catch (err) {
@@ -34,11 +36,15 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
     } finally {
       setLoading(false)
     }
-  }
+  }, [tenantId, ownerId])
 
   useEffect(() => {
     loadNotifications()
-  }, [tenantId, ownerId])
+  }, [loadNotifications])
+
+  useRealtimeSubscription(`tenant-notifs-${tenantId}`, [
+    { table: 'notifications', filter: `recipient_id=eq.${tenantId}`, onChanged: loadNotifications },
+  ])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'

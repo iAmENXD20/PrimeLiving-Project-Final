@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -86,8 +87,9 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
   const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false)
   const priorityDropdownRef = useRef<HTMLDivElement>(null)
 
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     try {
+      setLoading(true)
       const data = await getTenantMaintenanceRequests(tenantId)
       setRequests(data)
     } catch (err) {
@@ -95,11 +97,15 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
     } finally {
       setLoading(false)
     }
-  }
+  }, [tenantId])
 
   useEffect(() => {
     loadRequests()
-  }, [tenantId])
+  }, [loadRequests])
+
+  useRealtimeSubscription(`tenant-maintenance-${tenantId}`, [
+    { table: 'maintenance_requests', filter: `tenant_id=eq.${tenantId}`, onChanged: loadRequests },
+  ])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
