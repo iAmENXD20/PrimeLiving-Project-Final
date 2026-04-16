@@ -197,7 +197,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
       </div>
 
       {/* Contract Progress Tracker */}
-      {apartmentInfo?.lease_start && apartmentInfo?.lease_end && (
+      {apartmentInfo?.lease_start && apartmentInfo?.lease_end && (apartmentInfo?.contract_duration ?? 0) > 0 && (
         (() => {
           const start = new Date(apartmentInfo.lease_start!)
           const end = new Date(apartmentInfo.lease_end!)

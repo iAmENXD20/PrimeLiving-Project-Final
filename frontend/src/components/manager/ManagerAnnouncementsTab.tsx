@@ -89,15 +89,7 @@ export default function ManagerAnnouncementsTab({ managerId, managerName }: Mana
       )
 
       toast.success('Announcement created and SMS sent to tenants with phone numbers')
-      setAnnouncements((prev) => [
-        {
-          ...createdAnnouncement,
-          id: createdAnnouncement.id || `temp-${Date.now()}`,
-          created_by: createdAnnouncement.created_by || managerName,
-          created_at: createdAnnouncement.created_at || new Date().toISOString(),
-        },
-        ...prev,
-      ])
+      await load()
       setTitle('')
       setMessage('')
       setRecipientMode('all')
@@ -119,7 +111,7 @@ export default function ManagerAnnouncementsTab({ managerId, managerName }: Mana
       setDeleting(true)
       await deleteAnnouncement(id)
       toast.success('Announcement deleted')
-      setAnnouncements((prev) => prev.filter((a) => a.id !== id))
+      await load()
     } catch {
       toast.error('Failed to delete announcement')
     } finally {

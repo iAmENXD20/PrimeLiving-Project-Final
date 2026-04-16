@@ -1,8 +1,9 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import OwnerSidebar from '../components/owner/OwnerSidebar'
 import OwnerTopBar from '../components/owner/OwnerTopBar'
 import { getCurrentOwner, getOwnerDashboardStats } from '../lib/ownerApi'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import { CardsSkeleton } from '../components/ui/skeleton'
 
 const OwnerOverviewTab = lazy(() => import('../components/owner/OwnerOverviewTab'))
@@ -19,28 +20,40 @@ export default function OwnerDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [owner, setOwner] = useState<{ id: string; first_name: string; last_name: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [pendingMaintenanceCount, setPendingMaintenanceCount] = useState(0)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const loadOwner = async () => {
+    setLoading(true)
+    setLoadError(false)
+    try {
+      const data = await getCurrentOwner()
+      if (data) {
+        setOwner({ id: data.id, first_name: data.first_name, last_name: data.last_name })
+        try {
+          const stats = await getOwnerDashboardStats(data.id)
+          setPendingMaintenanceCount(stats.pendingMaintenance ?? 0)
+        } catch {
+          setPendingMaintenanceCount(0)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load owner:', err)
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const refreshData = useCallback(() => {
+    loadOwner()
+    setRefreshKey((k) => k + 1)
+  }, [])
+
+  useAutoRefresh(refreshData, { enabled: !!owner })
 
   useEffect(() => {
-    async function loadOwner() {
-      try {
-        const data = await getCurrentOwner()
-        if (data) {
-          setOwner({ id: data.id, first_name: data.first_name, last_name: data.last_name })
-          // Load pending maintenance count using lightweight stats endpoint
-          try {
-            const stats = await getOwnerDashboardStats(data.id)
-            setPendingMaintenanceCount(stats.pendingMaintenance ?? 0)
-          } catch {
-            setPendingMaintenanceCount(0)
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load owner:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
     loadOwner()
   }, [])
 
@@ -62,27 +75,32 @@ export default function OwnerDashboard() {
     if (!owner) {
       return (
         <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          <p className="text-lg font-medium mb-2">Owner profile not found</p>
-          <p className="text-sm">Please ensure your account is linked to an owner profile.</p>
+          <p className="text-lg font-medium mb-2">{loadError ? 'Failed to load profile' : 'Owner profile not found'}</p>
+          <p className="text-sm mb-4">{loadError ? 'A connection error occurred. Please try again.' : 'Please ensure your account is linked to an owner profile.'}</p>
+          {loadError && (
+            <button onClick={loadOwner} className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+              Retry
+            </button>
+          )}
         </div>
       )
     }
 
     switch (activeTab) {
       case 'overview':
-        return <OwnerOverviewTab ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
+        return <OwnerOverviewTab key={refreshKey} ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
       case 'units':
-        return <OwnerManageApartmentTab key="units" ownerId={owner.id} mode="units" />
+        return <OwnerManageApartmentTab key={`units-${refreshKey}`} ownerId={owner.id} mode="units" />
       case 'manage-apartment':
-        return <OwnerManageApartmentTab key="manage" ownerId={owner.id} mode="manage" />
+        return <OwnerManageApartmentTab key={`manage-${refreshKey}`} ownerId={owner.id} mode="manage" />
       case 'maintenance':
-        return <OwnerMaintenanceTab ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
+        return <OwnerMaintenanceTab key={refreshKey} ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
       case 'payments':
-        return <OwnerPaymentsTab ownerId={owner.id} />
+        return <OwnerPaymentsTab key={refreshKey} ownerId={owner.id} />
       case 'activity-logs':
-        return <OwnerApartmentLogsTab ownerId={owner.id} />
+        return <OwnerApartmentLogsTab key={refreshKey} ownerId={owner.id} />
       case 'audit-reports':
-        return <OwnerAuditReportsTab ownerId={owner.id} />
+        return <OwnerAuditReportsTab key={refreshKey} ownerId={owner.id} />
       case 'account':
         return <OwnerAccountTab ownerId={owner.id} />
       default:
@@ -119,6 +137,7 @@ export default function OwnerDashboard() {
         <OwnerTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           ownerName={owner ? `${owner.first_name} ${owner.last_name}`.trim() : undefined}
+          onRefresh={refreshData}
         />
 
         {/* Page content */}

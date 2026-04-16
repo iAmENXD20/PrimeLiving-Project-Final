@@ -1,5 +1,5 @@
 import { Response } from "express";
-import { supabaseAdmin } from "../config/supabase";
+import { supabaseAdmin, refreshAdminClient } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 import { logActivity, resolveActorName } from "../utils/activityLog";
@@ -705,28 +705,41 @@ export async function createProperty(
       return;
     }
 
-    const { data, error } = await supabaseAdmin
+    const insertPayload = {
+      apartmentowner_id,
+      name,
+      status: "active",
+      address_region: address_region || null,
+      address_region_code: address_region_code || null,
+      address_province: address_province || null,
+      address_province_code: address_province_code || null,
+      address_city: address_city || null,
+      address_city_code: address_city_code || null,
+      address_district: address_district || null,
+      address_district_code: address_district_code || null,
+      address_area: address_area || null,
+      address_area_code: address_area_code || null,
+      address_barangay: address_barangay || null,
+      address_barangay_code: address_barangay_code || null,
+      address_street: address_street || null,
+    };
+
+    let { data, error } = await supabaseAdmin
       .from("apartments")
-      .insert({
-        apartmentowner_id,
-        name,
-        status: "active",
-        address_region: address_region || null,
-        address_region_code: address_region_code || null,
-        address_province: address_province || null,
-        address_province_code: address_province_code || null,
-        address_city: address_city || null,
-        address_city_code: address_city_code || null,
-        address_district: address_district || null,
-        address_district_code: address_district_code || null,
-        address_area: address_area || null,
-        address_area_code: address_area_code || null,
-        address_barangay: address_barangay || null,
-        address_barangay_code: address_barangay_code || null,
-        address_street: address_street || null,
-      })
+      .insert(insertPayload)
       .select()
       .single();
+
+    // Retry once with a fresh client on RLS errors (stale client state)
+    if (error?.message?.includes("row-level security")) {
+      console.warn("[createProperty] RLS error with service_role — refreshing client and retrying");
+      refreshAdminClient();
+      ({ data, error } = await supabaseAdmin
+        .from("apartments")
+        .insert(insertPayload)
+        .select()
+        .single());
+    }
 
     if (error) {
       sendError(res, error.message, 500);

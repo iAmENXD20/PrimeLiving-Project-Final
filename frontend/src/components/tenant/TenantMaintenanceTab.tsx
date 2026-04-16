@@ -424,7 +424,7 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
             <table className="w-full text-base">
               <thead>
                 <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                  {['No.', 'Maintenance ID', 'Subject', 'Description', 'Priority', 'Status', 'Timestamp'].map((h) => (
+                  {['No.', 'Maintenance ID', 'Subject', 'Description', 'Priority', 'Status', 'Timestamp', 'Action'].map((h) => (
                     <th key={h} className={`text-left py-3.5 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {h}
                     </th>
@@ -472,6 +472,24 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
                     <td className={`py-3.5 px-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       <div>{new Date(req.created_at).toLocaleDateString()}</div>
                       <div className="text-xs">{new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {req.status === 'in_progress' && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await updateMaintenanceStatus(req.id, 'resolved')
+                              toast.success('Marked as resolved')
+                              setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'resolved' } : r))
+                            } catch {
+                              toast.error('Failed to resolve')
+                            }
+                          }}
+                          className="px-3 py-1 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                        >
+                          Resolve
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

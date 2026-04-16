@@ -1,5 +1,5 @@
 import { Response, NextFunction } from "express";
-import { supabaseAdmin, createSupabaseClient } from "../config/supabase";
+import { supabaseAdmin, createSupabaseClient, refreshAdminClient } from "../config/supabase";
 import { AuthenticatedRequest, UserRole } from "../types";
 
 function normalizeRole(rawRole: unknown): UserRole | null {
@@ -19,7 +19,7 @@ function normalizeRole(rawRole: unknown): UserRole | null {
 }
 
 async function resolveUserRoleAndStatus(userId: string, user: any): Promise<{ role: UserRole; active: boolean; status?: string }> {
-  const [ownerRes, managerRes, tenantRes] = await Promise.all([
+  let [ownerRes, managerRes, tenantRes] = await Promise.all([
     supabaseAdmin
       .from("apartment_owners")
       .select("id,status")
@@ -36,6 +36,29 @@ async function resolveUserRoleAndStatus(userId: string, user: any): Promise<{ ro
       .eq("auth_user_id", userId)
       .maybeSingle(),
   ]);
+
+  // If all three return null data but no errors, the client may be stale — retry once
+  if (!ownerRes.data && !managerRes.data && !tenantRes.data &&
+      !ownerRes.error && !managerRes.error && !tenantRes.error) {
+    refreshAdminClient();
+    [ownerRes, managerRes, tenantRes] = await Promise.all([
+      supabaseAdmin
+        .from("apartment_owners")
+        .select("id,status")
+        .eq("auth_user_id", userId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("apartment_managers")
+        .select("id,status")
+        .eq("auth_user_id", userId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("tenants")
+        .select("id,status")
+        .eq("auth_user_id", userId)
+        .maybeSingle(),
+    ]);
+  }
 
   if (ownerRes.data) {
     const s = ownerRes.data.status || "active";

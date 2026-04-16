@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../config/supabase";
 import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
+import { withAdminRetry } from "../utils/adminRetry";
 import { isValidEmailFormat } from "../utils/emailValidation";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 import { createNotification } from "../utils/notifications";
@@ -141,12 +142,14 @@ export async function getTenantByAuthId(
   try {
     const { authUserId } = req.params;
 
-    const { data, error } = await supabaseAdmin
-      .from("tenants")
-      .select("*")
-      .eq("auth_user_id", authUserId)
-      .in("status", ["active", "pending_verification"])
-      .single();
+    const { data, error } = await withAdminRetry((client) =>
+      client
+        .from("tenants")
+        .select("*")
+        .eq("auth_user_id", authUserId)
+        .in("status", ["active", "pending_verification"])
+        .single()
+    );
 
     if (error) {
       sendError(res, error.message, 404);

@@ -1299,12 +1299,9 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
                   onClick={async () => {
                     try {
                       await approveVerifiedPayment(selectedPayment.id)
-                      setPayments(prev =>
-                        prev.map(p => p.id === selectedPayment.id ? { ...p, status: 'paid' as const, verification_status: 'approved' as const } : p)
-                      )
-                      setPendingApprovals(prev => prev.filter(a => a.id !== selectedPayment.id))
                       setSelectedPayment(null)
                       toast.success(`Payment from ${selectedPayment.tenant_name} approved`)
+                      await Promise.all([load(), loadApprovals()])
                     } catch (err: any) {
                       toast.error(err?.message || 'Failed to approve payment')
                     }

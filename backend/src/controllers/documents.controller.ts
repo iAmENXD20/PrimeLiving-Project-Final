@@ -65,7 +65,7 @@ export async function getDocuments(
 
     let query = supabaseAdmin
       .from("documents")
-      .select("*, tenants(first_name, last_name), apartments:unit_id(name)")
+      .select("*, tenants(first_name, last_name), apartments:apartment_id(name)")
       .order("created_at", { ascending: false });
 
     if (requesterRole === "tenant") {
@@ -92,15 +92,26 @@ export async function getDocuments(
       query = query.eq("apartmentowner_id", req.query.apartmentowner_id as string);
     }
     if (req.query.manager_id) {
-      const { unitIds } = await getManagerScope(req.query.manager_id as string);
-      if (unitIds.length === 0) {
+      const { apartmentIds } = await getManagerScope(req.query.manager_id as string);
+      if (apartmentIds.length === 0) {
         sendSuccess(res, []);
         return;
       }
-      query = query.in("unit_id", unitIds);
+      query = query.in("apartment_id", apartmentIds);
     }
     if (req.query.unit_id) {
-      query = query.eq("unit_id", req.query.unit_id as string);
+      // unit_id param is actually a unit ID, resolve to parent apartment
+      const { data: unitRecord } = await supabaseAdmin
+        .from("units")
+        .select("apartment_id")
+        .eq("id", req.query.unit_id as string)
+        .maybeSingle();
+      if (unitRecord?.apartment_id) {
+        query = query.eq("apartment_id", unitRecord.apartment_id);
+      } else {
+        sendSuccess(res, []);
+        return;
+      }
     }
     if (req.query.tenant_id) {
       query = query.eq("tenant_id", req.query.tenant_id as string);
@@ -150,7 +161,7 @@ export async function getDocumentById(
 
     const { data, error } = await supabaseAdmin
       .from("documents")
-      .select("*, tenants(first_name, last_name), apartments:unit_id(name)")
+      .select("*, tenants(first_name, last_name), apartments:apartment_id(name)")
       .eq("id", id)
       .single();
 
@@ -281,9 +292,35 @@ export async function uploadDocument(
       return;
     }
 
+    // Resolve apartment_id from the unit (unit_id → units.apartment_id → apartments.id)
+    let validApartmentId: string | null = null;
+    let resolveUnitId = unit_id || null;
+
+    // If no unit_id provided, try to get it from the tenant
+    if (!resolveUnitId && tenant_id) {
+      const { data: tenantRecord } = await supabaseAdmin
+        .from("tenants")
+        .select("unit_id")
+        .eq("id", tenant_id)
+        .maybeSingle();
+      resolveUnitId = tenantRecord?.unit_id || null;
+    }
+
+    // Look up the unit to get its parent apartment_id
+    if (resolveUnitId) {
+      const { data: unitRecord } = await supabaseAdmin
+        .from("units")
+        .select("apartment_id")
+        .eq("id", resolveUnitId)
+        .maybeSingle();
+      if (unitRecord?.apartment_id) {
+        validApartmentId = unitRecord.apartment_id;
+      }
+    }
+
     const insertPayload = {
         apartmentowner_id,
-        unit_id: unit_id || null,
+        apartment_id: validApartmentId,
         tenant_id: tenant_id || null,
         uploaded_by: uploaded_by || null,
         file_name,

@@ -46,15 +46,7 @@ export default function OwnerAnnouncementsTab({ ownerId, ownerName }: OwnerAnnou
     try {
       const createdAnnouncement = await createOwnerAnnouncement(ownerId, title.trim(), message.trim(), ownerName)
       toast.success('Announcement created')
-      setAnnouncements((prev) => [
-        {
-          ...createdAnnouncement,
-          id: createdAnnouncement.id || `temp-${Date.now()}`,
-          created_by: createdAnnouncement.created_by || ownerName,
-          created_at: createdAnnouncement.created_at || new Date().toISOString(),
-        },
-        ...prev,
-      ])
+      await load()
       setTitle('')
       setMessage('')
       setShowForm(false)
@@ -70,7 +62,7 @@ export default function OwnerAnnouncementsTab({ ownerId, ownerName }: OwnerAnnou
       setDeleting(true)
       await deleteOwnerAnnouncement(id)
       toast.success('Announcement deleted')
-      setAnnouncements((prev) => prev.filter((a) => a.id !== id))
+      await load()
     } catch {
       toast.error('Failed to delete announcement')
     } finally {

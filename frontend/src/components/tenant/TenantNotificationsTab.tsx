@@ -25,18 +25,19 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
   const [confirmAction, setConfirmAction] = useState<{ type: 'one'; id: string } | { type: 'all' } | null>(null)
   const [confirming, setConfirming] = useState(false)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await getTenantNotifications(tenantId, ownerId)
-        setNotifications(data)
-      } catch (err) {
-        console.error('Failed to load notifications:', err)
-      } finally {
-        setLoading(false)
-      }
+  async function loadNotifications() {
+    try {
+      const data = await getTenantNotifications(tenantId, ownerId)
+      setNotifications(data)
+    } catch (err) {
+      console.error('Failed to load notifications:', err)
+    } finally {
+      setLoading(false)
     }
-    load()
+  }
+
+  useEffect(() => {
+    loadNotifications()
   }, [tenantId, ownerId])
 
   const cardClass = `rounded-xl p-6 border ${
@@ -70,7 +71,7 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
     try {
       setConfirming(true)
       await deleteTenantNotification(id)
-      setNotifications((prev) => prev.filter((notification) => notification.id !== id))
+      await loadNotifications()
       onRead?.()
     } catch (error) {
       console.error('Failed to delete notification:', error)
@@ -94,7 +95,7 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
     try {
       setConfirming(true)
       await deleteAllTenantNotifications(tenantId, ownerId)
-      setNotifications([])
+      await loadNotifications()
       onRead?.()
     } catch (error) {
       console.error('Failed to delete all notifications:', error)

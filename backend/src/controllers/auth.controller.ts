@@ -2,6 +2,7 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
+import { withAdminRetry } from "../utils/adminRetry";
 import {
   hasDeliverableEmailDomain,
   isValidEmailFormat,
@@ -261,10 +262,12 @@ export async function checkSetup(
   res: Response
 ): Promise<void> {
   try {
-    const { count, error } = await supabaseAdmin
-      .from("apartment_owners")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "active");
+    const { count, error } = await withAdminRetry((client) =>
+      client
+        .from("apartment_owners")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active")
+    );
 
     if (error) {
       sendError(res, error.message, 500);
@@ -273,6 +276,7 @@ export async function checkSetup(
 
     sendSuccess(res, { isSetup: (count ?? 0) > 0 });
   } catch (err: any) {
+    console.error("[checkSetup] caught:", err);
     sendError(res, err.message, 500);
   }
 }
@@ -288,10 +292,12 @@ export async function setupOwner(
 ): Promise<void> {
   try {
     // Block if an owner already exists
-    const { count, error: countError } = await supabaseAdmin
-      .from("apartment_owners")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "active");
+    const { count, error: countError } = await withAdminRetry((client) =>
+      client
+        .from("apartment_owners")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active")
+    );
 
     if (countError) {
       sendError(res, countError.message, 500);

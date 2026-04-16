@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../config/supabase";
 import { env } from "../config/env";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
+import { withAdminRetry } from "../utils/adminRetry";
 import { isValidEmailFormat } from "../utils/emailValidation";
 
 function toInviteConfirmUrl(baseUrl: string): string {
@@ -141,11 +142,13 @@ export async function getOwnerByAuthId(
   try {
     const { authUserId } = req.params;
 
-    const { data, error } = await supabaseAdmin
-      .from("apartment_owners")
-      .select("*")
-      .eq("auth_user_id", authUserId)
-      .single();
+    const { data, error } = await withAdminRetry((client) =>
+      client
+        .from("apartment_owners")
+        .select("*")
+        .eq("auth_user_id", authUserId)
+        .single()
+    );
 
     if (error) {
       sendError(res, error.message, 404);

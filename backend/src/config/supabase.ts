@@ -1,7 +1,7 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { env } from "./env";
 
-// --- Admin client with auto-reconnect health check ---
+// --- Admin client with periodic rotation to prevent stale state ---
 
 function createAdminClient(): SupabaseClient {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -13,14 +13,37 @@ function createAdminClient(): SupabaseClient {
 }
 
 let _adminClient: SupabaseClient = createAdminClient();
+let _adminCreatedAt: number = Date.now();
+
+// Rotate the admin client every 60 seconds to prevent stale connections
+const ADMIN_CLIENT_MAX_AGE_MS = 60_000;
+
+function getAdminClient(): SupabaseClient {
+  if (Date.now() - _adminCreatedAt > ADMIN_CLIENT_MAX_AGE_MS) {
+    _adminClient = createAdminClient();
+    _adminCreatedAt = Date.now();
+  }
+  return _adminClient;
+}
+
+/**
+ * Force-refresh the admin client. Call this when you detect an
+ * "impossible" error (e.g. RLS violation with service_role).
+ */
+export function refreshAdminClient(): void {
+  console.warn("[Supabase] Force-refreshing admin client");
+  _adminClient = createAdminClient();
+  _adminCreatedAt = Date.now();
+}
 
 // Proxy ensures all importers always use the current (possibly recreated) client
 // without needing to change any import statements across the codebase
 export const supabaseAdmin: SupabaseClient = new Proxy({} as SupabaseClient, {
   get(_, prop) {
-    const value = (_adminClient as any)[prop];
+    const client = getAdminClient();
+    const value = (client as any)[prop];
     if (typeof value === "function") {
-      return value.bind(_adminClient);
+      return value.bind(client);
     }
     return value;
   },
@@ -32,7 +55,8 @@ let healthCheckInterval: ReturnType<typeof setInterval> | null = null;
 
 async function checkConnection(): Promise<boolean> {
   try {
-    const { error } = await _adminClient
+    const client = getAdminClient();
+    const { error } = await client
       .from("apartment_owners")
       .select("id", { count: "exact", head: true });
     return !error;
@@ -52,7 +76,7 @@ export function startHealthCheck(intervalMs = 30_000): void {
       console.warn(
         "[Health] Stale Supabase connection detected — recreating client..."
       );
-      _adminClient = createAdminClient();
+      refreshAdminClient();
       const retry = await checkConnection();
       if (retry) {
         console.log("[Health] Connection restored successfully.");

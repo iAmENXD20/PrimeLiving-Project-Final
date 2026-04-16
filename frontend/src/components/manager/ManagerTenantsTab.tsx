@@ -178,7 +178,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
         })
-        setTenants((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+        await loadData()
         toast.success('Tenant updated successfully')
         setShowModal(false)
       } else {
@@ -192,6 +192,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
           apartmentowner_id: ownerIdRef.current || '',
         })
         setTenants((prev) => [result.tenant, ...prev])
+        await loadData()
         setShowModal(false)
         setCredentials({ email: form.email })
         setShowCredentials(true)
@@ -216,7 +217,7 @@ export default function ManagerTenantsTab({ managerId }: ManagerTenantsTabProps)
     try {
       setDeleting(true)
       await deleteTenantAccount(id)
-      setTenants((prev) => prev.filter((t) => t.id !== id))
+      await loadData()
       setOpenMenu(null)
       toast.success('Tenant deleted')
     } catch (err) {

@@ -315,13 +315,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
         max_occupancy: maxOcc,
         status: editForm.status,
       })
-      setUnits((prev) =>
-        prev.map((u) =>
-          u.id === selectedUnit.id
-            ? { ...u, name: trimmed, monthly_rent: rent, max_occupancy: maxOcc, status: editForm.status }
-            : u
-        )
-      )
+      await loadUnits()
       toast.success('Unit updated successfully')
       setSelectedUnit(null)
     } catch {
@@ -466,7 +460,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
       if (!tenantId.startsWith('sample-')) {
         await approveTenant(tenantId)
       }
-      setOwnerTenants((prev) => prev.map((t) => t.id === tenantId ? { ...t, status: 'active' as const } : t))
+      await Promise.all([loadTenants(), loadUnits()])
       toast.success('Tenant approved successfully')
     } catch {
       toast.error('Failed to approve tenant')
@@ -483,7 +477,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
         toast.success(`${confirmAction.name} deleted successfully`)
       } else {
         await deleteOwnerManager(confirmAction.id)
-        setManagers((prev) => prev.filter((m) => m.id !== confirmAction.id))
+        await loadManagers()
         setOpenMenu(null)
         toast.success('Manager deleted')
       }
@@ -2194,7 +2188,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                       }
                       toast.success(`${viewManager.first_name} ${viewManager.last_name} has been approved`)
                       setViewManager({ ...viewManager, status: 'active' })
-                      setManagers(prev => prev.map(m => m.id === viewManager.id ? { ...m, status: 'active' } : m))
+                      await loadManagers()
                     } catch {
                       toast.error('Failed to approve manager')
                     } finally {
@@ -2382,7 +2376,7 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                       }
                       toast.success(`${viewTenant.name} has been approved`)
                       setViewTenant({ ...viewTenant, status: 'active' })
-                      setOwnerTenants(prev => prev.map(ot => ot.id === viewTenant.id ? { ...ot, status: 'active' } : ot))
+                      await Promise.all([loadTenants(), loadUnits()])
                     } catch {
                       toast.error('Failed to approve tenant')
                     } finally {

@@ -89,7 +89,7 @@ export default function ManagerNotificationsTab({ managerId, ownerId, onRead }: 
     try {
       setConfirming(true)
       await deleteManagerNotification(id)
-      setNotifications((prev) => prev.filter((item) => item.id !== id))
+      await loadNotifications()
       onRead?.()
     } catch (error) {
       console.error('Failed to delete notification:', error)
@@ -103,7 +103,7 @@ export default function ManagerNotificationsTab({ managerId, ownerId, onRead }: 
     try {
       setConfirming(true)
       await deleteAllManagerNotifications(managerId, ownerId)
-      setNotifications([])
+      await loadNotifications()
       onRead?.()
     } catch (error) {
       console.error('Failed to delete all notifications:', error)

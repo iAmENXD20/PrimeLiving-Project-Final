@@ -130,7 +130,7 @@ export default function ManagerDocumentsTab({ managerId }: ManagerDocumentsTabPr
         selectedFile,
         ownerIdRef.current || '',
         managerId,
-        unit?.id || tenant.unit_id || null,
+        unit?.id || null,
         tenant.id,
         description,
       )

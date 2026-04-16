@@ -118,7 +118,7 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
           phone: form.phone ? `+63${form.phone}` : undefined,
           apartment_id: form.apartmentId || null,
         })
-        setManagers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
+        await loadManagers()
         toast.success('Manager updated successfully')
         setShowModal(false)
       } else {
@@ -131,6 +131,7 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
           apartment_id: form.apartmentId || undefined,
         })
         setManagers((prev) => [result.manager, ...prev])
+        await loadManagers()
         setShowModal(false)
         setCredentials({ email: form.email, password: result.generatedPassword || '' })
         setShowCredentials(true)
@@ -155,7 +156,7 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
     try {
       setDeleting(true)
       await deleteOwnerManager(id)
-      setManagers((prev) => prev.filter((m) => m.id !== id))
+      await loadManagers()
       setOpenMenu(null)
       toast.success('Manager deleted')
     } catch (err) {

@@ -1,5 +1,6 @@
 import api from './apiClient'
 import { supabase } from './supabase'
+import { withRetry } from './retry'
 
 // ── Types ──────────────────────────────────────────────────
 export interface TenantProfile {
@@ -105,11 +106,7 @@ export async function getCurrentTenant(): Promise<TenantProfile | null> {
   const userId = session?.user?.id
   if (!userId) return null
 
-  try {
-    return await api.get<TenantProfile>(`/tenants/by-auth/${userId}`)
-  } catch {
-    return null
-  }
+  return withRetry(() => api.get<TenantProfile>(`/tenants/by-auth/${userId}`))
 }
 
 // ── Tenant Dashboard Stats ─────────────────────────────────

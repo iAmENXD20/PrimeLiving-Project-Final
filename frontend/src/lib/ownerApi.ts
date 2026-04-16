@@ -1,5 +1,6 @@
 import api from './apiClient'
 import { supabase } from './supabase'
+import { withRetry } from './retry'
 
 // ── Types ──────────────────────────────────────────────────
 export interface MaintenanceRequest {
@@ -39,11 +40,7 @@ export async function getCurrentOwner() {
   const userId = session?.user?.id
   if (!userId) return null
 
-  try {
-    return await api.get<any>(`/owners/by-auth/${userId}`)
-  } catch {
-    return null
-  }
+  return withRetry(() => api.get<any>(`/owners/by-auth/${userId}`))
 }
 
 // ── Get Owner Apartment Address ─────────────────────────────
@@ -447,6 +444,7 @@ export interface OwnerPayment {
   apartmentowner_id: string
   tenant_id: string | null
   unit_id: string | null
+  apartment_id: string | null
   amount: number
   payment_date: string
   status: 'paid' | 'pending' | 'overdue'
@@ -609,4 +607,30 @@ export async function createOwnerApartmentLog(log: {
 
 export async function clearOwnerApartmentLogs(ownerId: string): Promise<void> {
   await api.delete(`/apartment-logs?apartmentowner_id=${ownerId}`)
+}
+
+// ── Expenses ───────────────────────────────────────────────
+export interface Expense {
+  id: string
+  apartmentowner_id: string
+  apartment_id: string | null
+  date: string
+  type: string
+  description: string | null
+  amount: number
+  created_at: string
+}
+
+export async function getExpenses(ownerId: string, year?: number): Promise<Expense[]> {
+  const params = new URLSearchParams({ apartmentowner_id: ownerId })
+  if (year) params.append('year', String(year))
+  return api.get<Expense[]>(`/expenses?${params}`)
+}
+
+export async function createExpense(expense: { apartmentowner_id: string; apartment_id?: string | null; date: string; type: string; description?: string; amount: number }): Promise<Expense> {
+  return api.post<Expense>('/expenses', expense)
+}
+
+export async function deleteExpense(id: string): Promise<void> {
+  await api.delete(`/expenses/${id}`)
 }

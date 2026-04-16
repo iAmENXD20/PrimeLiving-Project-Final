@@ -8,6 +8,17 @@ import { logActivity, resolveActorName } from "../utils/activityLog";
 
 const PAYMENT_QR_BUCKET = "payment-qr-codes";
 
+/** Resolve the parent apartment_id from a unit_id */
+async function resolveApartmentId(unitId: string | null | undefined): Promise<string | null> {
+  if (!unitId) return null;
+  const { data } = await supabaseAdmin
+    .from("units")
+    .select("apartment_id")
+    .eq("id", unitId)
+    .single();
+  return data?.apartment_id || null;
+}
+
 async function ensurePaymentQrBucket(): Promise<void> {
   const { data: buckets } = await supabaseAdmin.storage.listBuckets();
   const exists = (buckets || []).some((bucket) => bucket.name === PAYMENT_QR_BUCKET);
@@ -178,6 +189,7 @@ export async function getTenantDueSchedule(
           apartmentowner_id: tenant.apartmentowner_id,
           tenant_id: tenant.id,
           unit_id: tenant.unit_id,
+          apartment_id: await resolveApartmentId(tenant.unit_id),
           amount: monthlyRent,
           payment_date: dueDate.toISOString(),
           status: shouldBeOverdue ? "overdue" : "pending",
@@ -264,9 +276,13 @@ export async function createPayment(
   res: Response
 ): Promise<void> {
   try {
+    const body = { ...req.body };
+    if (!body.apartment_id && body.unit_id) {
+      body.apartment_id = await resolveApartmentId(body.unit_id);
+    }
     const { data, error } = await supabaseAdmin
       .from("payments")
-      .insert(req.body)
+      .insert(body)
       .select()
       .single();
 
@@ -397,6 +413,7 @@ export async function submitPaymentProof(
         tenant_id,
         apartmentowner_id,
         unit_id: unit_id || null,
+        apartment_id: await resolveApartmentId(unit_id),
         amount: amount || 0,
         payment_date: new Date().toISOString(),
         status: "pending",
@@ -465,9 +482,19 @@ export async function createPaymentsBulk(
   try {
     const { payments } = req.body;
 
+    // Resolve apartment_id for each payment if missing
+    const enriched = await Promise.all(
+      (payments as any[]).map(async (p: any) => {
+        if (!p.apartment_id && p.unit_id) {
+          return { ...p, apartment_id: await resolveApartmentId(p.unit_id) };
+        }
+        return p;
+      })
+    );
+
     const { data, error } = await supabaseAdmin
       .from("payments")
-      .insert(payments)
+      .insert(enriched)
       .select();
 
     if (error) {
@@ -984,6 +1011,7 @@ export async function generateMonthlyBillings(
         apartmentowner_id: apartmentowner_id || apt.apartmentowner_id,
         tenant_id: tenant.id,
         unit_id: tenant.unit_id,
+        apartment_id: apt.id || await resolveApartmentId(tenant.unit_id),
         amount: apt.monthly_rent || 0,
         payment_date: dueDate.toISOString(),
         status: isPastDue ? "overdue" : "pending",

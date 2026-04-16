@@ -1,5 +1,6 @@
 import api from './apiClient'
 import { supabase } from './supabase'
+import { withRetry } from './retry'
 
 // ── Types ──────────────────────────────────────────────────
 export interface MaintenanceRequest {
@@ -41,22 +42,18 @@ export async function getCurrentManager(): Promise<ManagerProfile | null> {
   const userId = session?.user?.id
   if (!userId) return null
 
-  try {
-    const manager = await api.get<ManagerProfile>(`/managers/by-auth/${userId}`)
+  const manager = await withRetry(() => api.get<ManagerProfile>(`/managers/by-auth/${userId}`))
 
-    if (manager && !manager.apartmentowner_id) {
-      const apartments = await api.get<any[]>(`/apartments?manager_id=${manager.id}`).catch(() => [])
-      const fallbackOwnerId = apartments?.[0]?.apartmentowner_id || null
-      return {
-        ...manager,
-        apartmentowner_id: fallbackOwnerId,
-      }
+  if (manager && !manager.apartmentowner_id) {
+    const apartments = await api.get<any[]>(`/apartments?manager_id=${manager.id}`).catch(() => [])
+    const fallbackOwnerId = apartments?.[0]?.apartmentowner_id || null
+    return {
+      ...manager,
+      apartmentowner_id: fallbackOwnerId,
     }
-
-    return manager
-  } catch {
-    return null
   }
+
+  return manager
 }
 
 export interface ManagerNotification {

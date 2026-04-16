@@ -36,16 +36,23 @@ export default function LoginPage() {
   const [resetEmail, setResetEmail] = useState('')
   const [isResetting, setIsResetting] = useState(false)
   const [pendingAlert, setPendingAlert] = useState<string | null>(null)
+  const [checkingSetup, setCheckingSetup] = useState(true)
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
-  // Redirect to setup if no owner account exists yet
+  // Block rendering until we confirm an owner exists; redirect to /setup if not
   useEffect(() => {
     api.get<{ isSetup: boolean }>('/auth/check-setup')
       .then((res) => {
-        if (!res.isSetup) navigate('/setup', { replace: true })
+        if (!res.isSetup) {
+          navigate('/setup', { replace: true })
+        } else {
+          setCheckingSetup(false)
+        }
       })
-      .catch(() => { /* ignore — let user try to login normally */ })
+      .catch(() => {
+        setCheckingSetup(false)
+      })
   }, [navigate])
 
   const {
@@ -136,6 +143,14 @@ export default function LoginPage() {
       setShowForgotPassword(false)
       setResetEmail('')
     }
+  }
+
+  if (checkingSetup) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#0A1628]' : 'bg-gray-50'}`}>
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
   }
 
   return (

@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Sun, Moon, Menu, Clock } from 'lucide-react'
+import { Sun, Moon, Menu, Clock, RefreshCw } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 
 interface ManagerTopBarProps {
   onMenuToggle: () => void
   managerName?: string
+  onRefresh?: () => void
 }
 
-export default function ManagerTopBar({ onMenuToggle, managerName }: ManagerTopBarProps) {
+export default function ManagerTopBar({ onMenuToggle, managerName, onRefresh }: ManagerTopBarProps) {
   const { isDark, toggleTheme } = useTheme()
   const [now, setNow] = useState(new Date())
 
@@ -59,6 +60,17 @@ export default function ManagerTopBar({ onMenuToggle, managerName }: ManagerTopB
         >
           {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            title="Refresh data"
+            className={`p-2 rounded-lg transition-colors ${
+              isDark ? 'text-gray-400 hover:bg-white/10 hover:text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            }`}
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </header>
   )

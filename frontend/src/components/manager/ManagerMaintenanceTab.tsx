@@ -114,9 +114,7 @@ export default function ManagerMaintenanceTab({ managerId }: ManagerMaintenanceT
     try {
       setUpdatingId(requestId)
       await updateMaintenanceStatus(requestId, nextStatus)
-      setRequests((prev) => prev.map((request) => (
-        request.id === requestId ? { ...request, status: nextStatus } : request
-      )))
+      await loadRequests()
       toast.success('Maintenance status updated')
     } catch (error) {
       console.error('Failed to update maintenance status:', error)

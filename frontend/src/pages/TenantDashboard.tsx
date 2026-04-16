@@ -6,6 +6,7 @@ import TenantSidebar from '../components/tenant/TenantSidebar'
 import TenantTopBar from '../components/tenant/TenantTopBar'
 import { getCurrentTenant, getTenantApartmentInfo, getUnreadNotificationCount, getTenantNotifications } from '../lib/tenantApi'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import { CardsSkeleton } from '../components/ui/skeleton'
 
 const TenantOverviewTab = lazy(() => import('../components/tenant/TenantOverviewTab'))
@@ -30,37 +31,49 @@ export default function TenantDashboard() {
     contract_status: string | null
   } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [notificationCount, setNotificationCount] = useState(0)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const refreshData = useCallback(() => {
+    loadTenant()
+    setRefreshKey(k => k + 1)
+  }, [])
+
+  useAutoRefresh(refreshData, { enabled: !!tenant })
+
+  const loadTenant = async () => {
+    setLoading(true)
+    setLoadError(false)
+    try {
+      const data = await getCurrentTenant()
+      if (data) {
+        const [aptInfo, count] = await Promise.all([
+          data.unit_id ? getTenantApartmentInfo(data.unit_id) : Promise.resolve(null),
+          getUnreadNotificationCount(data.id, data.apartmentowner_id || null),
+        ])
+        const ownerId = aptInfo?.apartmentowner_id || data.apartmentowner_id || null
+        setTenant({
+          id: data.id,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          phone: data.phone,
+          apartmentId: data.unit_id,
+          ownerId,
+          status: data.status,
+          contract_status: data.contract_status || 'active',
+        })
+        setNotificationCount(count)
+      }
+    } catch (err) {
+      console.error('Failed to load tenant:', err)
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    async function loadTenant() {
-      try {
-        const data = await getCurrentTenant()
-        if (data) {
-          // Parallelize apartment info + notification count
-          const [aptInfo, count] = await Promise.all([
-            data.unit_id ? getTenantApartmentInfo(data.unit_id) : Promise.resolve(null),
-            getUnreadNotificationCount(data.id, data.apartmentowner_id || null),
-          ])
-          const ownerId = aptInfo?.apartmentowner_id || data.apartmentowner_id || null
-          setTenant({
-            id: data.id,
-            first_name: data.first_name,
-            last_name: data.last_name,
-            phone: data.phone,
-            apartmentId: data.unit_id,
-            ownerId,
-            status: data.status,
-            contract_status: data.contract_status || 'active',
-          })
-          setNotificationCount(count)
-        }
-      } catch (err) {
-        console.error('Failed to load tenant:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
     loadTenant()
   }, [])
 
@@ -124,8 +137,13 @@ export default function TenantDashboard() {
     if (!tenant) {
       return (
         <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          <p className="text-lg font-medium mb-2">Tenant profile not found</p>
-          <p className="text-sm">Please ensure your account is linked to a tenant profile.</p>
+          <p className="text-lg font-medium mb-2">{loadError ? 'Failed to load profile' : 'Tenant profile not found'}</p>
+          <p className="text-sm mb-4">{loadError ? 'A connection error occurred. Please try again.' : 'Please ensure your account is linked to a tenant profile.'}</p>
+          {loadError && (
+            <button onClick={loadTenant} className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+              Retry
+            </button>
+          )}
         </div>
       )
     }
@@ -153,19 +171,19 @@ export default function TenantDashboard() {
 
     switch (activeTab) {
       case 'overview':
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} onEnded={() => setTenant(prev => prev ? { ...prev, contract_status: 'end_contract' } : prev)} />
+        return <TenantOverviewTab key={`overview-${refreshKey}`} tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} onEnded={() => setTenant(prev => prev ? { ...prev, contract_status: 'end_contract' } : prev)} />
       case 'maintenance':
-        return <TenantMaintenanceTab tenantId={tenant.id} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
+        return <TenantMaintenanceTab key={`maintenance-${refreshKey}`} tenantId={tenant.id} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
       case 'payments':
-        return <TenantPaymentsTab tenantId={tenant.id} ownerId={tenant.ownerId} apartmentId={tenant.apartmentId} />
+        return <TenantPaymentsTab key={`payments-${refreshKey}`} tenantId={tenant.id} ownerId={tenant.ownerId} apartmentId={tenant.apartmentId} />
       case 'documents':
-        return <TenantDocumentsTab tenantId={tenant.id} ownerId={tenant.ownerId} />
+        return <TenantDocumentsTab key={`documents-${refreshKey}`} tenantId={tenant.id} ownerId={tenant.ownerId} />
       case 'notifications':
-        return <TenantNotificationsTab tenantId={tenant.id} ownerId={tenant.ownerId} onRead={refreshNotificationCount} />
+        return <TenantNotificationsTab key={`notifications-${refreshKey}`} tenantId={tenant.id} ownerId={tenant.ownerId} onRead={refreshNotificationCount} />
       case 'account':
-        return <TenantAccountTab tenantId={tenant.id} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
+        return <TenantAccountTab key={`account-${refreshKey}`} tenantId={tenant.id} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
       default:
-        return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} onEnded={() => setTenant(prev => prev ? { ...prev, contract_status: 'end_contract' } : prev)} />
+        return <TenantOverviewTab key={`overview-default-${refreshKey}`} tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} onEnded={() => setTenant(prev => prev ? { ...prev, contract_status: 'end_contract' } : prev)} />
     }
   }
 
@@ -198,6 +216,7 @@ export default function TenantDashboard() {
         <TenantTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           tenantName={tenant ? `${tenant.first_name} ${tenant.last_name}`.trim() : undefined}
+          onRefresh={refreshData}
         />
 
         {/* Page content */}

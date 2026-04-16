@@ -6,6 +6,7 @@ import ManagerTopBar from '../components/manager/ManagerTopBar'
 import { getCurrentManager, getManagerNotifications, getManagerDashboardStats, checkLeaseExpiry } from '../lib/managerApi'
 import { supabase } from '../lib/supabase'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import { CardsSkeleton } from '../components/ui/skeleton'
 
 const ManagerOverviewTab = lazy(() => import('../components/manager/ManagerOverviewTab'))
@@ -23,27 +24,38 @@ export default function ManagerDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [manager, setManager] = useState<{ id: string; name: string; ownerId: string | null; phone: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [pendingMaintenanceCount, setPendingMaintenanceCount] = useState(0)
   const [notificationCount, setNotificationCount] = useState(0)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  useEffect(() => {
-    async function loadManager() {
-      try {
-        const data = await getCurrentManager()
-        if (data) {
-          setManager({ id: data.id, name: `${data.first_name} ${data.last_name}`.trim(), ownerId: data.apartmentowner_id, phone: data.phone })
-        } else {
-          await supabase.auth.signOut()
-          navigate('/login', { replace: true })
-        }
-      } catch (err) {
-        console.error('Failed to load manager:', err)
+  const refreshData = useCallback(() => {
+    loadManager()
+    setRefreshKey(k => k + 1)
+  }, [])
+
+  useAutoRefresh(refreshData, { enabled: !!manager })
+
+  const loadManager = async () => {
+    setLoading(true)
+    setLoadError(false)
+    try {
+      const data = await getCurrentManager()
+      if (data) {
+        setManager({ id: data.id, name: `${data.first_name} ${data.last_name}`.trim(), ownerId: data.apartmentowner_id, phone: data.phone })
+      } else {
         await supabase.auth.signOut()
         navigate('/login', { replace: true })
-      } finally {
-        setLoading(false)
       }
+    } catch (err) {
+      console.error('Failed to load manager:', err)
+      setLoadError(true)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     loadManager()
   }, [navigate])
 
@@ -115,29 +127,34 @@ export default function ManagerDashboard() {
     if (!manager) {
       return (
         <div className={`text-center py-16 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          <p className="text-lg font-medium mb-2">Manager profile not found</p>
-          <p className="text-sm">Please ensure your account is linked to a manager profile.</p>
+          <p className="text-lg font-medium mb-2">{loadError ? 'Failed to load profile' : 'Manager profile not found'}</p>
+          <p className="text-sm mb-4">{loadError ? 'A connection error occurred. Please try again.' : 'Please ensure your account is linked to a manager profile.'}</p>
+          {loadError && (
+            <button onClick={loadManager} className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+              Retry
+            </button>
+          )}
         </div>
       )
     }
 
     switch (activeTab) {
       case 'overview':
-        return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
+        return <ManagerOverviewTab key={`overview-${refreshKey}`} managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
       case 'maintenance':
-        return <ManagerMaintenanceTab managerId={manager.id} />
+        return <ManagerMaintenanceTab key={`maintenance-${refreshKey}`} managerId={manager.id} />
       case 'manage-apartment':
-        return <ManagerManageApartmentTab managerId={manager.id} managerName={manager.name} />
+        return <ManagerManageApartmentTab key={`manage-${refreshKey}`} managerId={manager.id} managerName={manager.name} />
       case 'payments':
-        return <ManagerPaymentsTab managerId={manager.id} />
+        return <ManagerPaymentsTab key={`payments-${refreshKey}`} managerId={manager.id} />
       case 'documents':
-        return <ManagerDocumentsTab managerId={manager.id} />
+        return <ManagerDocumentsTab key={`documents-${refreshKey}`} managerId={manager.id} />
       case 'notifications':
-        return <ManagerNotificationsTab managerId={manager.id} ownerId={manager.ownerId || ''} onRead={refreshNotificationCount} />
+        return <ManagerNotificationsTab key={`notifications-${refreshKey}`} managerId={manager.id} ownerId={manager.ownerId || ''} onRead={refreshNotificationCount} />
       case 'settings':
-        return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} ownerId={manager.ownerId} />
+        return <ManagerSettingsTab key={`settings-${refreshKey}`} managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} ownerId={manager.ownerId} />
       default:
-        return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
+        return <ManagerOverviewTab key={`overview-default-${refreshKey}`} managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
     }
   }
 
@@ -171,6 +188,7 @@ export default function ManagerDashboard() {
         <ManagerTopBar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           managerName={manager?.name}
+          onRefresh={refreshData}
         />
 
         {/* Page content */}
