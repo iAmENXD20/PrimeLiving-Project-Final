@@ -16,6 +16,7 @@ import {
   addUnitOccupant,
   deleteUnitOccupant,
   uploadOccupantIdPhoto,
+  getTenantApartmentInfo,
   type UnitOccupant,
 } from '@/lib/tenantApi'
 
@@ -38,9 +39,10 @@ interface TenantAccountTabProps {
   tenantPhone?: string | null
   apartmentId?: string | null
   ownerId?: string | null
+  apartmentAddress?: string | null
 }
 
-export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, apartmentId, ownerId }: TenantAccountTabProps) {
+export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, apartmentId, ownerId, apartmentAddress: apartmentAddressProp }: TenantAccountTabProps) {
   const { isDark } = useTheme()
   const [showCurrent, setShowCurrent] = useState(false)
   const [showNew, setShowNew] = useState(false)
@@ -121,20 +123,29 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
         .select('first_name, last_name')
         .eq('id', resolvedClientId)
         .maybeSingle()
-      setOwnerName(owner ? `${owner.first_name} ${owner.last_name}`.trim() : null)
+      if (owner) {
+        setOwnerName(`${owner.first_name} ${owner.last_name}`.trim())
+      }
     }
 
-    // Get property address from the apartment record
-    const resolvedAptId = tenantRes?.data?.apartment_id as string | null
-    if (resolvedAptId) {
-      const { data: aptData } = await supabase
-        .from('apartments')
-        .select('address')
-        .eq('id', resolvedAptId)
-        .maybeSingle()
-      setPropertyAddress(aptData?.address || null)
+    // Get property address and owner name via backend API (bypasses RLS)
+    if (resolvedApartmentId) {
+      try {
+        const aptInfo = await getTenantApartmentInfo(resolvedApartmentId)
+        if (aptInfo) {
+          const addr = aptInfo.apartment_address || aptInfo.address || apartmentAddressProp || null
+          if (addr) setPropertyAddress(addr)
+          // Set owner name from backend if direct Supabase query didn't work
+          if (aptInfo.owner_name) setOwnerName(aptInfo.owner_name)
+        }
+      } catch {
+        // silent - fallback to prop
+        if (apartmentAddressProp) setPropertyAddress(apartmentAddressProp)
+      }
+    } else if (apartmentAddressProp) {
+      setPropertyAddress(apartmentAddressProp)
     }
-  }, [tenantId, apartmentId, ownerId])
+  }, [tenantId, apartmentId, ownerId, apartmentAddressProp])
 
   useEffect(() => {
     loadProfile().catch(() => {

@@ -320,10 +320,8 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
 
   const currentDueSelection = normalizedDuePayments.find((payment) => payment.id === selectedDuePaymentId)
   const currentDueLabel = currentDueSelection
-    ? currentDueSelection.period_from && currentDueSelection.period_to
-      ? `${new Date(currentDueSelection.period_from).toLocaleDateString()} - ${new Date(currentDueSelection.period_to).toLocaleDateString()} · ₱${Number(currentDueSelection.amount).toLocaleString()} · ${currentDueSelection.status}`
-      : `${new Date(currentDueSelection.payment_date).toLocaleDateString()} · ₱${Number(currentDueSelection.amount).toLocaleString()} · ${currentDueSelection.status}`
-    : 'Select billing period'
+    ? `${new Date(currentDueSelection.payment_date).toLocaleDateString()} · ₱${Number(currentDueSelection.amount).toLocaleString()} · ${currentDueSelection.status}`
+    : 'Select due date'
 
   return (
     <div className="gap-6 animate-fade-up flex flex-col flex-1 min-h-0">
@@ -481,10 +479,10 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
           </div>
 
           <div className="space-y-4 flex-1">
-            {/* Billing Period */}
+            {/* Due Date */}
             <div>
               <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Billing Period (Pending/Overdue)
+                Due Date (Pending/Overdue)
               </label>
               <div className="relative" ref={billingDropdownRef}>
                 <button
@@ -518,12 +516,10 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
                         isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
-                      Select billing period
+                      Select due date
                     </button>
                     {normalizedDuePayments.map((payment) => {
-                      const optionLabel = payment.period_from && payment.period_to
-                        ? `${new Date(payment.period_from).toLocaleDateString()} - ${new Date(payment.period_to).toLocaleDateString()} · ₱${Number(payment.amount).toLocaleString()} · ${payment.status}`
-                        : `${new Date(payment.payment_date).toLocaleDateString()} · ₱${Number(payment.amount).toLocaleString()} · ${payment.status}`
+                      const optionLabel = `${new Date(payment.payment_date).toLocaleDateString()} · ₱${Number(payment.amount).toLocaleString()} · ${payment.status}`
 
                       return (
                         <button
@@ -745,7 +741,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
             <table className="w-full text-sm">
               <thead>
                 <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
-                  {['Period', 'Due Date', 'Amount', 'Status'].map((header) => (
+                  {['Due Date', 'Description', 'Amount', 'Status'].map((header) => (
                     <th key={header} className={`text-left py-3 px-3 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {header}
                     </th>
@@ -756,12 +752,10 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
                 {paginatedDuePayments.map((payment) => (
                   <tr key={payment.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
                     <td className={`py-3 px-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {payment.period_from && payment.period_to
-                        ? `${new Date(payment.period_from).toLocaleDateString()} - ${new Date(payment.period_to).toLocaleDateString()}`
-                        : '—'}
+                      {new Date(payment.payment_date).toLocaleDateString()}
                     </td>
                     <td className={`py-3 px-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {new Date(payment.payment_date).toLocaleDateString()}
+                      {payment.description || 'Monthly Rent'}
                     </td>
                     <td className={`py-3 px-3 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       ₱{Number(payment.amount).toLocaleString()}

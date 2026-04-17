@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/utils'
+import { getManagedApartments } from '@/lib/managerApi'
 
 const passwordSchema = z
   .object({
@@ -79,17 +80,37 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
           .eq('id', resolvedClientId)
           .maybeSingle()
 
-        setOwnerName(clientData ? `${clientData.first_name} ${clientData.last_name}`.trim() : null)
+        if (clientData) {
+          setOwnerName(`${clientData.first_name} ${clientData.last_name}`.trim())
+        }
+      }
+
+      // Fallback: get owner name from backend API (bypasses RLS)
+      if (managerId && !ownerName) {
+        try {
+          const units = await getManagedApartments(managerId)
+          if (units && units.length > 0 && units[0].owner_first_name) {
+            setOwnerName(`${units[0].owner_first_name} ${units[0].owner_last_name}`.trim())
+          }
+        } catch {
+          // silent
+        }
       }
 
       if (resolvedApartmentId) {
         const { data: aptData } = await supabase
           .from('apartments')
-          .select('address')
+          .select('address, address_street, address_barangay, address_city, address_province, address_region')
           .eq('id', resolvedApartmentId)
           .maybeSingle()
 
-        setPropertyAddress(aptData?.address || null)
+        if (aptData) {
+          const addr = aptData.address
+            || [aptData.address_street, aptData.address_barangay, aptData.address_city, aptData.address_province, aptData.address_region]
+                .filter(Boolean).join(', ')
+            || null
+          setPropertyAddress(addr)
+        }
       }
     }
 

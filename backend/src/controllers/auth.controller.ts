@@ -209,12 +209,12 @@ export async function validateEmailForAccountCreation(
           .maybeSingle(),
         supabaseAdmin
           .from("apartment_managers")
-          .select("id")
+          .select("id, status")
           .eq("email", normalizedEmail)
           .maybeSingle(),
         supabaseAdmin
           .from("tenants")
-          .select("id")
+          .select("id, status")
           .eq("email", normalizedEmail)
           .maybeSingle(),
       ]);
@@ -235,10 +235,14 @@ export async function validateEmailForAccountCreation(
       return;
     }
 
+    // Inactive/declined records should not block re-creation
+    const managerBlocked = existingManagerLookup.data && existingManagerLookup.data.status !== "inactive";
+    const tenantBlocked = existingTenantLookup.data && existingTenantLookup.data.status !== "inactive";
+
     if (
       existingOwnerLookup.data ||
-      existingManagerLookup.data ||
-      existingTenantLookup.data
+      managerBlocked ||
+      tenantBlocked
     ) {
       sendSuccess(res, {
         valid: false,

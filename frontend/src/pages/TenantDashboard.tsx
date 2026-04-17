@@ -29,6 +29,7 @@ export default function TenantDashboard() {
     ownerId: string | null
     status: string
     contract_status: string | null
+    apartmentAddress: string | null
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -50,6 +51,7 @@ export default function TenantDashboard() {
           getUnreadNotificationCount(data.id, data.apartmentowner_id || null),
         ])
         const ownerId = aptInfo?.apartmentowner_id || data.apartmentowner_id || null
+        const aptAddr = aptInfo?.apartment_address || aptInfo?.address || null
         setTenant({
           id: data.id,
           first_name: data.first_name,
@@ -59,6 +61,7 @@ export default function TenantDashboard() {
           ownerId,
           status: data.status,
           contract_status: data.contract_status || 'active',
+          apartmentAddress: aptAddr,
         })
         setNotificationCount(count)
       }
@@ -188,7 +191,7 @@ export default function TenantDashboard() {
       case 'notifications':
         return <TenantNotificationsTab tenantId={tenant.id} ownerId={tenant.ownerId} onRead={refreshNotificationCount} />
       case 'account':
-        return <TenantAccountTab tenantId={tenant.id} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} />
+        return <TenantAccountTab tenantId={tenant.id} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} apartmentAddress={tenant.apartmentAddress} />
       default:
         return <TenantOverviewTab tenantId={tenant.id} apartmentId={tenant.apartmentId} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} ownerId={tenant.ownerId} contractStatus={tenant.contract_status} onRenewed={() => setTenant(prev => prev ? { ...prev, contract_status: 'renewed' } : prev)} onEnded={() => setTenant(prev => prev ? { ...prev, contract_status: 'end_contract' } : prev)} />
     }

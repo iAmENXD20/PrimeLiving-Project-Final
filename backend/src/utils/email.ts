@@ -29,7 +29,7 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
 
   try {
     await transporter.sendMail({
-      from: `"PrimeLiving" <${env.SMTP_USER}>`,
+      from: `"E-AMS" <${env.SMTP_USER}>`,
       to: recipients.join(", "),
       subject: payload.subject,
       html: payload.html,

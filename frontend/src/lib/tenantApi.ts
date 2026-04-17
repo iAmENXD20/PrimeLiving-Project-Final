@@ -137,6 +137,9 @@ export async function getTenantApartmentInfo(apartmentId: string) {
       apartment_address: addressParts.length > 0 ? addressParts.join(', ') : null,
       monthly_rent: data.monthly_rent,
       apartmentowner_id: data.apartmentowner_id,
+      owner_name: data.owner_first_name && data.owner_last_name
+        ? `${data.owner_first_name} ${data.owner_last_name}`.trim()
+        : null,
       lease_start: data.lease_start || null,
       lease_end: data.lease_end || null,
       contract_duration: data.contract_duration || null,

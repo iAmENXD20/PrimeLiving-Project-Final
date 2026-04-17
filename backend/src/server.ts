@@ -2,6 +2,7 @@ import app from "./app";
 import { env } from "./config/env";
 import { startHealthCheck } from "./config/supabase";
 import { verifyCriticalSchema } from "./utils/startupSchemaCheck";
+import { startBillingScheduler } from "./utils/billingScheduler";
 
 const PORT = env.PORT;
 
@@ -10,6 +11,7 @@ async function startServer() {
     await verifyCriticalSchema();
 
     startHealthCheck();
+    startBillingScheduler();
 
     app.listen(PORT, () => {
       console.log(`

@@ -41,6 +41,7 @@ async function getOrCreateApartmentForOwner(
 
 function withFlatAddress(unit: any) {
   const apt = unit?.apartment ?? {};
+  const owner = unit?.owner ?? {};
   return {
     ...unit,
     apartment_name: apt.name ?? null,
@@ -49,7 +50,10 @@ function withFlatAddress(unit: any) {
     apartment_address_city: apt.address_city ?? null,
     apartment_address_province: apt.address_province ?? null,
     apartment_address_region: apt.address_region ?? null,
+    owner_first_name: owner.first_name ?? null,
+    owner_last_name: owner.last_name ?? null,
     apartment: undefined,
+    owner: undefined,
   };
 }
 
@@ -64,7 +68,7 @@ export async function getApartments(
   try {
     let query = supabaseAdmin
       .from("units")
-      .select("*, apartment:apartment_id(name, address_street, address_barangay, address_city, address_province, address_region)")
+      .select("*, apartment:apartment_id(name, address_street, address_barangay, address_city, address_province, address_region), owner:apartmentowner_id(first_name, last_name)")
       .order("created_at", { ascending: false });
 
     if (req.query.apartmentowner_id) {
@@ -105,7 +109,7 @@ export async function getApartmentById(
 
     const { data, error } = await supabaseAdmin
       .from("units")
-      .select("*, apartment:apartment_id(name, address_street, address_barangay, address_city, address_province, address_region)")
+      .select("*, apartment:apartment_id(name, address_street, address_barangay, address_city, address_province, address_region), owner:apartmentowner_id(first_name, last_name)")
       .eq("id", id)
       .single();
 

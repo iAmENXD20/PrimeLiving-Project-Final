@@ -136,7 +136,6 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
       branch: p.apartment_name || undefined,
       extra: {
         ...(p.payment_mode ? { 'Payment Mode': p.payment_mode } : {}),
-        ...(p.period_from && p.period_to ? { 'Period': `${new Date(p.period_from).toLocaleDateString()} — ${new Date(p.period_to).toLocaleDateString()}` } : {}),
       },
     })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())

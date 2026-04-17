@@ -2,7 +2,6 @@
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
-import { sendSmsToMany } from "../utils/sms";
 import { createNotification, createNotifications } from "../utils/notifications";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 
@@ -139,14 +138,7 @@ export async function getTenantDueSchedule(
     const existingByPeriodStart = new Map<string, any>();
     (paymentRows || []).forEach((row: any) => {
       if (row.period_from) {
-        // Store by exact period_from
         existingByPeriodStart.set(String(row.period_from), row);
-        // Also store by YYYY-MM key so different period_from dates in the same month match
-        const d = new Date(row.period_from);
-        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        if (!existingByPeriodStart.has(monthKey)) {
-          existingByPeriodStart.set(monthKey, row);
-        }
       }
     });
 
@@ -161,32 +153,40 @@ export async function getTenantDueSchedule(
       return `${year}-${month}-${day}`;
     };
 
+    // Advance by one month, keeping the same day (clamped to month's last day)
+    const addOneMonth = (date: Date): Date => {
+      const y = date.getFullYear();
+      const m = date.getMonth();
+      const d = date.getDate();
+      const targetLastDay = new Date(y, m + 2, 0).getDate();
+      return new Date(y, m + 1, Math.min(d, targetLastDay));
+    };
+
     const rowsToInsert: any[] = [];
     const pendingToOverdueIds: string[] = [];
 
-    // Use calendar months (1st to last day) with rent_deadline as due date
-    const rentDeadlineDay = rentDeadline ? rentDeadline.getDate() : null;
-    const startYear = moveInDate.getFullYear();
-    const startMonth = moveInDate.getMonth();
+    // Billing periods anchored to rent_deadline day (e.g. Apr 30 → May 30 → Jun 30)
+    // The rent_deadline defines the billing cycle, NOT the move-in date
+    if (!rentDeadline) {
+      // No rent_deadline set — can't generate billing periods
+      sendSuccess(res, []);
+      return;
+    }
 
-    for (let y = startYear, m = startMonth; ; ) {
-      const periodFrom = toLocalDateString(new Date(y, m, 1));
-      const lastDay = new Date(y, m + 1, 0).getDate();
-      const periodTo = toLocalDateString(new Date(y, m, lastDay));
+    // First billing period starts on the rent_deadline date
+    for (let periodStart = new Date(rentDeadline); periodStart <= today; periodStart = addOneMonth(periodStart)) {
+      const periodEnd = addOneMonth(periodStart);
+      const periodFrom = toLocalDateString(periodStart);
+      const periodTo = toLocalDateString(periodEnd);
 
-      // Determine due date for this month
-      const dueDay = rentDeadlineDay ? Math.min(rentDeadlineDay, lastDay) : lastDay;
-      const dueDate = new Date(y, m, dueDay);
-
-      // Stop if period start is after today
-      if (new Date(y, m, 1) > today) break;
+      // Due date IS the period start date (the rent_deadline day each month)
+      const dueDate = new Date(periodStart);
 
       const overdueAt = new Date(dueDate);
       overdueAt.setDate(overdueAt.getDate() + GRACE_DAYS);
       const shouldBeOverdue = today > overdueAt;
 
-      const monthKey = `${y}-${String(m + 1).padStart(2, '0')}`;
-      const existing = existingByPeriodStart.get(periodFrom) || existingByPeriodStart.get(monthKey);
+      const existing = existingByPeriodStart.get(periodFrom);
 
       if (!existing) {
         rowsToInsert.push({
@@ -197,7 +197,7 @@ export async function getTenantDueSchedule(
           amount: monthlyRent,
           payment_date: dueDate.toISOString(),
           status: shouldBeOverdue ? "overdue" : "pending",
-          description: `Monthly rent - ${new Date(y, m).toLocaleString("default", { month: "long", year: "numeric" })}`,
+          description: `Monthly rent - ${periodStart.toLocaleString("default", { month: "long", year: "numeric" })}`,
           payment_mode: null,
           receipt_url: null,
           verification_status: null,
@@ -210,10 +210,6 @@ export async function getTenantDueSchedule(
           pendingToOverdueIds.push(existing.id);
         }
       }
-
-      // Next month
-      m++;
-      if (m > 11) { m = 0; y++; }
     }
 
     if (rowsToInsert.length > 0) {
@@ -391,12 +387,6 @@ export async function submitPaymentProof(
 
       const tenantName = tenant ? `${tenant.first_name} ${tenant.last_name}`.trim() || "A tenant" : "A tenant";
 
-      await sendSmsToMany(
-        (managers || []).map((manager: any) => manager.phone),
-        `[E-AMS] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
-        { unit_id: unit_id || null, apartmentowner_id }
-      );
-
       await createNotifications(
         (managers || []).map((manager: any) => ({
           apartmentowner_id,
@@ -453,12 +443,6 @@ export async function submitPaymentProof(
     ]);
 
     const tenantName = tenant ? `${tenant.first_name} ${tenant.last_name}`.trim() || "A tenant" : "A tenant";
-
-    await sendSmsToMany(
-      (managers || []).map((manager: any) => manager.phone),
-      `[E-AMS] ${tenantName} submitted payment proof for ${period_from} to ${period_to}. Please review.`,
-      { unit_id: unit_id || null, apartmentowner_id }
-    );
 
     await createNotifications(
       (managers || []).map((manager: any) => ({
@@ -629,20 +613,8 @@ export async function verifyPayment(
       return;
     }
 
-    const { data: tenant } = await supabaseAdmin
-      .from("tenants")
-      .select("phone")
-      .eq("id", data.tenant_id)
-      .maybeSingle();
-
     if (verification_status === "verified") {
       // Notify tenant
-      await sendSmsToMany(
-        [tenant?.phone],
-        `[E-AMS] Your payment has been verified by the manager. Awaiting owner approval.`,
-        { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
-      );
-
       if (data.apartmentowner_id && data.tenant_id) {
         await createNotification({
           apartmentowner_id: data.apartmentowner_id,
@@ -655,12 +627,6 @@ export async function verifyPayment(
         });
       }
     } else {
-      await sendSmsToMany(
-        [tenant?.phone],
-        `[E-AMS] Your payment has been ${verification_status}.`,
-        { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
-      );
-
       if (data.apartmentowner_id && data.tenant_id) {
         await createNotification({
           apartmentowner_id: data.apartmentowner_id,
@@ -760,18 +726,6 @@ export async function approvePayment(
       }
 
       // Notify tenant
-      const { data: tenant } = await supabaseAdmin
-        .from("tenants")
-        .select("phone")
-        .eq("id", data.tenant_id)
-        .maybeSingle();
-
-      await sendSmsToMany(
-        [tenant?.phone],
-        `[E-AMS] Your payment has been approved by the owner. Thank you!`,
-        { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
-      );
-
       if (data.apartmentowner_id && data.tenant_id) {
         await createNotification({
           apartmentowner_id: data.apartmentowner_id,
@@ -814,18 +768,6 @@ export async function approvePayment(
         sendError(res, error.message, 500);
         return;
       }
-
-      const { data: tenant } = await supabaseAdmin
-        .from("tenants")
-        .select("phone")
-        .eq("id", data.tenant_id)
-        .maybeSingle();
-
-      await sendSmsToMany(
-        [tenant?.phone],
-        `[E-AMS] Your payment has been rejected by the owner.`,
-        { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
-      );
 
       if (data.apartmentowner_id && data.tenant_id) {
         await createNotification({

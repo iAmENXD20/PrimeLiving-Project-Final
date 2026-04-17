@@ -190,8 +190,8 @@ export async function createTenant(
 
       const [existingClientLookup, existingManagerLookup, existingTenantLookup] = await Promise.all([
         supabaseAdmin.from("apartment_owners").select("id").eq("email", normalizedEmail).maybeSingle(),
-        supabaseAdmin.from("apartment_managers").select("id").eq("email", normalizedEmail).maybeSingle(),
-        supabaseAdmin.from("tenants").select("id").eq("email", normalizedEmail).maybeSingle(),
+        supabaseAdmin.from("apartment_managers").select("id, status, auth_user_id").eq("email", normalizedEmail).maybeSingle(),
+        supabaseAdmin.from("tenants").select("id, status, auth_user_id").eq("email", normalizedEmail).maybeSingle(),
       ]);
 
       if (existingClientLookup.error || existingManagerLookup.error || existingTenantLookup.error) {
@@ -206,7 +206,24 @@ export async function createTenant(
         return;
       }
 
-      if (existingClientLookup.data || existingManagerLookup.data || existingTenantLookup.data) {
+      // Clean up inactive/declined records so the email can be reused
+      if (existingManagerLookup.data?.status === "inactive") {
+        if (existingManagerLookup.data.auth_user_id) {
+          await supabaseAdmin.auth.admin.deleteUser(existingManagerLookup.data.auth_user_id).catch(() => {});
+        }
+        await supabaseAdmin.from("apartment_managers").delete().eq("id", existingManagerLookup.data.id);
+      }
+      if (existingTenantLookup.data?.status === "inactive") {
+        if (existingTenantLookup.data.auth_user_id) {
+          await supabaseAdmin.auth.admin.deleteUser(existingTenantLookup.data.auth_user_id).catch(() => {});
+        }
+        await supabaseAdmin.from("tenants").delete().eq("id", existingTenantLookup.data.id);
+      }
+
+      const managerBlocked = existingManagerLookup.data && existingManagerLookup.data.status !== "inactive";
+      const tenantBlocked = existingTenantLookup.data && existingTenantLookup.data.status !== "inactive";
+
+      if (existingClientLookup.data || managerBlocked || tenantBlocked) {
         sendError(res, "Email is already used by another account", 409);
         return;
       }
@@ -550,56 +567,56 @@ export async function assignTenantToUnit(
       ).data?.id;
 
       if (resolvedTenantId) {
-        const moveIn = new Date(`${resolvedStartDate}T00:00:00`);
-        const billingYear = moveIn.getFullYear();
-        const billingMonth = moveIn.getMonth();
-        const monthStart = new Date(billingYear, billingMonth, 1).toISOString().split("T")[0];
-        const lastDay = new Date(billingYear, billingMonth + 1, 0).getDate();
-        const monthEnd = new Date(billingYear, billingMonth, lastDay).toISOString().split("T")[0];
-
-        // Check if payment already exists for the move-in month
-        const { data: existingPayment } = await supabaseAdmin
-          .from("payments")
-          .select("id")
-          .eq("tenant_id", resolvedTenantId)
-          .eq("unit_id", unit_id)
-          .gte("period_from", monthStart)
-          .lte("period_from", monthEnd)
+        // Get unit data for rent_deadline and rent amount
+        const { data: unitData } = await supabaseAdmin
+          .from("units")
+          .select("monthly_rent, apartment_id, rent_deadline")
+          .eq("id", unit_id)
           .maybeSingle();
 
-        if (!existingPayment) {
-          // Get unit rent and rent_deadline
-          const { data: unitData } = await supabaseAdmin
-            .from("units")
-            .select("monthly_rent, apartment_id, rent_deadline")
-            .eq("id", unit_id)
+        const rentDeadlineDate = unitData?.rent_deadline ? new Date(unitData.rent_deadline) : null;
+
+        if (rentDeadlineDate) {
+          // Billing period anchored to rent_deadline day (e.g. Apr 30 → May 30)
+          const addOneMonth = (date: Date): Date => {
+            const y = date.getFullYear(), m = date.getMonth(), d = date.getDate();
+            const targetLastDay = new Date(y, m + 2, 0).getDate();
+            return new Date(y, m + 1, Math.min(d, targetLastDay));
+          };
+          const periodEnd = addOneMonth(rentDeadlineDate);
+          const periodFrom = rentDeadlineDate.toISOString().split("T")[0];
+          const periodTo = periodEnd.toISOString().split("T")[0];
+
+          // Check if payment already exists for this period
+          const { data: existingPayment } = await supabaseAdmin
+            .from("payments")
+            .select("id")
+            .eq("tenant_id", resolvedTenantId)
+            .eq("unit_id", unit_id)
+            .eq("period_from", periodFrom)
             .maybeSingle();
 
-          const rent = monthly_rent ?? unitData?.monthly_rent ?? 0;
-          if (rent > 0) {
-            const now = new Date();
-            // Use rent_deadline day if available, otherwise last day of month
-            const rentDeadlineDay = unitData?.rent_deadline
-              ? new Date(unitData.rent_deadline).getDate()
-              : null;
-            const dueDay = rentDeadlineDay ? Math.min(rentDeadlineDay, lastDay) : lastDay;
-            const dueDate = new Date(billingYear, billingMonth, dueDay);
-            const isPastDue = now > dueDate;
-            const monthName = moveIn.toLocaleString("default", { month: "long", year: "numeric" });
+          if (!existingPayment) {
+            const rent = monthly_rent ?? unitData?.monthly_rent ?? 0;
+            if (rent > 0) {
+              const now = new Date();
+              const dueDate = rentDeadlineDate;
+              const isPastDue = now > dueDate;
 
-            await supabaseAdmin.from("payments").insert({
-              apartmentowner_id: apt.apartmentowner_id,
-              tenant_id: resolvedTenantId,
-              unit_id,
-              apartment_id: unitData?.apartment_id || null,
-              amount: rent,
-              payment_date: dueDate.toISOString(),
-              status: isPastDue ? "overdue" : "pending",
-              description: `Monthly rent - ${monthName}`,
-              payment_mode: null,
-              period_from: monthStart,
-              period_to: monthEnd,
-            });
+              await supabaseAdmin.from("payments").insert({
+                apartmentowner_id: apt.apartmentowner_id,
+                tenant_id: resolvedTenantId,
+                unit_id,
+                apartment_id: unitData?.apartment_id || null,
+                amount: rent,
+                payment_date: dueDate.toISOString(),
+                status: isPastDue ? "overdue" : "pending",
+                description: `Monthly rent - ${rentDeadlineDate.toLocaleString("default", { month: "long", year: "numeric" })}`,
+                payment_mode: null,
+                period_from: periodFrom,
+                period_to: periodTo,
+              });
+            }
           }
         }
       }

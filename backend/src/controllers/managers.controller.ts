@@ -126,8 +126,8 @@ export async function createManager(
 
     const [existingClientLookup, existingManagerLookup, existingTenantLookup] = await Promise.all([
       supabaseAdmin.from("apartment_owners").select("id").eq("email", normalizedEmail).maybeSingle(),
-      supabaseAdmin.from("apartment_managers").select("id").eq("email", normalizedEmail).maybeSingle(),
-      supabaseAdmin.from("tenants").select("id").eq("email", normalizedEmail).maybeSingle(),
+      supabaseAdmin.from("apartment_managers").select("id, status, auth_user_id").eq("email", normalizedEmail).maybeSingle(),
+      supabaseAdmin.from("tenants").select("id, status, auth_user_id").eq("email", normalizedEmail).maybeSingle(),
     ]);
 
     if (existingClientLookup.error || existingManagerLookup.error || existingTenantLookup.error) {
@@ -142,7 +142,24 @@ export async function createManager(
       return;
     }
 
-    if (existingClientLookup.data || existingManagerLookup.data || existingTenantLookup.data) {
+    // Clean up inactive/declined records so the email can be reused
+    if (existingManagerLookup.data?.status === "inactive") {
+      if (existingManagerLookup.data.auth_user_id) {
+        await supabaseAdmin.auth.admin.deleteUser(existingManagerLookup.data.auth_user_id).catch(() => {});
+      }
+      await supabaseAdmin.from("apartment_managers").delete().eq("id", existingManagerLookup.data.id);
+    }
+    if (existingTenantLookup.data?.status === "inactive") {
+      if (existingTenantLookup.data.auth_user_id) {
+        await supabaseAdmin.auth.admin.deleteUser(existingTenantLookup.data.auth_user_id).catch(() => {});
+      }
+      await supabaseAdmin.from("tenants").delete().eq("id", existingTenantLookup.data.id);
+    }
+
+    const managerBlocked = existingManagerLookup.data && existingManagerLookup.data.status !== "inactive";
+    const tenantBlocked = existingTenantLookup.data && existingTenantLookup.data.status !== "inactive";
+
+    if (existingClientLookup.data || managerBlocked || tenantBlocked) {
       sendError(res, "Email is already used by another account", 409);
       return;
     }

@@ -2,7 +2,6 @@
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
-import { sendSmsToMany } from "../utils/sms";
 import { createNotification, createNotifications } from "../utils/notifications";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 
@@ -128,12 +127,23 @@ export async function createMaintenanceRequest(
     const { tenant_id, unit_id, apartmentowner_id, title, description, priority, photo_url } =
       req.body;
 
-    // Generate next maintenance_id (MR0001, MR0002, etc.)
-    const { count } = await supabaseAdmin
+    // Generate next maintenance_id (MR-2026-001, MR-2026-002, etc.)
+    const currentYear = new Date().getFullYear();
+    const yearPrefix = `MR-${currentYear}-`;
+    const { data: lastEntry } = await supabaseAdmin
       .from("maintenance")
-      .select("id", { count: "exact", head: true });
-    const nextNum = (count || 0) + 1;
-    const maintenance_id = `MR${String(nextNum).padStart(4, "0")}`;
+      .select("maintenance_id")
+      .like("maintenance_id", `${yearPrefix}%`)
+      .order("maintenance_id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let nextNum = 1;
+    if (lastEntry?.maintenance_id) {
+      const lastNumStr = lastEntry.maintenance_id.replace(yearPrefix, "");
+      const parsed = parseInt(lastNumStr, 10);
+      if (!isNaN(parsed)) nextNum = parsed + 1;
+    }
+    const maintenance_id = `${yearPrefix}${String(nextNum).padStart(3, "0")}`;
 
     const { data, error } = await supabaseAdmin
       .from("maintenance")
@@ -199,12 +209,6 @@ export async function createMaintenanceRequest(
       managers = managersByOwner || [];
     }
 
-    await sendSmsToMany(
-      (managers || []).map((manager: any) => manager.phone),
-      `[E-AMS] New maintenance request from ${tenantName}: ${title} (${priority})`,
-      { unit_id, apartmentowner_id }
-    );
-
     await createNotifications(
       (managers || []).map((manager: any) => ({
         apartmentowner_id,
@@ -266,12 +270,6 @@ export async function updateMaintenanceStatus(
         .select("phone")
         .eq("id", data.tenant_id)
         .maybeSingle();
-
-      await sendSmsToMany(
-        [tenant?.phone],
-        `[E-AMS] Your maintenance request "${data.title}" is now ${status.replace("_", " ")}.`,
-        { unit_id: data.unit_id, apartmentowner_id: data.apartmentowner_id }
-      );
 
       if (data.apartmentowner_id && data.tenant_id) {
         await createNotification({
