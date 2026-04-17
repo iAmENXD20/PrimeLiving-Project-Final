@@ -53,6 +53,8 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
   const { isDark } = useTheme()
   const [requests, setRequests] = useState<TenantMaintenanceRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
   const [page, setPage] = useState(1)
   const pageSize = 10
   const [subTab, setSubTab] = useState<'request' | 'tracking'>('request')
@@ -87,15 +89,19 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
   const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false)
   const priorityDropdownRef = useRef<HTMLDivElement>(null)
 
-  const loadRequests = useCallback(async () => {
+  const loadRequests = useCallback(async (skipCache = false) => {
+    const version = ++loadVersion.current
     try {
-      setLoading(true)
-      const data = await getTenantMaintenanceRequests(tenantId)
+      if (!initialLoadDone.current) setLoading(true)
+      const data = await getTenantMaintenanceRequests(tenantId, { skipCache })
+      if (loadVersion.current !== version) return // stale response
       setRequests(data)
+      initialLoadDone.current = true
     } catch (err) {
+      if (loadVersion.current !== version) return
       console.error('Failed to load maintenance requests:', err)
     } finally {
-      setLoading(false)
+      if (loadVersion.current === version) setLoading(false)
     }
   }, [tenantId])
 
@@ -104,7 +110,7 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
   }, [loadRequests])
 
   useRealtimeSubscription(`tenant-maintenance-${tenantId}`, [
-    { table: 'maintenance', filter: `tenant_id=eq.${tenantId}`, onChanged: loadRequests },
+    { table: 'maintenance', filter: `tenant_id=eq.${tenantId}`, onChanged: () => loadRequests(true) },
   ])
 
   useEffect(() => {
@@ -145,7 +151,7 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
       reset()
       setPhotos([null, null, null, null])
       setPreviews([null, null, null, null])
-      loadRequests()
+      loadRequests(true)
     } catch {
       toast.error('Failed to submit request')
     }

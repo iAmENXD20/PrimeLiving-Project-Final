@@ -1,9 +1,10 @@
 import { Search, Plus, MoreHorizontal, Edit2, Trash2, Copy, Check, Eye } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { useEmailValidation } from '@/hooks/useEmailValidation'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { suppressRealtime, isRealtimeSuppressed } from '@/lib/realtimeCooldown'
 import {
   getOwnerManagers,
   createOwnerManager,
@@ -36,6 +37,8 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [managers, setManagers] = useState<Manager[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
   const [showModal, setShowModal] = useState(false)
   const [editingManager, setEditingManager] = useState<Manager | null>(null)
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', apartmentId: '' })
@@ -58,18 +61,23 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
 
   // Real-time: auto-refresh managers list when any row changes
   useRealtimeSubscription(`owner-managers-${ownerId}`, [
-    { table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadManagers() },
+    { table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadManagers(true) },
   ])
 
-  async function loadManagers() {
+  async function loadManagers(skipCache = false) {
+    if (skipCache && isRealtimeSuppressed()) return
+    const version = ++loadVersion.current
     try {
-      setLoading(true)
-      const data = await getOwnerManagers(ownerId)
+      if (!initialLoadDone.current) setLoading(true)
+      const data = await getOwnerManagers(ownerId, { skipCache })
+      if (loadVersion.current !== version) return // stale response
       setManagers(data)
+      initialLoadDone.current = true
     } catch (err) {
+      if (loadVersion.current !== version) return
       console.error('Failed to load managers:', err)
     } finally {
-      setLoading(false)
+      if (loadVersion.current === version) setLoading(false)
     }
   }
 
@@ -103,18 +111,31 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
 
     try {
       setSaving(true)
+      suppressRealtime()
       if (editingManager) {
-        const updated = await updateOwnerManager(editingManager.id, {
+        // Optimistic: update in state and close modal BEFORE API call
+        loadVersion.current++
+        setManagers(prev => prev.map(m => m.id === editingManager.id ? { ...m, first_name: form.firstName, last_name: form.lastName, email: form.email, phone: form.phone ? `+63${form.phone}` : m.phone } : m))
+        toast.success('Manager updated successfully')
+        setShowModal(false)
+        // API call in background
+        updateOwnerManager(editingManager.id, {
           first_name: form.firstName,
           last_name: form.lastName,
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
           apartment_id: form.apartmentId || null,
+        }).then(() => loadManagers(true)).catch(() => {
+          toast.error('Failed to save — refreshing data')
+          loadManagers(true)
         })
-        await loadManagers()
-        toast.success('Manager updated successfully')
-        setShowModal(false)
       } else {
+        // For create: add placeholder instantly, show credentials when API returns
+        const tempId = `temp-${crypto.randomUUID()}`
+        loadVersion.current++
+        setManagers(prev => [{ id: tempId, first_name: form.firstName, last_name: form.lastName, email: form.email, phone: form.phone ? `+63${form.phone}` : null, status: 'pending', apartment_id: form.apartmentId || null } as any, ...prev])
+        setShowModal(false)
+
         const result = await createOwnerManager({
           firstName: form.firstName,
           lastName: form.lastName,
@@ -123,16 +144,19 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
           apartmentowner_id: ownerId,
           apartment_id: form.apartmentId || undefined,
         })
-        setManagers((prev) => [result.manager, ...prev])
-        await loadManagers()
-        setShowModal(false)
+        // Replace temp with real data
+        loadVersion.current++
+        setManagers(prev => prev.map(m => m.id === tempId ? result.manager : m))
         setCredentials({ email: form.email, password: result.generatedPassword || '' })
         setShowCredentials(true)
         toast.success('Manager account created successfully')
+        // Background refetch
+        loadManagers(true).catch(() => {})
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save manager'
       toast.error(message)
+      loadManagers(true).catch(() => {})
     } finally {
       setSaving(false)
     }
@@ -146,15 +170,21 @@ export default function OwnerManagersTab({ ownerId }: OwnerManagersTabProps) {
   }
 
   async function handleDelete(id: string) {
+    // Optimistic: remove from state BEFORE API call
+    suppressRealtime()
+    loadVersion.current++
+    setManagers(prev => prev.filter(m => m.id !== id))
+    setOpenMenu(null)
+    toast.success('Manager deleted')
+    setDeleting(true)
     try {
-      setDeleting(true)
       await deleteOwnerManager(id)
-      await loadManagers()
-      setOpenMenu(null)
-      toast.success('Manager deleted')
+      // Background refetch
+      loadManagers(true).catch(() => {})
     } catch (err) {
       console.error('Failed to delete manager:', err)
-      toast.error('Failed to delete manager')
+      toast.error('Failed to delete manager — refreshing data')
+      loadManagers(true).catch(() => {})
     } finally {
       setDeleting(false)
       setManagerToDelete(null)

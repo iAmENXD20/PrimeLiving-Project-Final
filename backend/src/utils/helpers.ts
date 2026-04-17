@@ -15,9 +15,9 @@ export function sendSuccess<T>(
     message,
   };
 
-  // Cache-Control: allow browsers to cache GET responses briefly
+  // Cache-Control: no caching — realtime subscriptions handle freshness
   if (res.req?.method === "GET") {
-    res.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
+    res.set("Cache-Control", "no-store");
   }
 
   res.status(statusCode).json(response);
@@ -52,7 +52,7 @@ export function generateRandomPassword(length: number = 12): string {
  * Uses a short-lived in-memory cache (30s) to avoid redundant DB queries
  * when multiple endpoints are called in quick succession.
  */
-const MANAGER_SCOPE_TTL_MS = 300_000; // 5 minutes
+const MANAGER_SCOPE_TTL_MS = 10_000; // 10 seconds — short TTL for realtime responsiveness
 const MANAGER_SCOPE_MAX_ENTRIES = 100;
 const managerScopeCache = new Map<string, { data: { apartmentIds: string[]; unitIds: string[] }; expires: number }>();
 

@@ -147,8 +147,8 @@ export async function getTenantApartmentInfo(apartmentId: string) {
 }
 
 // ── Maintenance Requests ───────────────────────────────────
-export async function getTenantMaintenanceRequests(tenantId: string): Promise<TenantMaintenanceRequest[]> {
-  return api.get<TenantMaintenanceRequest[]>(`/maintenance?tenant_id=${tenantId}`)
+export async function getTenantMaintenanceRequests(tenantId: string, options?: { skipCache?: boolean }): Promise<TenantMaintenanceRequest[]> {
+  return api.get<TenantMaintenanceRequest[]>(`/maintenance?tenant_id=${tenantId}`, options)
 }
 
 export async function createTenantMaintenanceRequest(request: {
@@ -195,12 +195,12 @@ export async function updateMaintenanceStatus(id: string, status: TenantMaintena
 }
 
 // ── Payments ───────────────────────────────────────────────
-export async function getTenantPayments(tenantId: string): Promise<TenantPayment[]> {
-  return api.get<TenantPayment[]>(`/payments?tenant_id=${tenantId}`)
+export async function getTenantPayments(tenantId: string, options?: { skipCache?: boolean }): Promise<TenantPayment[]> {
+  return api.get<TenantPayment[]>(`/payments?tenant_id=${tenantId}`, options)
 }
 
-export async function getTenantDueSchedule(tenantId: string): Promise<TenantDueScheduleItem[]> {
-  return api.get<TenantDueScheduleItem[]>(`/payments/due-schedule/${tenantId}`)
+export async function getTenantDueSchedule(tenantId: string, options?: { skipCache?: boolean }): Promise<TenantDueScheduleItem[]> {
+  return api.get<TenantDueScheduleItem[]>(`/payments/due-schedule/${tenantId}`, options)
 }
 
 // ── Upload Payment Receipt to Supabase Storage ─────────────
@@ -260,11 +260,11 @@ export async function getTenantAnnouncements(ownerId: string, tenantId?: string)
   return api.get<TenantAnnouncement[]>(`/announcements?${params.toString()}`)
 }
 
-export async function getTenantDocuments(tenantId: string, ownerId?: string | null): Promise<TenantDocument[]> {
+export async function getTenantDocuments(tenantId: string, ownerId?: string | null, options?: { skipCache?: boolean }): Promise<TenantDocument[]> {
   const params = new URLSearchParams({ tenant_id: tenantId })
   if (ownerId) params.set('apartmentowner_id', ownerId)
 
-  const data = await api.get<any[]>(`/documents?${params.toString()}`)
+  const data = await api.get<any[]>(`/documents?${params.toString()}`, options)
   return (data || []).map((doc: any) => ({
     ...doc,
     unit_name: doc.apartments?.name ?? null,
@@ -273,13 +273,13 @@ export async function getTenantDocuments(tenantId: string, ownerId?: string | nu
   }))
 }
 
-export async function getTenantNotifications(tenantId: string, ownerId?: string | null): Promise<TenantNotification[]> {
+export async function getTenantNotifications(tenantId: string, ownerId?: string | null, options?: { skipCache?: boolean }): Promise<TenantNotification[]> {
   const params = new URLSearchParams({
     recipient_role: 'tenant',
     recipient_id: tenantId,
   })
   if (ownerId) params.set('apartmentowner_id', ownerId)
-  return api.get<TenantNotification[]>(`/notifications?${params.toString()}`, { skipCache: true })
+  return api.get<TenantNotification[]>(`/notifications?${params.toString()}`, { skipCache: true, ...options })
 }
 
 export async function markTenantNotificationRead(id: string): Promise<void> {

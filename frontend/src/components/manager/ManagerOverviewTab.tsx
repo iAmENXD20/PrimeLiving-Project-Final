@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Users, AlertTriangle, MapPin, Building2, CheckCircle, XCircle, Wrench, PhilippinePeso, Clock, Eye, X } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
@@ -26,12 +26,13 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
   const [apartmentBranch, setApartmentBranch] = useState<string | null>(null)
   const [apartmentAddress, setApartmentAddress] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
   const [page, setPage] = useState(1)
   const pageSize = 10
 
   const loadAll = useCallback(async () => {
     try {
-      setLoading(true)
+      if (!initialLoadDone.current) setLoading(true)
       const [s, requests, units, paymentData] = await Promise.all([
         getManagerDashboardStats(managerId),
         getManagerMaintenanceRequests(managerId),
@@ -78,6 +79,7 @@ export default function ManagerOverviewTab({ managerId, managerName, ownerId }: 
       console.error('Failed to load manager overview:', err)
     } finally {
       setLoading(false)
+      initialLoadDone.current = true
     }
   }, [managerId, ownerId])
 

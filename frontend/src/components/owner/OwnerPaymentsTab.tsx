@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, PhilippinePeso, Upload, Trash2, QrCode, Image as ImageIcon, ChevronDown, CheckCircle2, XCircle, X, Receipt, Clock, Download, Users, UserCheck, UserX } from 'lucide-react'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { suppressRealtime, isRealtimeSuppressed } from '@/lib/realtimeCooldown'
 const LazyBarChart = lazy(() => import('recharts').then(m => ({ default: m.BarChart })))
 const LazyBar = lazy(() => import('recharts').then(m => ({ default: m.Bar })))
 const LazyXAxis = lazy(() => import('recharts').then(m => ({ default: m.XAxis })))
@@ -57,6 +58,9 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
 
   const [payments, setPayments] = useState<OwnerPayment[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
+  const approvalsVersion = useRef(0)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [page, setPage] = useState(1)
@@ -120,14 +124,17 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
   const [selectedPayment, setSelectedPayment] = useState<OwnerPayment | null>(null)
   const [previewPayment, setPreviewPayment] = useState<OwnerPayment | null>(null)
 
-  async function load() {
-    setLoading(true)
+  async function load(skipCache = false) {
+    if (skipCache && isRealtimeSuppressed()) return
+    const version = ++loadVersion.current
+    if (!initialLoadDone.current) setLoading(true)
     try {
       const [paymentsResult, qrResult, ownerResult] = await Promise.allSettled([
-        getOwnerPayments(ownerId),
+        getOwnerPayments(ownerId, { skipCache }),
         getPaymentQrUrl(ownerId),
         supabase.from('apartment_owners').select('payment_info').eq('id', ownerId).single(),
       ])
+      if (loadVersion.current !== version) return // stale response
 
       if (qrResult.status === 'fulfilled') {
         setQrUrl(qrResult.value)
@@ -161,23 +168,29 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
       }
 
       setPayments(data)
+      initialLoadDone.current = true
     } catch (err) {
+      if (loadVersion.current !== version) return
       console.error('Failed to load payments:', err)
       setPayments([])
     } finally {
-      setLoading(false)
+      if (loadVersion.current === version) setLoading(false)
     }
   }
 
-  async function loadApprovals() {
+  async function loadApprovals(skipCache = false) {
+    if (skipCache && isRealtimeSuppressed()) return
+    const version = ++approvalsVersion.current
     try {
       setLoadingApprovals(true)
-      const data = await getVerifiedPayments(ownerId)
+      const data = await getVerifiedPayments(ownerId, { skipCache })
+      if (approvalsVersion.current !== version) return // stale response
       setPendingApprovals(data)
     } catch (err) {
+      if (approvalsVersion.current !== version) return
       console.error('Failed to load pending approvals:', err)
     } finally {
-      setLoadingApprovals(false)
+      if (approvalsVersion.current === version) setLoadingApprovals(false)
     }
   }
 
@@ -185,7 +198,7 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
 
   // Real-time: auto-refresh when payments change
   useRealtimeSubscription(`owner-payments-${ownerId}`, [
-    { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => { load(); loadApprovals() } },
+    { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => { load(true); loadApprovals(true) } },
   ])
 
   // Close dropdowns on outside click
@@ -298,30 +311,46 @@ export default function OwnerPaymentsTab({ ownerId }: OwnerPaymentsTabProps) {
   const cardClass = `rounded-xl border ${isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'}`
 
   const handleApprovePayment = async (paymentId: string) => {
+    // Optimistic: update state BEFORE API call
+    suppressRealtime()
+    loadVersion.current++
+    approvalsVersion.current++
+    setPendingApprovals(prev => prev.filter(p => p.id !== paymentId))
+    setPayments(prev => prev.map(p => p.id === paymentId ? { ...p, status: 'paid', verification_status: 'approved' } as any : p))
+    toast.success('Payment approved!')
+    setPreviewPayment(null)
     setApprovalActionLoading(paymentId)
     try {
       await approveVerifiedPayment(paymentId)
-      toast.success('Payment approved!')
-      await Promise.all([load(), loadApprovals()])
-      setPreviewPayment(null)
+      // Background refetch for full data consistency
+      Promise.all([load(true), loadApprovals(true)]).catch(() => {})
     } catch (err) {
       console.error('Failed to approve payment:', err)
-      toast.error('Failed to approve payment')
+      toast.error('Failed to approve payment — refreshing data')
+      Promise.all([load(true), loadApprovals(true)]).catch(() => {})
     } finally {
       setApprovalActionLoading(null)
     }
   }
 
   const handleRejectPayment = async (paymentId: string) => {
+    // Optimistic: update state BEFORE API call
+    suppressRealtime()
+    loadVersion.current++
+    approvalsVersion.current++
+    setPendingApprovals(prev => prev.filter(p => p.id !== paymentId))
+    setPayments(prev => prev.map(p => p.id === paymentId ? { ...p, verification_status: 'rejected' } as any : p))
+    toast.success('Payment rejected')
+    setPreviewPayment(null)
     setApprovalActionLoading(paymentId)
     try {
       await rejectVerifiedPayment(paymentId)
-      toast.success('Payment rejected')
-      await Promise.all([load(), loadApprovals()])
-      setPreviewPayment(null)
+      // Background refetch for full data consistency
+      Promise.all([load(true), loadApprovals(true)]).catch(() => {})
     } catch (err) {
       console.error('Failed to reject payment:', err)
-      toast.error('Failed to reject payment')
+      toast.error('Failed to reject payment — refreshing data')
+      Promise.all([load(true), loadApprovals(true)]).catch(() => {})
     } finally {
       setApprovalActionLoading(null)
     }

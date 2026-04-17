@@ -6,7 +6,7 @@ import ManagerTopBar from '../components/manager/ManagerTopBar'
 import { getCurrentManager, getManagerNotifications, getManagerDashboardStats, checkLeaseExpiry } from '../lib/managerApi'
 import { supabase } from '../lib/supabase'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
-import { useAutoRefresh } from '../hooks/useAutoRefresh'
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 import { CardsSkeleton } from '../components/ui/skeleton'
 
 const ManagerOverviewTab = lazy(() => import('../components/manager/ManagerOverviewTab'))
@@ -27,14 +27,12 @@ export default function ManagerDashboard() {
   const [loadError, setLoadError] = useState(false)
   const [pendingMaintenanceCount, setPendingMaintenanceCount] = useState(0)
   const [notificationCount, setNotificationCount] = useState(0)
-  const [refreshKey, setRefreshKey] = useState(0)
 
   const refreshData = useCallback(() => {
     loadManager()
-    setRefreshKey(k => k + 1)
+    fetchPendingCount()
+    refreshNotificationCount()
   }, [])
-
-  useAutoRefresh(refreshData, { enabled: !!manager })
 
   const loadManager = async () => {
     setLoading(true)
@@ -60,20 +58,30 @@ export default function ManagerDashboard() {
   }, [navigate])
 
   // Fetch pending maintenance count using backend API (scoped to manager)
-  useEffect(() => {
+  const fetchPendingCount = useCallback(async () => {
     if (!manager?.id) return
-    async function fetchPendingCount() {
-      try {
-        const stats = await getManagerDashboardStats(manager!.id)
-        setPendingMaintenanceCount(stats.pendingMaintenance ?? 0)
-      } catch {
-        // silent
-      }
+    try {
+      const stats = await getManagerDashboardStats(manager!.id)
+      setPendingMaintenanceCount(stats.pendingMaintenance ?? 0)
+    } catch {
+      // silent
     }
-    fetchPendingCount()
-    const interval = setInterval(fetchPendingCount, 120000)
-    return () => clearInterval(interval)
   }, [manager?.id])
+
+  useEffect(() => {
+    fetchPendingCount()
+  }, [fetchPendingCount])
+
+  // Realtime subscription for dashboard-level badge counts
+  useRealtimeSubscription(
+    `mgr-dashboard-${manager?.id || 'init'}`,
+    manager?.id && manager?.ownerId
+      ? [
+          { table: 'maintenance', filter: `apartmentowner_id=eq.${manager.ownerId}`, onChanged: () => fetchPendingCount() },
+          { table: 'notifications', filter: `recipient_id=eq.${manager.id}`, onChanged: () => refreshNotificationCount() },
+        ]
+      : []
+  )
 
   // Check for expiring leases on load
   useEffect(() => {
@@ -100,12 +108,12 @@ export default function ManagerDashboard() {
     })
   }, [manager?.id, manager?.ownerId, refreshNotificationCount])
 
-  // Single polling via browser notifications hook (also refreshes badge count)
+  // Browser notifications (realtime triggers sync, no polling needed)
   useBrowserNotifications({
     enabled: Boolean(manager?.id && manager?.ownerId),
     storageKey: `browser_notifs_manager_${manager?.id || 'unknown'}`,
     fetchNotifications: fetchManagerNotifications,
-    pollMs: 120000,
+    pollMs: 0,
     onSync: refreshNotificationCount,
   })
 
@@ -140,21 +148,21 @@ export default function ManagerDashboard() {
 
     switch (activeTab) {
       case 'overview':
-        return <ManagerOverviewTab key={`overview-${refreshKey}`} managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
+        return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
       case 'maintenance':
-        return <ManagerMaintenanceTab key={`maintenance-${refreshKey}`} managerId={manager.id} ownerId={manager.ownerId || ''} />
+        return <ManagerMaintenanceTab managerId={manager.id} ownerId={manager.ownerId || ''} />
       case 'manage-apartment':
-        return <ManagerManageApartmentTab key={`manage-${refreshKey}`} managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
+        return <ManagerManageApartmentTab managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
       case 'payments':
-        return <ManagerPaymentsTab key={`payments-${refreshKey}`} managerId={manager.id} ownerId={manager.ownerId || ''} />
+        return <ManagerPaymentsTab managerId={manager.id} ownerId={manager.ownerId || ''} />
       case 'documents':
-        return <ManagerDocumentsTab key={`documents-${refreshKey}`} managerId={manager.id} ownerId={manager.ownerId || ''} />
+        return <ManagerDocumentsTab managerId={manager.id} ownerId={manager.ownerId || ''} />
       case 'notifications':
-        return <ManagerNotificationsTab key={`notifications-${refreshKey}`} managerId={manager.id} ownerId={manager.ownerId || ''} onRead={refreshNotificationCount} />
+        return <ManagerNotificationsTab managerId={manager.id} ownerId={manager.ownerId || ''} onRead={refreshNotificationCount} />
       case 'settings':
-        return <ManagerSettingsTab key={`settings-${refreshKey}`} managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} ownerId={manager.ownerId} />
+        return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} ownerId={manager.ownerId} />
       default:
-        return <ManagerOverviewTab key={`overview-default-${refreshKey}`} managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
+        return <ManagerOverviewTab managerId={manager.id} managerName={manager.name} ownerId={manager.ownerId || ''} />
     }
   }
 

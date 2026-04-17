@@ -13,4 +13,9 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     storageKey: 'app-auth',
     storage: window.localStorage,
   },
+  realtime: {
+    heartbeatIntervalMs: 15_000,
+    reconnectAfterMs: (tries: number) => Math.min(1000 * 2 ** tries, 30_000),
+    timeout: 20_000,
+  },
 })

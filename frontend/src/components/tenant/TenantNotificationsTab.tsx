@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Bell, Megaphone, Check, Trash2 } from 'lucide-react'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { useTheme } from '../../context/ThemeContext'
@@ -23,18 +23,24 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
   const { isDark } = useTheme()
   const [notifications, setNotifications] = useState<TenantNotification[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
   const [confirmAction, setConfirmAction] = useState<{ type: 'one'; id: string } | { type: 'all' } | null>(null)
   const [confirming, setConfirming] = useState(false)
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async (skipCache = false) => {
+    const version = ++loadVersion.current
     try {
-      setLoading(true)
-      const data = await getTenantNotifications(tenantId, ownerId)
+      if (!initialLoadDone.current) setLoading(true)
+      const data = await getTenantNotifications(tenantId, ownerId, { skipCache })
+      if (loadVersion.current !== version) return // stale response
       setNotifications(data)
+      initialLoadDone.current = true
     } catch (err) {
+      if (loadVersion.current !== version) return
       console.error('Failed to load notifications:', err)
     } finally {
-      setLoading(false)
+      if (loadVersion.current === version) setLoading(false)
     }
   }, [tenantId, ownerId])
 
@@ -43,8 +49,20 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
   }, [loadNotifications])
 
   useRealtimeSubscription(`tenant-notifs-${tenantId}`, [
-    { table: 'notifications', filter: `recipient_id=eq.${tenantId}`, onChanged: loadNotifications },
+    { table: 'notifications', filter: `recipient_id=eq.${tenantId}`, onChanged: () => loadNotifications(true) },
   ])
+
+  // Auto-mark all as read when notifications tab is opened
+  useEffect(() => {
+    if (notifications.length > 0 && notifications.some((n) => !n.is_read)) {
+      markAllTenantNotificationsRead(tenantId)
+        .then(() => {
+          setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })))
+          onRead?.()
+        })
+        .catch(() => {})
+    }
+  }, [notifications.length > 0 && notifications.some((n) => !n.is_read)])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -77,7 +95,7 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
     try {
       setConfirming(true)
       await deleteTenantNotification(id)
-      await loadNotifications()
+      await loadNotifications(true)
       onRead?.()
     } catch (error) {
       console.error('Failed to delete notification:', error)
@@ -101,7 +119,7 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
     try {
       setConfirming(true)
       await deleteAllTenantNotifications(tenantId, ownerId)
-      await loadNotifications()
+      await loadNotifications(true)
       onRead?.()
     } catch (error) {
       console.error('Failed to delete all notifications:', error)

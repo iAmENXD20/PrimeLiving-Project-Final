@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { getOwnerPayments, getOwnerProperties, getExpenses, createExpense, deleteExpense, type OwnerPayment, type Property, type Expense } from '../../lib/ownerApi'
-import { PhilippinePeso, TrendingUp, Calendar, Download, ChevronDown, Plus, Trash2, X, Printer, FileText, AlertTriangle } from 'lucide-react'
+import { PhilippinePeso, TrendingUp, Calendar, Download, ChevronDown, Plus, Trash2, X, Printer, FileText, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
@@ -61,6 +61,8 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
   const [payments, setPayments] = useState<OwnerPayment[]>([])
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
   const [activeTab, setActiveTab] = useState<SectionTab>('quarterly')
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedQuarter, setSelectedQuarter] = useState(Math.ceil((new Date().getMonth() + 1) / 3))
@@ -81,20 +83,32 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
   const [showTaxNotice, setShowTaxNotice] = useState(false)
   const [pendingExportFn, setPendingExportFn] = useState<(() => void) | null>(null)
 
-  const loadReports = useCallback(() => {
-    setLoading(true)
-    Promise.all([getOwnerPayments(ownerId), getOwnerProperties(ownerId), getExpenses(ownerId)])
-      .then(([p, props, exp]) => { setPayments(p); setProperties(props); setExpenses(exp) })
-      .catch(() => { setPayments([]); setProperties([]); setExpenses([]) })
-      .finally(() => setLoading(false))
+  // Pagination state
+  const ROWS_PER_PAGE = 10
+  const [qPayPage, setQPayPage] = useState(1)
+  const [aPayPage, setAPayPage] = useState(1)
+  const [aExpPage, setAExpPage] = useState(1)
+  const [expPage, setExpPage] = useState(1)
+
+  // Reset pages when filters change
+  useEffect(() => { setQPayPage(1); setAPayPage(1); setAExpPage(1); setExpPage(1) }, [selectedYear, selectedQuarter, selectedProperty])
+
+  const loadReports = useCallback((skipCache = false) => {
+    const version = ++loadVersion.current
+    if (!initialLoadDone.current) setLoading(true)
+    const opts = { skipCache }
+    Promise.all([getOwnerPayments(ownerId, opts), getOwnerProperties(ownerId, opts), getExpenses(ownerId, undefined, opts)])
+      .then(([p, props, exp]) => { if (loadVersion.current !== version) return; setPayments(p); setProperties(props); setExpenses(exp); initialLoadDone.current = true })
+      .catch(() => { if (loadVersion.current !== version) return; setPayments([]); setProperties([]); setExpenses([]) })
+      .finally(() => { if (loadVersion.current === version) setLoading(false) })
   }, [ownerId])
 
   useEffect(() => { loadReports() }, [ownerId])
 
   // Real-time: auto-refresh when payments or expenses change
   useRealtimeSubscription(`owner-audit-${ownerId}`, [
-    { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadReports() },
-    { table: 'expenses', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadReports() },
+    { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadReports(true) },
+    { table: 'expenses', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadReports(true) },
   ])
 
   // Close dropdowns on outside click
@@ -234,7 +248,7 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
         description: expenseForm.description || undefined,
         amount: Number(expenseForm.amount),
       })
-      const freshExpenses = await getExpenses(ownerId)
+      const freshExpenses = await getExpenses(ownerId, undefined, { skipCache: true })
       setExpenses(freshExpenses)
       setExpenseForm({ date: '', type: '', description: '', amount: '' })
       setShowExpenseForm(false)
@@ -247,7 +261,7 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
   async function removeExpense(id: string) {
     try {
       await deleteExpense(id)
-      const freshExpenses = await getExpenses(ownerId)
+      const freshExpenses = await getExpenses(ownerId, undefined, { skipCache: true })
       setExpenses(freshExpenses)
       toast.success('Expense deleted')
     } catch {
@@ -550,6 +564,57 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
     )
   }
 
+  // ── Pagination Controls ───────────────────────────────────
+  function PaginationControls({ page, totalItems, onPageChange }: { page: number; totalItems: number; onPageChange: (p: number) => void }) {
+    const totalPages = Math.ceil(totalItems / ROWS_PER_PAGE)
+    if (totalPages <= 1) return null
+    return (
+      <div className={`flex items-center justify-between px-5 py-3 border-t ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+        <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          Showing {((page - 1) * ROWS_PER_PAGE) + 1}–{Math.min(page * ROWS_PER_PAGE, totalItems)} of {totalItems}
+        </p>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onPageChange(page - 1)}
+            disabled={page <= 1}
+            className={`p-1.5 rounded-lg transition-colors ${page <= 1 ? 'opacity-30 cursor-not-allowed' : isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+            .reduce<(number | '...')[]>((acc, p, i, arr) => {
+              if (i > 0 && p - (arr[i - 1]) > 1) acc.push('...')
+              acc.push(p)
+              return acc
+            }, [])
+            .map((p, i) =>
+              p === '...' ? (
+                <span key={`dot-${i}`} className={`px-1.5 text-xs ${isDark ? 'text-gray-600' : 'text-gray-300'}`}>…</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => onPageChange(p)}
+                  className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
+                    p === page ? 'bg-primary text-white' : isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {p}
+                </button>
+              )
+            )}
+          <button
+            onClick={() => onPageChange(page + 1)}
+            disabled={page >= totalPages}
+            className={`p-1.5 rounded-lg transition-colors ${page >= totalPages ? 'opacity-30 cursor-not-allowed' : isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 animate-fade-up">
       {/* Header */}
@@ -694,9 +759,9 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
                   </tr>
                 </thead>
                 <tbody>
-                  {quarterlyPaymentRecords.slice(0, 50).map((p, i) => (
+                  {quarterlyPaymentRecords.slice((qPayPage - 1) * ROWS_PER_PAGE, qPayPage * ROWS_PER_PAGE).map((p, i) => (
                     <tr key={p.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
-                      <td className={`py-2.5 px-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{i + 1}</td>
+                      <td className={`py-2.5 px-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{(qPayPage - 1) * ROWS_PER_PAGE + i + 1}</td>
                       <td className={`py-2.5 px-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.tenant_name || '—'}</td>
                       <td className={`py-2.5 px-5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{p.apartment_name || '—'}</td>
                       <td className="py-2.5 px-5 text-emerald-400 font-medium">₱{Number(p.amount).toLocaleString()}</td>
@@ -714,6 +779,7 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
                   ))}
                 </tbody>
               </table>
+              <PaginationControls page={qPayPage} totalItems={quarterlyPaymentRecords.length} onPageChange={setQPayPage} />
             </div>
           )}
         </div>
@@ -772,9 +838,9 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
                   </tr>
                 </thead>
                 <tbody>
-                  {annualPaymentRecords.slice(0, 100).map((p, i) => (
+                  {annualPaymentRecords.slice((aPayPage - 1) * ROWS_PER_PAGE, aPayPage * ROWS_PER_PAGE).map((p, i) => (
                     <tr key={p.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
-                      <td className={`py-2.5 px-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{i + 1}</td>
+                      <td className={`py-2.5 px-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{(aPayPage - 1) * ROWS_PER_PAGE + i + 1}</td>
                       <td className={`py-2.5 px-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.tenant_name || '—'}</td>
                       <td className={`py-2.5 px-5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{p.apartment_name || '—'}</td>
                       <td className="py-2.5 px-5 text-emerald-400 font-medium">₱{Number(p.amount).toLocaleString()}</td>
@@ -790,6 +856,7 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
                   ))}
                 </tbody>
               </table>
+              <PaginationControls page={aPayPage} totalItems={annualPaymentRecords.length} onPageChange={setAPayPage} />
             </div>
           )}
 
@@ -808,6 +875,7 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
               {yearExpenses.length === 0 ? (
                 <div className={`text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No expenses recorded for {selectedYear}. Add them in the Expense Records tab.</div>
               ) : (
+                <>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
@@ -817,7 +885,7 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
                     </tr>
                   </thead>
                   <tbody>
-                    {yearExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(e => (
+                    {yearExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice((aExpPage - 1) * ROWS_PER_PAGE, aExpPage * ROWS_PER_PAGE).map(e => (
                       <tr key={e.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
                         <td className={`py-2.5 px-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{new Date(e.date).toLocaleDateString()}</td>
                         <td className={`py-2.5 px-5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{e.type}</td>
@@ -827,6 +895,8 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
                     ))}
                   </tbody>
                 </table>
+                <PaginationControls page={aExpPage} totalItems={yearExpenses.length} onPageChange={setAExpPage} />
+                </>
               )}
             </div>
           )}
@@ -897,9 +967,10 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
                   expenses
                     .filter(e => new Date(e.date).getFullYear() === selectedYear)
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .slice((expPage - 1) * ROWS_PER_PAGE, expPage * ROWS_PER_PAGE)
                     .map((e, i) => (
                       <tr key={e.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
-                        <td className={`py-3 px-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{i + 1}</td>
+                        <td className={`py-3 px-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{(expPage - 1) * ROWS_PER_PAGE + i + 1}</td>
                         <td className={`py-3 px-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{new Date(e.date).toLocaleDateString()}</td>
                         <td className={`py-3 px-5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{e.type}</td>
                         <td className={`py-3 px-5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{e.description || '—'}</td>
@@ -914,6 +985,7 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
                 )}
               </tbody>
             </table>
+            <PaginationControls page={expPage} totalItems={expenses.filter(e => new Date(e.date).getFullYear() === selectedYear).length} onPageChange={setExpPage} />
           </div>
         </div>
       )}

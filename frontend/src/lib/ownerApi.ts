@@ -124,8 +124,8 @@ export async function getMaintenanceRequestsByMonth(ownerId: string) {
 }
 
 // ── Owner Managers CRUD ────────────────────────────────────
-export async function getOwnerManagers(ownerId: string) {
-  return api.get<any[]>(`/managers?apartmentowner_id=${ownerId}`)
+export async function getOwnerManagers(ownerId: string, options?: { skipCache?: boolean }) {
+  return api.get<any[]>(`/managers?apartmentowner_id=${ownerId}`, options)
 }
 
 export async function createOwnerManager(manager: { firstName: string; lastName: string; email: string; phone?: string; sex?: string; age?: string; apartmentowner_id: string; apartment_id?: string }) {
@@ -197,14 +197,14 @@ export interface OwnerTenant {
   monthly_rent?: number
 }
 
-export async function getOwnerUnits(ownerId: string): Promise<UnitWithTenant[]> {
+export async function getOwnerUnits(ownerId: string, options?: { skipCache?: boolean }): Promise<UnitWithTenant[]> {
   // The backend /apartments/with-tenants endpoint does the join for us
-  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?apartmentowner_id=${ownerId}`)
+  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?apartmentowner_id=${ownerId}`, options)
 }
 
-export async function getOwnerTenants(ownerId: string, includeInactive = false): Promise<OwnerTenant[]> {
+export async function getOwnerTenants(ownerId: string, includeInactive = false, options?: { skipCache?: boolean }): Promise<OwnerTenant[]> {
   const query = includeInactive ? '&include_inactive=true' : ''
-  return api.get<OwnerTenant[]>(`/tenants?apartmentowner_id=${ownerId}${query}`)
+  return api.get<OwnerTenant[]>(`/tenants?apartmentowner_id=${ownerId}${query}`, options)
 }
 
 export async function approveTenant(tenantId: string): Promise<void> {
@@ -253,8 +253,8 @@ export interface Property {
   updated_at: string
 }
 
-export async function getOwnerProperties(ownerId: string) {
-  return api.get<Property[]>(`/apartments/properties?apartmentowner_id=${ownerId}`)
+export async function getOwnerProperties(ownerId: string, options?: { skipCache?: boolean }) {
+  return api.get<Property[]>(`/apartments/properties?apartmentowner_id=${ownerId}`, options)
 }
 
 export async function createOwnerProperty(property: {
@@ -373,8 +373,8 @@ export interface Announcement {
   created_at: string
 }
 
-export async function getOwnerAnnouncements(ownerId: string): Promise<Announcement[]> {
-  return api.get<Announcement[]>(`/announcements?apartmentowner_id=${ownerId}`)
+export async function getOwnerAnnouncements(ownerId: string, options?: { skipCache?: boolean }): Promise<Announcement[]> {
+  return api.get<Announcement[]>(`/announcements?apartmentowner_id=${ownerId}`, options)
 }
 
 export async function createOwnerAnnouncement(ownerId: string, title: string, message: string, createdBy: string): Promise<Announcement> {
@@ -401,8 +401,8 @@ export interface OwnerDocument {
   unit_name?: string | null
 }
 
-export async function getOwnerDocuments(ownerId: string): Promise<OwnerDocument[]> {
-  const data = await api.get<any[]>(`/documents?apartmentowner_id=${ownerId}`)
+export async function getOwnerDocuments(ownerId: string, options?: { skipCache?: boolean }): Promise<OwnerDocument[]> {
+  const data = await api.get<any[]>(`/documents?apartmentowner_id=${ownerId}`, options)
   return (data || []).map((d: any) => ({
     ...d,
     tenant_name: d.tenants ? `${d.tenants.first_name} ${d.tenants.last_name}`.trim() || null : null,
@@ -463,8 +463,8 @@ export interface OwnerPayment {
   apartment_name?: string
 }
 
-export async function getOwnerPayments(ownerId: string): Promise<OwnerPayment[]> {
-  const data = await api.get<any[]>(`/payments?apartmentowner_id=${ownerId}`)
+export async function getOwnerPayments(ownerId: string, options?: { skipCache?: boolean }): Promise<OwnerPayment[]> {
+  const data = await api.get<any[]>(`/payments?apartmentowner_id=${ownerId}`, options)
   // The backend getPayments joins tenants(name, email) and apartments(name)
   return (data || []).map((p: any) => ({
     ...p,
@@ -490,8 +490,8 @@ export async function updateOwnerPaymentStatus(id: string, status: 'paid' | 'pen
 }
 
 // ── Payment Approval (Owner approves manager-verified payments) ──
-export async function getVerifiedPayments(ownerId: string): Promise<OwnerPayment[]> {
-  const data = await api.get<any[]>(`/payments/verified-pending-approval?apartmentowner_id=${ownerId}`)
+export async function getVerifiedPayments(ownerId: string, options?: { skipCache?: boolean }): Promise<OwnerPayment[]> {
+  const data = await api.get<any[]>(`/payments/verified-pending-approval?apartmentowner_id=${ownerId}`, options)
   return (data || []).map((p: any) => ({
     ...p,
     tenant_name: p.tenant_name || '\u2014',
@@ -592,8 +592,8 @@ export interface ApartmentLog {
   created_at: string
 }
 
-export async function getOwnerApartmentLogs(ownerId: string): Promise<ApartmentLog[]> {
-  return api.get<ApartmentLog[]>(`/apartment-logs?apartmentowner_id=${ownerId}`)
+export async function getOwnerApartmentLogs(ownerId: string, options?: { skipCache?: boolean }): Promise<ApartmentLog[]> {
+  return api.get<ApartmentLog[]>(`/apartment-logs?apartmentowner_id=${ownerId}`, options)
 }
 
 export async function createOwnerApartmentLog(log: {
@@ -625,10 +625,10 @@ export interface Expense {
   created_at: string
 }
 
-export async function getExpenses(ownerId: string, year?: number): Promise<Expense[]> {
+export async function getExpenses(ownerId: string, year?: number, options?: { skipCache?: boolean }): Promise<Expense[]> {
   const params = new URLSearchParams({ apartmentowner_id: ownerId })
   if (year) params.append('year', String(year))
-  return api.get<Expense[]>(`/expenses?${params}`)
+  return api.get<Expense[]>(`/expenses?${params}`, options)
 }
 
 export async function createExpense(expense: { apartmentowner_id: string; apartment_id?: string | null; date: string; type: string; description?: string; amount: number }): Promise<Expense> {

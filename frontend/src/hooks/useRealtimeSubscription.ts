@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { clearApiCache } from '@/lib/apiClient'
+import { invalidateCacheForResources, debugLog } from '@/lib/apiClient'
+import { isRealtimeSuppressed } from '@/lib/realtimeCooldown'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 export interface RealtimeTableConfig {
@@ -10,6 +11,22 @@ export interface RealtimeTableConfig {
   filter?: string
   /** Callback when any INSERT/UPDATE/DELETE happens on the table */
   onChanged: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => void
+}
+
+// Map Supabase table names to apiClient resource scopes for targeted invalidation
+const TABLE_TO_RESOURCE: Record<string, string[]> = {
+  units: ['apartments'],
+  apartments: ['apartments'],
+  tenants: ['tenants'],
+  payments: ['payments'],
+  maintenance: ['maintenance'],
+  notifications: ['notifications'],
+  announcements: ['announcements'],
+  documents: ['documents'],
+  apartment_managers: ['managers'],
+  apartment_logs: ['apartment-logs'],
+  expenses: ['expenses'],
+  revenues: ['revenues'],
 }
 
 /**
@@ -58,16 +75,33 @@ export function useRealtimeSubscription(
         'postgres_changes' as any,
         filterConfig as any,
         (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
-          // Clear API cache so reload fetches fresh server data
-          clearApiCache()
-          // Look up the latest callback via ref to avoid stale closures
-          const current = tablesRef.current.find((t) => t.table === cfg.table && t.filter === cfg.filter)
-          current?.onChanged(payload)
+          console.info(`[Realtime] Event on ${cfg.table}: ${payload.eventType}`, payload.new || payload.old)
+          // Immediately invalidate cache for this table's resources
+          const resources = TABLE_TO_RESOURCE[cfg.table] || [cfg.table]
+          invalidateCacheForResources(resources)
+
+          // Skip refetch if a recent optimistic mutation is in cooldown
+          if (isRealtimeSuppressed()) {
+            console.info(`[Realtime] Suppressed refetch for ${cfg.table} (mutation cooldown active)`)
+            return
+          }
+
+          // Fire the callback immediately — no debounce
+          // The apiClient's in-flight deduplication handles rapid duplicate requests
+          cfg.onChanged(payload)
         },
       )
     }
 
-    channel.subscribe()
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.info(`[Realtime] ✓ Channel "${channelName}" connected`)
+      } else if (status === 'CHANNEL_ERROR') {
+        console.warn(`[Realtime] ✗ Channel "${channelName}" error — will auto-reconnect`)
+      } else {
+        debugLog('Realtime', `Channel "${channelName}" status: ${status}`)
+      }
+    })
 
     return () => {
       supabase.removeChannel(channel)

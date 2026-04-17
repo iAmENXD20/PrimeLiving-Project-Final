@@ -117,14 +117,14 @@ export default function useBrowserNotifications({
       syncNotifications()
     })
 
-    let interval = window.setInterval(syncNotifications, pollMs)
+    let interval: number | undefined = pollMs > 0 ? window.setInterval(syncNotifications, pollMs) : undefined
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        window.clearInterval(interval)
+        if (interval) window.clearInterval(interval)
       } else {
         syncNotifications()
-        interval = window.setInterval(syncNotifications, pollMs)
+        if (pollMs > 0) interval = window.setInterval(syncNotifications, pollMs)
       }
     }
 
@@ -132,7 +132,7 @@ export default function useBrowserNotifications({
 
     return () => {
       active = false
-      window.clearInterval(interval)
+      if (interval) window.clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [enabled, fetchNotifications, pollMs, storageKey])

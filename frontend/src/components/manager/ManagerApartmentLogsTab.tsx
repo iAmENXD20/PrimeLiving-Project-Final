@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ClipboardList, Filter, X, RefreshCcw, Search, Download, ArrowUp, ArrowDown } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
@@ -87,6 +87,8 @@ export default function ManagerApartmentLogsTab({ managerId, ownerId }: ManagerA
   const { isDark } = useTheme()
   const [logs, setLogs] = useState<ManagerApartmentLog[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
   const [page, setPage] = useState(1)
   const pageSize = 15
 
@@ -107,18 +109,22 @@ export default function ManagerApartmentLogsTab({ managerId, ownerId }: ManagerA
 
   // Real-time: auto-refresh when activity logs change
   useRealtimeSubscription(`mgr-logs-${managerId}`, [
-    { table: 'apartment_logs', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadLogs() },
+    { table: 'apartment_logs', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadLogs(true) },
   ])
 
-  async function loadLogs() {
+  async function loadLogs(skipCache = false) {
+    const version = ++loadVersion.current
     try {
-      setLoading(true)
-      const data = await getManagerApartmentLogs(managerId)
+      if (!initialLoadDone.current) setLoading(true)
+      const data = await getManagerApartmentLogs(managerId, { skipCache })
+      if (loadVersion.current !== version) return // stale response
       setLogs(data)
+      initialLoadDone.current = true
     } catch (err) {
+      if (loadVersion.current !== version) return
       console.error('Failed to load logs:', err)
     } finally {
-      setLoading(false)
+      if (loadVersion.current === version) setLoading(false)
     }
   }
 
@@ -241,7 +247,7 @@ export default function ManagerApartmentLogsTab({ managerId, ownerId }: ManagerA
             {sortOrder === 'asc' ? <ArrowUp className="w-4 h-4 mr-1" /> : <ArrowDown className="w-4 h-4 mr-1" />}
             {sortOrder === 'asc' ? 'Oldest' : 'Newest'}
           </Button>
-          <Button variant="outline" size="sm" onClick={loadLogs} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => loadLogs()} disabled={loading}>
             <RefreshCcw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>

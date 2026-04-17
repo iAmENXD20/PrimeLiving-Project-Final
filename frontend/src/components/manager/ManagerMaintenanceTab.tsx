@@ -122,6 +122,10 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
       setUpdatingId(requestId)
       await updateMaintenanceStatus(requestId, nextStatus)
       await loadRequests()
+      // Update the selected request detail view if it's the one being changed
+      if (selectedRequest?.id === requestId) {
+        setSelectedRequest((prev) => prev ? { ...prev, status: nextStatus } : null)
+      }
       toast.success('Maintenance status updated')
     } catch (error) {
       console.error('Failed to update maintenance status:', error)
@@ -552,10 +556,16 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
                 </div>
               )}
 
-              {/* Tenant Review */}
-              {selectedRequest.status === 'resolved' && !selectedRequest.review_rating && (
-                <div className={`rounded-lg border p-3 ${isDark ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-yellow-200 bg-yellow-50'}`}>
-                  <p className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Waiting for tenant review before closing.</p>
+              {/* Resolved — manager can close */}
+              {selectedRequest.status === 'resolved' && (
+                <div className={`rounded-lg border p-3 space-y-3 ${isDark ? 'border-green-500/30 bg-green-500/5' : 'border-green-200 bg-green-50'}`}>
+                  <p className={`text-sm ${isDark ? 'text-green-400' : 'text-green-600'}`}>Tenant has confirmed this issue is resolved.</p>
+                  <button
+                    onClick={() => handleStatusChange(selectedRequest.id, 'closed')}
+                    className="w-full py-2 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors"
+                  >
+                    Close Request
+                  </button>
                 </div>
               )}
               {selectedRequest.review_rating && (
@@ -587,7 +597,7 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
         open={Boolean(requestToClose)}
         isDark={isDark}
         title="Close this maintenance request?"
-        description="Use close only for invalid or cancelled requests. For completed work, use Resolve instead."
+        description="This will mark the request as closed. The tenant has confirmed the issue is resolved."
         confirmText="Close Request"
         loading={Boolean(requestToClose && updatingId === requestToClose.id)}
         onCancel={() => setRequestToClose(null)}

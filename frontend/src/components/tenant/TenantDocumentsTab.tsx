@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, FileText, Download, Eye, X } from 'lucide-react'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
@@ -16,27 +16,33 @@ export default function TenantDocumentsTab({ tenantId, ownerId }: TenantDocument
   const { isDark } = useTheme()
   const [documents, setDocuments] = useState<TenantDocument[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [viewingDoc, setViewingDoc] = useState<TenantDocument | null>(null)
   const pageSize = 10
 
-  const loadDocs = useCallback(async () => {
+  const loadDocs = useCallback(async (skipCache = false) => {
+    const version = ++loadVersion.current
     try {
-      setLoading(true)
-      const data = await getTenantDocuments(tenantId, ownerId)
+      if (!initialLoadDone.current) setLoading(true)
+      const data = await getTenantDocuments(tenantId, ownerId, { skipCache })
+      if (loadVersion.current !== version) return // stale response
       setDocuments(data)
+      initialLoadDone.current = true
     } catch (error) {
+      if (loadVersion.current !== version) return
       console.error('Failed to load tenant documents:', error)
     } finally {
-      setLoading(false)
+      if (loadVersion.current === version) setLoading(false)
     }
   }, [tenantId, ownerId])
 
   useEffect(() => { loadDocs() }, [loadDocs])
 
   useRealtimeSubscription(`tenant-docs-${tenantId}`, [
-    { table: 'documents', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: loadDocs },
+    { table: 'documents', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadDocs(true) },
   ])
 
   const filtered = useMemo(() => {

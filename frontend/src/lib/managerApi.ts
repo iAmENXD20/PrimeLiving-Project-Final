@@ -153,17 +153,17 @@ export interface UnitWithTenant {
   rent_deadline: string | null
 }
 
-export async function getManagerUnits(managerId: string): Promise<UnitWithTenant[]> {
+export async function getManagerUnits(managerId: string, options?: { skipCache?: boolean }): Promise<UnitWithTenant[]> {
   // The backend /apartments/with-tenants does the join, scoped to manager's branch
-  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?manager_id=${managerId}`, { skipCache: true })
+  return api.get<UnitWithTenant[]>(`/apartments/with-tenants?manager_id=${managerId}`, { skipCache: true, ...options })
 }
 
 export async function getManagerUnitsByManager(managerId: string): Promise<UnitWithTenant[]> {
   return api.get<UnitWithTenant[]>(`/apartments/with-tenants?manager_id=${managerId}`)
 }
 
-export async function getManagedApartments(managerId: string) {
-  return api.get<any[]>(`/apartments?manager_id=${managerId}`)
+export async function getManagedApartments(managerId: string, options?: { skipCache?: boolean }) {
+  return api.get<any[]>(`/apartments?manager_id=${managerId}`, options)
 }
 
 // ── Update a unit (name, rent) ─────────────────────────────
@@ -247,8 +247,8 @@ export interface Announcement {
   created_at: string
 }
 
-export async function getAnnouncements(managerId: string): Promise<Announcement[]> {
-  return api.get<Announcement[]>(`/announcements?manager_id=${managerId}`)
+export async function getAnnouncements(managerId: string, options?: { skipCache?: boolean }): Promise<Announcement[]> {
+  return api.get<Announcement[]>(`/announcements?manager_id=${managerId}`, options)
 }
 
 export async function createAnnouncement(
@@ -291,8 +291,8 @@ export interface Payment {
   apartment_name?: string
 }
 
-export async function getPayments(managerId: string): Promise<Payment[]> {
-  const data = await api.get<any[]>(`/payments?manager_id=${managerId}`)
+export async function getPayments(managerId: string, options?: { skipCache?: boolean }): Promise<Payment[]> {
+  const data = await api.get<any[]>(`/payments?manager_id=${managerId}`, options)
   // Backend joins tenants(name, email) and apartments(name) as nested objects
   return (data || []).map((p: any) => ({
     ...p,
@@ -437,8 +437,8 @@ export interface Document {
   unit_name?: string
 }
 
-export async function getDocuments(managerId: string): Promise<Document[]> {
-  const data = await api.get<any[]>(`/documents?manager_id=${managerId}`)
+export async function getDocuments(managerId: string, options?: { skipCache?: boolean }): Promise<Document[]> {
+  const data = await api.get<any[]>(`/documents?manager_id=${managerId}`, options)
   // Backend joins tenants(name) and apartments(name) as nested objects
   return (data || []).map((d: any) => ({
     ...d,
@@ -499,11 +499,12 @@ export interface TenantAccount {
   apartment_name?: string
 }
 
-export async function getManagerTenants(managerId: string): Promise<TenantAccount[]> {
+export async function getManagerTenants(managerId: string, options?: { skipCache?: boolean }): Promise<TenantAccount[]> {
   // Get apartments and tenants scoped to this manager's branch
+  const skipOpts = { skipCache: true, ...options }
   const [apartments, tenants] = await Promise.all([
-    api.get<any[]>(`/apartments?manager_id=${managerId}`, { skipCache: true }).catch(() => [] as any[]),
-    api.get<any[]>(`/tenants?manager_id=${managerId}`, { skipCache: true }).catch(() => [] as any[]),
+    api.get<any[]>(`/apartments?manager_id=${managerId}`, skipOpts).catch(() => [] as any[]),
+    api.get<any[]>(`/tenants?manager_id=${managerId}`, skipOpts).catch(() => [] as any[]),
   ])
 
   const aptMap = new Map((apartments || []).map((a: any) => [a.id, a.name]))
@@ -573,8 +574,8 @@ export interface ManagerApartmentLog {
   created_at: string
 }
 
-export async function getManagerApartmentLogs(managerId: string): Promise<ManagerApartmentLog[]> {
-  return api.get<ManagerApartmentLog[]>(`/apartment-logs?manager_id=${managerId}`)
+export async function getManagerApartmentLogs(managerId: string, options?: { skipCache?: boolean }): Promise<ManagerApartmentLog[]> {
+  return api.get<ManagerApartmentLog[]>(`/apartment-logs?manager_id=${managerId}`, options)
 }
 
 export async function createManagerApartmentLog(log: {

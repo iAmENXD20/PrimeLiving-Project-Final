@@ -76,14 +76,12 @@ export async function addOccupant(
   res: Response
 ): Promise<void> {
   try {
-    const { unit_id, tenant_id, full_name, first_name, last_name, sex, phone, id_photo_url, birthdate } = req.body;
+    const { unit_id, tenant_id, full_name, first_name, last_name, id_photo_url, birthdate } = req.body;
 
-    const resolvedFirstName = first_name || (full_name ? full_name.split(' ')[0] : '')
-    const resolvedLastName = last_name || (full_name ? full_name.split(' ').slice(1).join(' ') : '')
-    const resolvedFullName = full_name || `${resolvedFirstName} ${resolvedLastName}`.trim()
+    const resolvedFullName = full_name || `${first_name || ''} ${last_name || ''}`.trim()
 
-    if (!unit_id || !tenant_id || !resolvedFirstName?.trim()) {
-      sendError(res, "unit_id, tenant_id, and first_name are required", 400);
+    if (!unit_id || !tenant_id || !resolvedFullName?.trim()) {
+      sendError(res, "unit_id, tenant_id, and a name are required", 400);
       return;
     }
 
@@ -117,10 +115,6 @@ export async function addOccupant(
         unit_id,
         tenant_id,
         full_name: resolvedFullName,
-        first_name: resolvedFirstName.trim(),
-        last_name: resolvedLastName.trim(),
-        sex: sex || null,
-        phone: phone || null,
         id_photo_url: id_photo_url || null,
         birthdate: birthdate || null,
       })

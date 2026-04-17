@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { suppressRealtime, isRealtimeSuppressed } from '@/lib/realtimeCooldown'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,6 +36,8 @@ export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApar
   const [units, setUnits] = useState<UnitWithTenant[]>([])
   const [tenants, setTenants] = useState<TenantAccount[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
 
   // Edit modal
   const [selectedUnit, setSelectedUnit] = useState<UnitWithTenant | null>(null)
@@ -60,9 +63,9 @@ export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApar
 
   // Real-time: auto-refresh when units or tenants change
   useRealtimeSubscription(`mgr-apartments-${managerId}`, [
-    { table: 'units', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadUnits() },
-    { table: 'tenants', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadUnits() },
-    { table: 'apartment_managers', filter: `id=eq.${managerId}`, onChanged: () => loadUnits() },
+    { table: 'units', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadUnits(true) },
+    { table: 'tenants', ...(ownerId ? { filter: `apartmentowner_id=eq.${ownerId}` } : {}), onChanged: () => loadUnits(true) },
+    { table: 'apartment_managers', filter: `id=eq.${managerId}`, onChanged: () => loadUnits(true) },
   ])
 
   useEffect(() => {
@@ -79,19 +82,25 @@ export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApar
     setIsTenantDropdownOpen(false)
   }, [showEditModal])
 
-  async function loadUnits() {
+  async function loadUnits(skipCache = false) {
+    if (skipCache && isRealtimeSuppressed()) return
+    const version = ++loadVersion.current
     try {
-      setLoading(true)
+      if (!initialLoadDone.current) setLoading(true)
+      const opts = { skipCache }
       const [unitData, tenantData] = await Promise.all([
-        getManagerUnits(managerId),
-        getManagerTenants(managerId),
+        getManagerUnits(managerId, opts),
+        getManagerTenants(managerId, opts),
       ])
+      if (loadVersion.current !== version) return // stale response
       setUnits(unitData)
       setTenants(tenantData.filter((t) => Boolean(t.email)))
+      initialLoadDone.current = true
     } catch (err) {
+      if (loadVersion.current !== version) return
       console.error('Failed to load units:', err)
     } finally {
-      setLoading(false)
+      if (loadVersion.current === version) setLoading(false)
     }
   }
 
@@ -127,8 +136,25 @@ export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApar
 
   async function handleEditUnit() {
     if (!selectedUnit) return
+
+    const hadTenant = !!selectedUnit.tenant_id
+    const hasTenantNow = !!editForm.tenantId
+
+    // Validate before optimistic update
+    if (hasTenantNow && !editForm.billingStartAt) {
+      toast.error('Please select a billing start date')
+      return
+    }
+
+    // Optimistic: update state, close modal, show toast BEFORE API calls
+    suppressRealtime()
+    loadVersion.current++
+    setUnits(prev => prev.map(u => u.id === selectedUnit.id ? { ...u, name: editForm.name } : u))
+    setShowEditModal(false)
+    toast.success(hadTenant && !hasTenantNow ? 'Unit emptied. Tenant account was preserved.' : 'Unit updated')
+
     try {
-      // Update apartment name & unit details
+      // Fire all API calls in background
       await updateManagerUnit(selectedUnit.id, {
         name: editForm.name,
         contract_duration: editForm.contractDuration ? Number(editForm.contractDuration) : null,
@@ -137,14 +163,6 @@ export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApar
         rent_deadline: editForm.rentDeadline || null,
       })
 
-      const hadTenant = !!selectedUnit.tenant_id
-      const hasTenantNow = !!editForm.tenantId
-
-      if (hasTenantNow && !editForm.billingStartAt) {
-        toast.error('Please select a billing start date')
-        return
-      }
-
       if (hasTenantNow) {
         await assignExistingTenantToUnit(
           selectedUnit.id,
@@ -152,7 +170,6 @@ export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApar
           Number(editForm.monthlyRent) || undefined,
           editForm.billingStartAt,
         )
-        // Update move-in date if changed
         if (editForm.moveInDate) {
           await updateTenantMoveInDate(editForm.tenantId, editForm.moveInDate)
         }
@@ -170,32 +187,36 @@ export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApar
         ))
       }
 
-      await loadUnits()
-      setShowEditModal(false)
-      toast.success(hadTenant && !hasTenantNow ? 'Unit emptied. Tenant account was preserved.' : 'Unit updated')
+      // Background refetch for full consistency
+      loadUnits(true).catch(() => {})
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to update unit'
       toast.error(message)
+      loadUnits(true).catch(() => {})
     }
   }
 
   async function handleEmptyUnit(unit: UnitWithTenant) {
     if (!unit.tenant_id) return
+    // Optimistic: update state BEFORE API call
+    suppressRealtime()
+    loadVersion.current++
+    setUnits((prev) => prev.map((current) =>
+      current.id === unit.id
+        ? { ...current, tenant_id: null, tenant_name: null, tenant_phone: null }
+        : current
+    ))
+    setTenants((prev) => prev.map((tenant) =>
+      tenant.id === unit.tenant_id
+        ? { ...tenant, unit_id: null }
+        : tenant
+    ))
+    toast.success('Unit emptied. Tenant account was preserved.')
+    setEmptyingUnitId(unit.id)
     try {
-      setEmptyingUnitId(unit.id)
       await removeTenantFromUnit(unit.id, true)
-      setUnits((prev) => prev.map((current) =>
-        current.id === unit.id
-          ? { ...current, tenant_id: null, tenant_name: null, tenant_phone: null }
-          : current
-      ))
-      setTenants((prev) => prev.map((tenant) =>
-        tenant.id === unit.tenant_id
-          ? { ...tenant, unit_id: null }
-          : tenant
-      ))
-      await loadUnits()
-      toast.success('Unit emptied. Tenant account was preserved.')
+      // Background refetch for full consistency
+      loadUnits(true).catch(() => {})
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to empty unit'
       toast.error(message)
@@ -340,14 +361,6 @@ export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApar
                         {unit.tenant_name || '—'}
                       </span>
                     </div>
-                    {unit.tenant_id && (
-                      <div className="flex justify-between">
-                        <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Tenant ID</span>
-                        <span className={`truncate ml-2 text-xs font-mono ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {unit.tenant_id}
-                        </span>
-                      </div>
-                    )}
                     <div className="flex justify-between">
                       <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Contact</span>
                       <span className={`truncate ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -510,7 +523,6 @@ export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApar
                 <div className={`rounded-lg border p-3 text-sm space-y-2 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
                   <p className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>Selected Tenant Details</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>ID: <span className={`font-mono text-xs ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedTenantDetails.id || '—'}</span></p>
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Email: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{selectedTenantDetails.email || '—'}</span></p>
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Phone: <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{formatPhone(selectedTenantDetails.phone) || '—'}</span></p>
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Status: <span className={`capitalize ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{selectedTenantDetails.status || '—'}</span></p>

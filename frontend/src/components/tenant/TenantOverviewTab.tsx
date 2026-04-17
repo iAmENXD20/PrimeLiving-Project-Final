@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Wrench, PhilippinePeso, CheckCircle2, AlertTriangle, MapPin, Building2, Clock, Eye, X, RefreshCw, Bell } from 'lucide-react'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
@@ -43,6 +43,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
   const [notifications, setNotifications] = useState<TenantNotification[]>([])
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<HistoryItem | null>(null)
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
   const [page, setPage] = useState(1)
   const [renewing, setRenewing] = useState(false)
   const [ending, setEnding] = useState(false)
@@ -51,7 +52,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
 
   const loadAll = useCallback(async () => {
     try {
-      setLoading(true)
+      if (!initialLoadDone.current) setLoading(true)
       const [s, requests, paymentData, notifs] = await Promise.all([
         getTenantDashboardStats(tenantId, apartmentId),
         getTenantMaintenanceRequests(tenantId),
@@ -100,6 +101,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
       console.error('Failed to load tenant overview:', err)
     } finally {
       setLoading(false)
+      initialLoadDone.current = true
     }
   }, [tenantId, apartmentId, ownerId])
 

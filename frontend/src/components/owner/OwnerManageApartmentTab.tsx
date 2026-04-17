@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { suppressRealtime, isRealtimeSuppressed } from '@/lib/realtimeCooldown'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -156,6 +157,18 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   const [tenantBranchFilterOpen, setTenantBranchFilterOpen] = useState(false)
   const tenantBranchFilterRef = useRef<HTMLDivElement>(null)
 
+  // Track initial load per data section to avoid skeleton flash on refresh
+  const initialPropsLoaded = useRef(false)
+  const initialUnitsLoaded = useRef(false)
+  const initialMgrsLoaded = useRef(false)
+  const initialTenantsLoaded = useRef(false)
+
+  // Version counters to drop stale async responses
+  const propsVersion = useRef(0)
+  const unitsVersion = useRef(0)
+  const mgrsVersion = useRef(0)
+  const tenantsVersion = useRef(0)
+
   // ─── Load data ────────────────────────────────────────────────
   useEffect(() => {
     loadProperties()
@@ -166,10 +179,10 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
 
   // Real-time: auto-refresh all data when any related table changes
   useRealtimeSubscription(`owner-manage-${ownerId}`, [
-    { table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadManagers() },
-    { table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadTenants() },
-    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => { loadUnits(); loadProperties() } },
-    { table: 'apartments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadProperties() },
+    { table: 'apartment_managers', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadManagers(true) },
+    { table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadTenants(true) },
+    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => { loadUnits(true); loadProperties(true) } },
+    { table: 'apartments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadProperties(true) },
   ])
 
   useEffect(() => {
@@ -191,56 +204,76 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
 
   // ─── Sample/mock units removed — using real API data only ────
 
-  async function loadProperties() {
+  async function loadProperties(skipCache = false) {
+    if (skipCache && isRealtimeSuppressed()) return
+    const version = ++propsVersion.current
     try {
-      setPropertiesLoading(true)
-      const data = await getOwnerProperties(ownerId)
+      if (!initialPropsLoaded.current) setPropertiesLoading(true)
+      const data = await getOwnerProperties(ownerId, { skipCache })
+      if (propsVersion.current !== version) return // stale response
       setProperties(data)
+      initialPropsLoaded.current = true
     } catch (err) {
+      if (propsVersion.current !== version) return
       console.error('Failed to load properties:', err)
       setProperties([])
     } finally {
-      setPropertiesLoading(false)
+      if (propsVersion.current === version) setPropertiesLoading(false)
     }
   }
 
-  async function loadUnits() {
+  async function loadUnits(skipCache = false) {
+    if (skipCache && isRealtimeSuppressed()) return
+    const version = ++unitsVersion.current
     try {
-      setUnitsLoading(true)
-      const data = await getOwnerUnits(ownerId)
+      if (!initialUnitsLoaded.current) setUnitsLoading(true)
+      const data = await getOwnerUnits(ownerId, { skipCache })
+      if (unitsVersion.current !== version) return // stale response
       data.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
       setUnits(data)
+      initialUnitsLoaded.current = true
     } catch (err) {
+      if (unitsVersion.current !== version) return
       console.error('Failed to load units:', err)
       setUnits([])
     } finally {
-      setUnitsLoading(false)
+      if (unitsVersion.current === version) setUnitsLoading(false)
     }
   }
 
-  async function loadManagers() {
+  async function loadManagers(skipCache = false) {
+    if (skipCache && isRealtimeSuppressed()) return
+    const version = ++mgrsVersion.current
     try {
-      setManagersLoading(true)
-      const data = await getOwnerManagers(ownerId)
+      if (!initialMgrsLoaded.current) setManagersLoading(true)
+      const data = await getOwnerManagers(ownerId, { skipCache })
+      if (mgrsVersion.current !== version) return // stale response
       setManagers(data)
+      initialMgrsLoaded.current = true
     } catch (err) {
+      if (mgrsVersion.current !== version) return
       console.error('Failed to load managers:', err)
       setManagers([])
     } finally {
-      setManagersLoading(false)
+      if (mgrsVersion.current === version) setManagersLoading(false)
     }
   }
 
-  async function loadTenants() {
+  async function loadTenants(skipCache = false) {
+    if (skipCache && isRealtimeSuppressed()) return
+    const version = ++tenantsVersion.current
     try {
-      setTenantsTabLoading(true)
-      const data = await getOwnerTenants(ownerId, true)
+      if (!initialTenantsLoaded.current) setTenantsTabLoading(true)
+      const data = await getOwnerTenants(ownerId, true, { skipCache })
+      if (tenantsVersion.current !== version) return // stale response
       setOwnerTenants(data)
+      initialTenantsLoaded.current = true
     } catch (err) {
+      if (tenantsVersion.current !== version) return
       console.error('Failed to load tenants:', err)
       setOwnerTenants([])
     } finally {
-      setTenantsTabLoading(false)
+      if (tenantsVersion.current === version) setTenantsTabLoading(false)
     }
   }
 
@@ -301,6 +334,9 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     try {
       const maxOcc = editForm.max_occupancy.trim() === '' ? null : parseInt(editForm.max_occupancy, 10)
       const rent = editForm.monthly_rent.trim() === '' ? 0 : parseFloat(editForm.monthly_rent)
+      // Invalidate stale in-flight requests before optimistic update
+      suppressRealtime()
+      unitsVersion.current++
       // Optimistic update: reflect changes instantly in UI
       setUnits(prev => prev.map(u => u.id === selectedUnit.id ? { ...u, name: trimmed, monthly_rent: rent, max_occupancy: maxOcc, status: editForm.status } : u))
       setSelectedUnit(null)
@@ -312,10 +348,10 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
         status: editForm.status,
       })
       // Background refresh to sync with server
-      loadUnits()
+      loadUnits(true)
     } catch {
       toast.error('Failed to update unit')
-      loadUnits() // Revert on error
+      loadUnits(true) // Revert on error
     } finally {
       setSavingUnit(false)
     }
@@ -336,25 +372,78 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
       return match ? parseInt(match[1], 10) : 0
     })
     const startNum = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1
+    const rent = addUnitForm.monthly_rent ? parseFloat(addUnitForm.monthly_rent) : 0
+    const maxOcc = addUnitForm.max_occupancy ? parseInt(addUnitForm.max_occupancy, 10) : null
+
+    // Close modal and add placeholder units to state IMMEDIATELY (before API call)
+    suppressRealtime()
+    setShowAddUnitModal(false)
+    setAddUnitForm({ monthly_rent: '', max_occupancy: '', count: '1' })
+    // Invalidate any in-flight stale requests before optimistic update
+    unitsVersion.current++
+
+    const tempUnits: UnitWithTenant[] = []
+    for (let i = 0; i < count; i++) {
+      const tempId = `temp-${crypto.randomUUID()}`
+      tempUnits.push({
+        id: tempId,
+        name: `Unit ${startNum + i}`,
+        monthly_rent: rent,
+        apartmentowner_id: ownerId,
+        apartment_id: selectedProperty?.id || null,
+        manager_id: null,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        tenant_name: null,
+        tenant_phone: null,
+        tenant_id: null,
+        max_occupancy: maxOcc,
+        payment_due_day: null,
+        contract_duration: null,
+        lease_start: null,
+        lease_end: null,
+        tenant_move_in_date: null,
+        rent_deadline: null,
+      })
+    }
+    setUnits(prev => [...prev, ...tempUnits].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })))
+    toast.success(count === 1 ? 'Unit added successfully' : `${count} units added successfully`)
+
+    // Fire API calls in background — replace temp units with real data
     setAddingUnit(true)
     try {
-      const rent = addUnitForm.monthly_rent ? parseFloat(addUnitForm.monthly_rent) : 0
-      // Close modal immediately for instant feedback
-      setShowAddUnitModal(false)
-      setAddUnitForm({ monthly_rent: '', max_occupancy: '', count: '1' })
-      toast.success(count === 1 ? 'Unit added successfully' : `${count} units added successfully`)
       for (let i = 0; i < count; i++) {
-        await createOwnerApartment({
+        const created = await createOwnerApartment({
           name: `Unit ${startNum + i}`,
           monthly_rent: rent,
           apartmentowner_id: ownerId,
           ...(selectedProperty ? { apartment_id: selectedProperty.id } : {}),
         })
+        if (created?.id) {
+          const tempId = tempUnits[i].id
+          unitsVersion.current++
+          setUnits(prev => prev.map(u => u.id === tempId ? {
+            ...u,
+            id: created.id,
+            name: created.name || u.name,
+            monthly_rent: created.monthly_rent ?? rent,
+            apartment_id: created.apartment_id || u.apartment_id,
+            manager_id: created.manager_id || null,
+            status: created.status || 'active',
+            created_at: created.created_at || u.created_at,
+            max_occupancy: created.max_occupancy || maxOcc,
+          } : u))
+        }
       }
-      await Promise.all([loadUnits(), loadProperties()])
+      // Background refetch for full data consistency
+      Promise.all([loadUnits(true), loadProperties(true)]).catch(() => {})
     } catch {
+      // Remove temp units that weren't created
+      const tempIds = new Set(tempUnits.map(u => u.id))
+      unitsVersion.current++
+      setUnits(prev => prev.filter(u => !tempIds.has(u.id)))
       toast.error('Failed to add unit')
-      loadUnits()
+      loadUnits(true)
     } finally {
       setAddingUnit(false)
     }
@@ -370,24 +459,34 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   }
 
   async function handleSaveManagerAssignments(propertyId: string) {
-    try {
-      setSavingManagers(true)
-      const currentlyAssigned = new Set(managers.filter(m => m.apartment_id === propertyId).map(m => m.id))
-      const toAssign = [...pendingManagerIds].filter(id => !currentlyAssigned.has(id))
-      const toUnassign = [...currentlyAssigned].filter(id => !pendingManagerIds.has(id))
+    const currentlyAssigned = new Set(managers.filter(m => m.apartment_id === propertyId).map(m => m.id))
+    const toAssign = [...pendingManagerIds].filter(id => !currentlyAssigned.has(id))
+    const toUnassign = [...currentlyAssigned].filter(id => !pendingManagerIds.has(id))
 
+    // Optimistic: update state BEFORE API call
+    suppressRealtime()
+    mgrsVersion.current++
+    setManagers(prev => prev.map(m => {
+      if (toAssign.includes(m.id)) return { ...m, apartment_id: propertyId }
+      if (toUnassign.includes(m.id)) return { ...m, apartment_id: null }
+      return m
+    }))
+    setInlineMgrDropdownOpen(false)
+    if (toAssign.length > 0 || toUnassign.length > 0) {
+      toast.success('Manager assignments updated')
+    }
+
+    setSavingManagers(true)
+    try {
       await Promise.all([
         ...toAssign.map(id => updateOwnerManager(id, { apartment_id: propertyId })),
         ...toUnassign.map(id => updateOwnerManager(id, { apartment_id: null })),
       ])
-
-      await Promise.all([loadProperties(), loadManagers()])
-      setInlineMgrDropdownOpen(false)
-      if (toAssign.length > 0 || toUnassign.length > 0) {
-        toast.success('Manager assignments updated')
-      }
+      // Background refetch
+      Promise.all([loadProperties(true), loadManagers(true)]).catch(() => {})
     } catch {
-      toast.error('Failed to update manager assignments')
+      toast.error('Failed to update manager assignments — refreshing data')
+      loadManagers(true).catch(() => {})
     } finally {
       setSavingManagers(false)
     }
@@ -398,12 +497,18 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   }
 
   async function handleDeleteProperty(propertyId: string) {
+    // Optimistic: remove from state BEFORE API call
+    suppressRealtime()
+    propsVersion.current++
+    setProperties(prev => prev.filter(p => p.id !== propertyId))
+    toast.success('Property deleted successfully')
     try {
       await deleteOwnerProperty(propertyId)
-      await loadProperties()
-      toast.success('Property deleted successfully')
+      // Background refetch
+      loadProperties(true).catch(() => {})
     } catch {
-      toast.error('Failed to delete property')
+      toast.error('Failed to delete property — refreshing data')
+      loadProperties(true).catch(() => {})
     }
   }
 
@@ -421,10 +526,20 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
       toast.error('Street address is required')
       return
     }
+    const addr = addPropertyForm.address
+
+    // Immediately add placeholder to state BEFORE API call
+    suppressRealtime()
+    const tempId = `temp-${crypto.randomUUID()}`
+    propsVersion.current++
+    setProperties(prev => [...prev, { id: tempId, name: trimmedName, managers: [], unit_count: 0, total_units: 0, address_street: addr.street } as any])
+    setShowAddPropertyModal(false)
+    setAddPropertyForm({ name: '', address: null })
+    toast.success('Property added successfully')
+
     setAddingProperty(true)
     try {
-      const addr = addPropertyForm.address
-      await createOwnerProperty({
+      const created = await createOwnerProperty({
         name: trimmedName,
         apartmentowner_id: ownerId,
         address_region: addr.region,
@@ -441,11 +556,17 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
         address_barangay_code: addr.barangayCode,
         address_street: addr.street,
       })
-      await loadProperties()
-      toast.success('Property added successfully')
-      setShowAddPropertyModal(false)
-      setAddPropertyForm({ name: '', address: null })
+      // Replace temp with real data
+      if (created?.id) {
+        propsVersion.current++
+        setProperties(prev => prev.map(p => p.id === tempId ? { ...created, managers: [], unit_count: 0, total_units: 0 } as any : p))
+      }
+      // Background refetch for full data consistency
+      loadProperties(true).catch(() => {})
     } catch {
+      // Remove temp property on error
+      propsVersion.current++
+      setProperties(prev => prev.filter(p => p.id !== tempId))
       toast.error('Failed to add property')
     } finally {
       setAddingProperty(false)
@@ -453,41 +574,56 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   }
 
   async function handleApproveTenant(tenantId: string) {
+    // Optimistic: update tenant status BEFORE API call
+    suppressRealtime()
+    tenantsVersion.current++
+    setOwnerTenants(prev => prev.map(t => t.id === tenantId ? { ...t, status: 'active' as const } : t))
+    toast.success('Tenant approved successfully')
     try {
       if (!tenantId.startsWith('sample-')) {
         await approveTenant(tenantId)
       }
-      await Promise.all([loadTenants(), loadUnits()])
-      toast.success('Tenant approved successfully')
+      // Background refetch
+      Promise.all([loadTenants(true), loadUnits(true)]).catch(() => {})
     } catch {
       toast.error('Failed to approve tenant')
+      loadTenants(true).catch(() => {})
     }
   }
 
   async function confirmDeleteAction() {
     if (!confirmAction) return
+    // Optimistic: remove from state BEFORE API call
+    suppressRealtime()
     setDeleting(true)
-    try {
-      if (confirmAction.type === 'unit') {
-        await deleteOwnerApartment(confirmAction.id)
-        await loadUnits()
-        toast.success(`${confirmAction.name} deleted successfully`)
-      } else if (confirmAction.type === 'tenant') {
-        await deleteOwnerTenant(confirmAction.id)
-        await loadTenants()
-        toast.success('Tenant declined')
-      } else {
-        await deleteOwnerManager(confirmAction.id)
-        await loadManagers()
-        setOpenMenu(null)
-        toast.success('Manager deleted')
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to delete item'
-      toast.error(message)
-    } finally {
-      setDeleting(false)
+    if (confirmAction.type === 'unit') {
+      unitsVersion.current++
+      setUnits(prev => prev.filter(u => u.id !== confirmAction.id))
+      toast.success(`${confirmAction.name} deleted successfully`)
       setConfirmAction(null)
+      deleteOwnerApartment(confirmAction.id)
+        .then(() => loadUnits(true))
+        .catch(() => { toast.error('Failed to delete — refreshing data'); loadUnits(true) })
+        .finally(() => setDeleting(false))
+    } else if (confirmAction.type === 'tenant') {
+      tenantsVersion.current++
+      setOwnerTenants(prev => prev.filter(t => t.id !== confirmAction.id))
+      toast.success('Tenant declined')
+      setConfirmAction(null)
+      deleteOwnerTenant(confirmAction.id)
+        .then(() => loadTenants(true))
+        .catch(() => { toast.error('Failed to delete — refreshing data'); loadTenants(true) })
+        .finally(() => setDeleting(false))
+    } else {
+      mgrsVersion.current++
+      setManagers(prev => prev.filter(m => m.id !== confirmAction.id))
+      setOpenMenu(null)
+      toast.success('Manager deleted')
+      setConfirmAction(null)
+      deleteOwnerManager(confirmAction.id)
+        .then(() => loadManagers(true))
+        .catch(() => { toast.error('Failed to delete — refreshing data'); loadManagers(true) })
+        .finally(() => setDeleting(false))
     }
   }
 
@@ -536,18 +672,31 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
     const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`
     try {
       setSaving(true)
+      suppressRealtime()
       if (editingManager) {
-        const updated = await updateOwnerManager(editingManager.id, {
+        // Optimistic: update state and close modal BEFORE API call
+        mgrsVersion.current++
+        setManagers((prev) => prev.map((m) => m.id === editingManager.id ? { ...m, first_name: form.firstName.trim(), last_name: form.lastName.trim(), email: form.email, phone: form.phone ? `+63${form.phone}` : m.phone, apartment_id: form.apartment_id || null } : m))
+        toast.success('Manager updated successfully')
+        setShowManagerModal(false)
+        // API call in background
+        updateOwnerManager(editingManager.id, {
           first_name: form.firstName.trim(),
           last_name: form.lastName.trim(),
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
           apartment_id: form.apartment_id || null,
+        }).then(() => loadManagers(true)).catch(() => {
+          toast.error('Failed to save — refreshing data')
+          loadManagers(true)
         })
-        setManagers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
-        toast.success('Manager updated successfully')
-        setShowManagerModal(false)
       } else {
+        // Add temp placeholder immediately
+        const tempId = `temp-${crypto.randomUUID()}`
+        mgrsVersion.current++
+        setManagers((prev) => [{ id: tempId, first_name: form.firstName.trim(), last_name: form.lastName.trim(), email: form.email, phone: form.phone ? `+63${form.phone}` : null, apartment_id: form.apartment_id || null, status: 'pending' } as Manager, ...prev])
+        setShowManagerModal(false)
+
         const result = await createOwnerManager({
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
@@ -558,15 +707,19 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
           apartmentowner_id: ownerId,
           apartment_id: form.apartment_id || undefined,
         })
-        setManagers((prev) => [result.manager as Manager, ...prev])
-        setShowManagerModal(false)
+        // Replace temp with real data
+        mgrsVersion.current++
+        setManagers((prev) => prev.map(m => m.id === tempId ? (result.manager as Manager) : m))
         setCredentials({ name: fullName, email: form.email, password: result.generatedPassword })
         setShowCredentials(true)
         toast.success('Manager added successfully')
+        // Background refetch
+        loadManagers(true).catch(() => {})
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save manager'
       toast.error(message)
+      loadManagers(true).catch(() => {})
     } finally {
       setSaving(false)
     }
@@ -2190,15 +2343,19 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   onClick={async () => {
                     try {
                       setApproving(true)
-                      // Skip API call for sample data
+                      // Optimistic: update status instantly
+                      suppressRealtime()
+                      mgrsVersion.current++
+                      setManagers(prev => prev.map(m => m.id === viewManager.id ? { ...m, status: 'active' } : m))
+                      setViewManager({ ...viewManager, status: 'active' })
+                      toast.success(`${viewManager.first_name} ${viewManager.last_name} has been approved`)
+                      // API call in background
                       if (!viewManager.id.startsWith('sample-')) {
                         await approveManager(viewManager.id)
                       }
-                      toast.success(`${viewManager.first_name} ${viewManager.last_name} has been approved`)
-                      setViewManager({ ...viewManager, status: 'active' })
-                      await loadManagers()
                     } catch {
                       toast.error('Failed to approve manager')
+                      loadManagers(true)
                     } finally {
                       setApproving(false)
                     }
@@ -2369,14 +2526,19 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                   onClick={async () => {
                     try {
                       setApprovingTenant(true)
+                      // Optimistic: update status instantly
+                      suppressRealtime()
+                      tenantsVersion.current++
+                      setOwnerTenants(prev => prev.map(t => t.id === viewTenant.id ? { ...t, status: 'active' } : t))
+                      setViewTenant({ ...viewTenant, status: 'active' })
+                      toast.success(`${viewTenant.name} has been approved`)
+                      // API call in background
                       if (!viewTenant.id.startsWith('sample-')) {
                         await approveTenant(viewTenant.id)
                       }
-                      toast.success(`${viewTenant.name} has been approved`)
-                      setViewTenant({ ...viewTenant, status: 'active' })
-                      await Promise.all([loadTenants(), loadUnits()])
                     } catch {
                       toast.error('Failed to approve tenant')
+                      loadTenants(true)
                     } finally {
                       setApprovingTenant(false)
                     }

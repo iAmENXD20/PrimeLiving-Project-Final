@@ -139,7 +139,14 @@ export async function getTenantDueSchedule(
     const existingByPeriodStart = new Map<string, any>();
     (paymentRows || []).forEach((row: any) => {
       if (row.period_from) {
+        // Store by exact period_from
         existingByPeriodStart.set(String(row.period_from), row);
+        // Also store by YYYY-MM key so different period_from dates in the same month match
+        const d = new Date(row.period_from);
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!existingByPeriodStart.has(monthKey)) {
+          existingByPeriodStart.set(monthKey, row);
+        }
       }
     });
 
@@ -154,35 +161,32 @@ export async function getTenantDueSchedule(
       return `${year}-${month}-${day}`;
     };
 
-    const addOneMonthSameDay = (date: Date): Date => {
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      const day = date.getDate();
-      const targetLastDay = new Date(year, month + 2, 0).getDate();
-      return new Date(year, month + 1, Math.min(day, targetLastDay));
-    };
-
     const rowsToInsert: any[] = [];
     const pendingToOverdueIds: string[] = [];
 
-    for (let periodStart = new Date(moveInDate); periodStart <= today; periodStart = addOneMonthSameDay(periodStart)) {
-      const periodEnd = addOneMonthSameDay(periodStart);
-      const periodFrom = toLocalDateString(periodStart);
-      const periodTo = toLocalDateString(periodEnd);
+    // Use calendar months (1st to last day) with rent_deadline as due date
+    const rentDeadlineDay = rentDeadline ? rentDeadline.getDate() : null;
+    const startYear = moveInDate.getFullYear();
+    const startMonth = moveInDate.getMonth();
 
-      // Use rent_deadline if it falls within this billing period, otherwise use period end
-      let dueDate: Date;
-      if (rentDeadline && rentDeadline >= periodStart && rentDeadline <= periodEnd) {
-        dueDate = new Date(rentDeadline);
-      } else {
-        dueDate = new Date(periodEnd);
-      }
+    for (let y = startYear, m = startMonth; ; ) {
+      const periodFrom = toLocalDateString(new Date(y, m, 1));
+      const lastDay = new Date(y, m + 1, 0).getDate();
+      const periodTo = toLocalDateString(new Date(y, m, lastDay));
+
+      // Determine due date for this month
+      const dueDay = rentDeadlineDay ? Math.min(rentDeadlineDay, lastDay) : lastDay;
+      const dueDate = new Date(y, m, dueDay);
+
+      // Stop if period start is after today
+      if (new Date(y, m, 1) > today) break;
 
       const overdueAt = new Date(dueDate);
       overdueAt.setDate(overdueAt.getDate() + GRACE_DAYS);
-
       const shouldBeOverdue = today > overdueAt;
-      const existing = existingByPeriodStart.get(periodFrom);
+
+      const monthKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+      const existing = existingByPeriodStart.get(periodFrom) || existingByPeriodStart.get(monthKey);
 
       if (!existing) {
         rowsToInsert.push({
@@ -193,20 +197,23 @@ export async function getTenantDueSchedule(
           amount: monthlyRent,
           payment_date: dueDate.toISOString(),
           status: shouldBeOverdue ? "overdue" : "pending",
-          description: `Monthly rent - ${periodFrom} to ${periodTo}`,
+          description: `Monthly rent - ${new Date(y, m).toLocaleString("default", { month: "long", year: "numeric" })}`,
           payment_mode: null,
           receipt_url: null,
           verification_status: null,
           period_from: periodFrom,
           period_to: periodTo,
         });
-        continue;
+      } else {
+        const isPaid = existing.status === "paid" || (existing.verification_status != null && existing.verification_status !== "rejected");
+        if (!isPaid && existing.status === "pending" && shouldBeOverdue) {
+          pendingToOverdueIds.push(existing.id);
+        }
       }
 
-      const isPaid = existing.status === "paid" || (existing.verification_status != null && existing.verification_status !== "rejected");
-      if (!isPaid && existing.status === "pending" && shouldBeOverdue) {
-        pendingToOverdueIds.push(existing.id);
-      }
+      // Next month
+      m++;
+      if (m > 11) { m = 0; y++; }
     }
 
     if (rowsToInsert.length > 0) {

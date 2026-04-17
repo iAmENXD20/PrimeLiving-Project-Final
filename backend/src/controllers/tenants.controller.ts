@@ -539,6 +539,75 @@ export async function assignTenantToUnit(
         .eq("id", unit_id);
     }
 
+    // Auto-generate first billing for the move-in month if none exists
+    try {
+      const resolvedTenantId = tenant_id || (await supabaseAdmin
+        .from("tenants")
+        .select("id")
+        .eq("unit_id", unit_id)
+        .eq("status", "active")
+        .maybeSingle()
+      ).data?.id;
+
+      if (resolvedTenantId) {
+        const moveIn = new Date(`${resolvedStartDate}T00:00:00`);
+        const billingYear = moveIn.getFullYear();
+        const billingMonth = moveIn.getMonth();
+        const monthStart = new Date(billingYear, billingMonth, 1).toISOString().split("T")[0];
+        const lastDay = new Date(billingYear, billingMonth + 1, 0).getDate();
+        const monthEnd = new Date(billingYear, billingMonth, lastDay).toISOString().split("T")[0];
+
+        // Check if payment already exists for the move-in month
+        const { data: existingPayment } = await supabaseAdmin
+          .from("payments")
+          .select("id")
+          .eq("tenant_id", resolvedTenantId)
+          .eq("unit_id", unit_id)
+          .gte("period_from", monthStart)
+          .lte("period_from", monthEnd)
+          .maybeSingle();
+
+        if (!existingPayment) {
+          // Get unit rent and rent_deadline
+          const { data: unitData } = await supabaseAdmin
+            .from("units")
+            .select("monthly_rent, apartment_id, rent_deadline")
+            .eq("id", unit_id)
+            .maybeSingle();
+
+          const rent = monthly_rent ?? unitData?.monthly_rent ?? 0;
+          if (rent > 0) {
+            const now = new Date();
+            // Use rent_deadline day if available, otherwise last day of month
+            const rentDeadlineDay = unitData?.rent_deadline
+              ? new Date(unitData.rent_deadline).getDate()
+              : null;
+            const dueDay = rentDeadlineDay ? Math.min(rentDeadlineDay, lastDay) : lastDay;
+            const dueDate = new Date(billingYear, billingMonth, dueDay);
+            const isPastDue = now > dueDate;
+            const monthName = moveIn.toLocaleString("default", { month: "long", year: "numeric" });
+
+            await supabaseAdmin.from("payments").insert({
+              apartmentowner_id: apt.apartmentowner_id,
+              tenant_id: resolvedTenantId,
+              unit_id,
+              apartment_id: unitData?.apartment_id || null,
+              amount: rent,
+              payment_date: dueDate.toISOString(),
+              status: isPastDue ? "overdue" : "pending",
+              description: `Monthly rent - ${monthName}`,
+              payment_mode: null,
+              period_from: monthStart,
+              period_to: monthEnd,
+            });
+          }
+        }
+      }
+    } catch (billingErr) {
+      // Non-critical: don't fail the assignment if billing generation fails
+      console.error("Auto-billing generation failed:", billingErr);
+    }
+
     sendSuccess(res, null, "Tenant assigned to unit successfully");
 
     if (apt?.apartmentowner_id) {

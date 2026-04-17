@@ -1,8 +1,9 @@
 import { Plus, X } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { suppressRealtime, isRealtimeSuppressed } from '@/lib/realtimeCooldown'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,6 +22,8 @@ export default function OwnerApartmentsTab({ ownerId }: OwnerApartmentsTabProps)
   const { isDark } = useTheme()
   const [units, setUnits] = useState<UnitWithTenant[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
 
   // Add units modal
   const [showAddModal, setShowAddModal] = useState(false)
@@ -32,18 +35,24 @@ export default function OwnerApartmentsTab({ ownerId }: OwnerApartmentsTabProps)
 
   // Real-time: auto-refresh when units change
   useRealtimeSubscription(`owner-apartments-${ownerId}`, [
-    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadUnits() },
+    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadUnits(true) },
   ])
 
-  async function loadUnits() {
+  async function loadUnits(skipCache = false) {
+    if (skipCache && isRealtimeSuppressed()) return
+    const version = ++loadVersion.current
     try {
-      setLoading(true)
-      const data = await getOwnerUnits(ownerId)
+      // Only show skeleton on initial load, not on refreshes
+      if (!initialLoadDone.current) setLoading(true)
+      const data = await getOwnerUnits(ownerId, { skipCache })
+      if (loadVersion.current !== version) return // stale response
       setUnits(data)
+      initialLoadDone.current = true
     } catch (err) {
+      if (loadVersion.current !== version) return
       console.error('Failed to load units:', err)
     } finally {
-      setLoading(false)
+      if (loadVersion.current === version) setLoading(false)
     }
   }
 
@@ -57,13 +66,73 @@ export default function OwnerApartmentsTab({ ownerId }: OwnerApartmentsTabProps)
 
     const startNumber = units.length + 1
 
+    // Immediately add placeholder units BEFORE API call for instant feedback
+    suppressRealtime()
+    const tempUnits: UnitWithTenant[] = []
+    for (let i = 0; i < count; i++) {
+      tempUnits.push({
+        id: `temp-${crypto.randomUUID()}`,
+        name: `Unit ${startNumber + i}`,
+        monthly_rent: 0,
+        apartmentowner_id: ownerId,
+        apartment_id: null,
+        manager_id: null,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        tenant_name: null,
+        tenant_phone: null,
+        tenant_id: null,
+        max_occupancy: null,
+        payment_due_day: null,
+        contract_duration: null,
+        lease_start: null,
+        lease_end: null,
+        tenant_move_in_date: null,
+        rent_deadline: null,
+      })
+    }
+    loadVersion.current++
+    setUnits(prev => [...prev, ...tempUnits].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })))
+    setShowAddModal(false)
+    setAddForm({ count: '1' })
+    toast.success(`${count} unit${count > 1 ? 's' : ''} added successfully`)
+
     try {
-      await createBulkUnits(ownerId, count, startNumber, 0)
-      await loadUnits()
-      setShowAddModal(false)
-      setAddForm({ count: '1' })
-      toast.success(`${count} unit${count > 1 ? 's' : ''} added successfully`)
+      const created = await createBulkUnits(ownerId, count, startNumber, 0)
+      // Replace temp units with real data from API
+      if (Array.isArray(created) && created.length > 0) {
+        loadVersion.current++
+        setUnits(prev => {
+          // Remove temp units and add real ones
+          const withoutTemp = prev.filter(u => !u.id.startsWith('temp-'))
+          return [...withoutTemp, ...created.map((u: any) => ({
+            id: u.id,
+            name: u.name || '',
+            monthly_rent: u.monthly_rent ?? 0,
+            apartmentowner_id: u.apartmentowner_id || ownerId,
+            apartment_id: u.apartment_id || null,
+            manager_id: u.manager_id || null,
+            status: u.status || 'active',
+            created_at: u.created_at || new Date().toISOString(),
+            tenant_name: null,
+            tenant_phone: null,
+            tenant_id: null,
+            max_occupancy: u.max_occupancy || null,
+            payment_due_day: u.payment_due_day || null,
+            contract_duration: null,
+            lease_start: null,
+            lease_end: null,
+            tenant_move_in_date: null,
+            rent_deadline: null,
+          }))].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+        })
+      }
+      // Background refetch for full data consistency
+      loadUnits(true).catch(() => {})
     } catch (err: unknown) {
+      // Remove temp units on error
+      loadVersion.current++
+      setUnits(prev => prev.filter(u => !u.id.startsWith('temp-')))
       const message = err instanceof Error ? err.message : 'Failed to add units'
       toast.error(message)
     }

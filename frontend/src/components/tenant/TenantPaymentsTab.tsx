@@ -20,6 +20,9 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
   const [payments, setPayments] = useState<TenantPayment[]>([])
   const [duePayments, setDuePayments] = useState<TenantDueScheduleItem[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
+  const refreshVersion = useRef(0)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [showQrModal, setShowQrModal] = useState(false)
   const [paymentInfo, setPaymentInfo] = useState<{ bank_name?: string; account_number?: string; account_holder?: string } | null>(null)
@@ -57,11 +60,14 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
     receiptImage?: string | null
   } | null>(null)
 
-  async function refreshPaymentsAndDues() {
+  async function refreshPaymentsAndDues(skipCache = false) {
+    const version = ++refreshVersion.current
+    const opts = { skipCache }
     const [paymentsResult, duesResult] = await Promise.allSettled([
-      getTenantPayments(tenantId),
-      getTenantDueSchedule(tenantId),
+      getTenantPayments(tenantId, opts),
+      getTenantDueSchedule(tenantId, opts),
     ])
+    if (refreshVersion.current !== version) return // stale response
 
     if (paymentsResult.status === 'fulfilled') {
       setPayments(paymentsResult.value)
@@ -72,15 +78,19 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
     }
   }
 
-  const loadPayments = useCallback(async () => {
+  const loadPayments = useCallback(async (skipCache = false) => {
+    const version = ++loadVersion.current
     try {
-      setLoading(true)
+      if (!initialLoadDone.current) setLoading(true)
+      const opts = { skipCache }
       const [paymentsResult, duesResult, paymentDetailsResult, tenantResult] = await Promise.allSettled([
-        getTenantPayments(tenantId),
-        getTenantDueSchedule(tenantId),
+        getTenantPayments(tenantId, opts),
+        getTenantDueSchedule(tenantId, opts),
         getOwnerPaymentDetails(tenantId),
         getCurrentTenant(),
       ])
+
+      if (loadVersion.current !== version) return // stale response
 
       if (paymentsResult.status === 'fulfilled') {
         setPayments(paymentsResult.value)
@@ -111,38 +121,18 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
       const savedReceipt = localStorage.getItem(`receipt_${tenantId}`)
       if (savedReceipt) setReceiptUrl(savedReceipt)
     } finally {
-      setLoading(false)
+      if (loadVersion.current === version) {
+        setLoading(false)
+        initialLoadDone.current = true
+      }
     }
   }, [tenantId, ownerId, apartmentId])
 
   useEffect(() => { loadPayments() }, [loadPayments])
 
   useRealtimeSubscription(`tenant-payments-${tenantId}`, [
-    { table: 'payments', filter: `tenant_id=eq.${tenantId}`, onChanged: loadPayments },
+    { table: 'payments', filter: `tenant_id=eq.${tenantId}`, onChanged: () => loadPayments(true) },
   ])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refreshPaymentsAndDues().catch((error) => {
-        console.error('Periodic payment sync failed:', error)
-      })
-    }, 300000)
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        refreshPaymentsAndDues().catch((error) => {
-          console.error('Visibility payment sync failed:', error)
-        })
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [tenantId])
 
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
@@ -299,7 +289,7 @@ export default function TenantPaymentsTab({ tenantId, ownerId, apartmentId }: Te
         payment_mode: selectedPaymentMode === 'others' ? (customPaymentMode.trim() || 'others') : selectedPaymentMode,
       })
 
-      await refreshPaymentsAndDues()
+      await refreshPaymentsAndDues(true)
     } catch (error) {
       console.error('Failed to submit payment proof:', error)
       toast.error('Failed to submit payment proof')

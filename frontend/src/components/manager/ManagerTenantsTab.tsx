@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useTheme } from '../../context/ThemeContext'
 import { useEmailValidation } from '@/hooks/useEmailValidation'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { suppressRealtime, isRealtimeSuppressed } from '@/lib/realtimeCooldown'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,6 +34,8 @@ export default function ManagerTenantsTab({ managerId, ownerId }: ManagerTenants
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [tenants, setTenants] = useState<TenantAccount[]>([])
   const [loading, setLoading] = useState(true)
+  const initialLoadDone = useRef(false)
+  const loadVersion = useRef(0)
   const [showModal, setShowModal] = useState(false)
   const [editingTenant, setEditingTenant] = useState<TenantAccount | null>(null)
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', sex: '', age: '' })
@@ -69,8 +72,8 @@ export default function ManagerTenantsTab({ managerId, ownerId }: ManagerTenants
 
   // Real-time: auto-refresh when tenants change
   useRealtimeSubscription(`mgr-tenants-${managerId}`, [
-    { table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadData() },
-    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadData() },
+    { table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadData(true) },
+    { table: 'units', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadData(true) },
   ])
 
   // Fetch ID photos when viewing a tenant
@@ -106,13 +109,17 @@ export default function ManagerTenantsTab({ managerId, ownerId }: ManagerTenants
     return () => window.clearInterval(timerId)
   }, [emailCooldown])
 
-  async function loadData() {
+  async function loadData(skipCache = false) {
+    if (skipCache && isRealtimeSuppressed()) return
+    const version = ++loadVersion.current
     try {
-      setLoading(true)
+      if (!initialLoadDone.current) setLoading(true)
+      const opts = { skipCache }
       const [tenantData, apartments] = await Promise.all([
-        getManagerTenants(managerId),
-        getManagedApartments(managerId),
+        getManagerTenants(managerId, opts),
+        getManagedApartments(managerId, opts),
       ])
+      if (loadVersion.current !== version) return // stale response
       setTenants(tenantData)
       // Store apartmentowner_id from managed apartments for tenant creation
       if (apartments?.[0]?.apartmentowner_id) {
@@ -132,10 +139,12 @@ export default function ManagerTenantsTab({ managerId, ownerId }: ManagerTenants
         })
       }
       setUnitDataMap(map)
+      initialLoadDone.current = true
     } catch (err) {
+      if (loadVersion.current !== version) return
       console.error('Failed to load tenants:', err)
     } finally {
-      setLoading(false)
+      if (loadVersion.current === version) setLoading(false)
     }
   }
 
@@ -181,17 +190,30 @@ export default function ManagerTenantsTab({ managerId, ownerId }: ManagerTenants
     const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim()
     try {
       setSaving(true)
+      suppressRealtime()
       if (editingTenant) {
-        const updated = await updateTenantAccount(editingTenant.id, {
+        // Optimistic: update state and close modal BEFORE API call
+        loadVersion.current++
+        setTenants(prev => prev.map(t => t.id === editingTenant.id ? { ...t, first_name: form.firstName.trim(), last_name: form.lastName.trim(), name: fullName, email: form.email, phone: form.phone ? `+63${form.phone}` : t.phone } : t))
+        toast.success('Tenant updated successfully')
+        setShowModal(false)
+        // API call in background
+        updateTenantAccount(editingTenant.id, {
           first_name: form.firstName.trim(),
           last_name: form.lastName.trim(),
           email: form.email,
           phone: form.phone ? `+63${form.phone}` : undefined,
+        }).then(() => loadData(true)).catch(() => {
+          toast.error('Failed to save — refreshing data')
+          loadData(true)
         })
-        await loadData()
-        toast.success('Tenant updated successfully')
-        setShowModal(false)
       } else {
+        // Add placeholder immediately
+        const tempId = `temp-${crypto.randomUUID()}`
+        loadVersion.current++
+        setTenants(prev => [{ id: tempId, first_name: form.firstName.trim(), last_name: form.lastName.trim(), name: fullName, email: form.email, phone: form.phone ? `+63${form.phone}` : null, status: 'pending' } as any, ...prev])
+        setShowModal(false)
+
         const result = await createTenantAccount({
           first_name: form.firstName.trim(),
           last_name: form.lastName.trim(),
@@ -201,16 +223,19 @@ export default function ManagerTenantsTab({ managerId, ownerId }: ManagerTenants
           age: form.age || undefined,
           apartmentowner_id: ownerIdRef.current || '',
         })
-        setTenants((prev) => [result.tenant, ...prev])
-        await loadData()
-        setShowModal(false)
+        // Replace temp with real data
+        loadVersion.current++
+        setTenants(prev => prev.map(t => t.id === tempId ? result.tenant : t))
         setCredentials({ email: form.email })
         setShowCredentials(true)
         toast.success('Tenant invitation sent successfully')
+        // Background refetch
+        loadData(true).catch(() => {})
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save tenant'
       toast.error(message)
+      loadData(true).catch(() => {})
     } finally {
       setSaving(false)
     }
@@ -224,15 +249,21 @@ export default function ManagerTenantsTab({ managerId, ownerId }: ManagerTenants
   }
 
   async function handleDelete(id: string) {
+    // Optimistic: remove from state BEFORE API call
+    suppressRealtime()
+    loadVersion.current++
+    setTenants(prev => prev.filter(t => t.id !== id))
+    setOpenMenu(null)
+    toast.success('Tenant deleted')
+    setDeleting(true)
     try {
-      setDeleting(true)
       await deleteTenantAccount(id)
-      await loadData()
-      setOpenMenu(null)
-      toast.success('Tenant deleted')
+      // Background refetch
+      loadData(true).catch(() => {})
     } catch (err) {
       console.error('Failed to delete tenant:', err)
-      toast.error('Failed to delete tenant')
+      toast.error('Failed to delete tenant — refreshing data')
+      loadData(true).catch(() => {})
     } finally {
       setDeleting(false)
       setTenantToDelete(null)
