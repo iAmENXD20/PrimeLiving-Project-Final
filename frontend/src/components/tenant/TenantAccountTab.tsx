@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Eye, EyeOff, Lock, ShieldCheck, Users, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Eye, EyeOff, Lock, ShieldCheck, Users, Plus, Trash2, Upload, X, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -69,10 +69,18 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
   const [newOccFirstName, setNewOccFirstName] = useState('')
   const [newOccLastName, setNewOccLastName] = useState('')
   const [newOccSex, setNewOccSex] = useState('')
+  const [isSexDropdownOpen, setIsSexDropdownOpen] = useState(false)
   const [newOccPhone, setNewOccPhone] = useState('')
   const [newOccBirthdate, setNewOccBirthdate] = useState('')
+  const [newOccRelationship, setNewOccRelationship] = useState('family member')
+  const [isRelationshipDropdownOpen, setIsRelationshipDropdownOpen] = useState(false)
+  const [newOccFamilyRelationship, setNewOccFamilyRelationship] = useState('')
+  const [isFamilyRelationshipDropdownOpen, setIsFamilyRelationshipDropdownOpen] = useState(false)
   const [newOccupantIdFile, setNewOccupantIdFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const sexDropdownRef = useRef<HTMLDivElement>(null)
+  const relationshipDropdownRef = useRef<HTMLDivElement>(null)
+  const familyRelationshipDropdownRef = useRef<HTMLDivElement>(null)
 
   const loadProfile = useCallback(async () => {
     const [{ data: userData }, tenantRes] = await Promise.all([
@@ -152,6 +160,23 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
       // silent fallback
     })
   }, [loadProfile])
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sexDropdownRef.current && !sexDropdownRef.current.contains(e.target as Node)) {
+        setIsSexDropdownOpen(false)
+      }
+      if (relationshipDropdownRef.current && !relationshipDropdownRef.current.contains(e.target as Node)) {
+        setIsRelationshipDropdownOpen(false)
+      }
+      if (familyRelationshipDropdownRef.current && !familyRelationshipDropdownRef.current.contains(e.target as Node)) {
+        setIsFamilyRelationshipDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useRealtimeSubscription(`tenant-account-${tenantId}`, [
     { table: 'tenants', filter: `id=eq.${tenantId}`, onChanged: () => loadProfile() },
@@ -382,6 +407,7 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                             {occ.first_name ? `${occ.first_name} ${occ.last_name || ''}`.trim() : occ.full_name}
                           </span>
                           <div className={`flex items-center gap-3 text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {occ.family_relationship ? <span className="capitalize">{occ.family_relationship}</span> : occ.relationship && <span className="capitalize">{occ.relationship}</span>}
                             {occ.sex && <span>{occ.sex}</span>}
                             {occ.birthdate && <span>{Math.floor((Date.now() - new Date(occ.birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs old</span>}
                             {occ.phone && <span>{formatPhone(occ.phone)}</span>}
@@ -433,17 +459,32 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
+                      <div ref={sexDropdownRef} className="relative">
                         <Label className={`text-sm ${labelClass}`}>Sex</Label>
-                        <select
-                          className={`mt-1 w-full rounded-md border px-3 py-2 text-sm ${inputClass}`}
-                          value={newOccSex}
-                          onChange={(e) => setNewOccSex(e.target.value)}
+                        <button
+                          type="button"
+                          onClick={() => setIsSexDropdownOpen((prev) => !prev)}
+                          className={`w-full h-11 rounded-lg border px-3 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${inputClass} ${!newOccSex ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}`}
                         >
-                          <option value="">Select</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                        </select>
+                          {newOccSex || 'Select'}
+                        </button>
+                        <ChevronDown
+                          className={`pointer-events-none absolute right-3 bottom-3 h-4 w-4 transition-transform ${isSexDropdownOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                        />
+                        {isSexDropdownOpen && (
+                          <div className={`absolute z-[60] w-full mt-1 rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+                            {['Male', 'Female'].map((option) => (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() => { setNewOccSex(option); setIsSexDropdownOpen(false) }}
+                                className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${option === newOccSex ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div>
                         <Label className={`text-sm ${labelClass}`}>Contact Number</Label>
@@ -464,11 +505,71 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                         <Label className={`text-sm ${labelClass}`}>Birthdate</Label>
                         <Input
                           type="date"
-                          className={`mt-1 ${inputClass}`}
+                          className={`mt-1 h-11 ${inputClass}`}
                           value={newOccBirthdate}
                           onChange={(e) => setNewOccBirthdate(e.target.value)}
                         />
                       </div>
+                      <div ref={relationshipDropdownRef} className="relative">
+                        <Label className={`text-sm ${labelClass}`}>Relationship</Label>
+                        <button
+                          type="button"
+                          onClick={() => setIsRelationshipDropdownOpen((prev) => !prev)}
+                          className={`w-full h-11 rounded-lg border px-3 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${inputClass} ${!newOccRelationship ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}`}
+                        >
+                          {newOccRelationship ? newOccRelationship.charAt(0).toUpperCase() + newOccRelationship.slice(1) : 'Select'}
+                        </button>
+                        <ChevronDown
+                          className={`pointer-events-none absolute right-3 bottom-3 h-4 w-4 transition-transform ${isRelationshipDropdownOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                        />
+                        {isRelationshipDropdownOpen && (
+                          <div className={`absolute z-[60] w-full mt-1 rounded-lg border shadow-lg animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+                            {['family member', 'roommate', 'friend', 'colleague', 'other'].map((option) => (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() => { setNewOccRelationship(option); setIsRelationshipDropdownOpen(false); setNewOccFamilyRelationship('') }}
+                                className={`w-full text-left px-3 py-2.5 text-sm transition-colors capitalize ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${option === newOccRelationship ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {newOccRelationship === 'family member' && (
+                      <div ref={familyRelationshipDropdownRef} className="relative">
+                        <Label className={`text-sm ${labelClass}`}>
+                          Family Relationship <span className="text-red-500">*</span>
+                        </Label>
+                        <button
+                          type="button"
+                          onClick={() => setIsFamilyRelationshipDropdownOpen((prev) => !prev)}
+                          className={`w-full h-11 rounded-lg border px-3 pr-10 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors ${inputClass} ${!newOccFamilyRelationship ? (isDark ? 'text-gray-500' : 'text-gray-400') : ''}`}
+                        >
+                          {newOccFamilyRelationship ? newOccFamilyRelationship.charAt(0).toUpperCase() + newOccFamilyRelationship.slice(1) : 'Select family relationship'}
+                        </button>
+                        <ChevronDown
+                          className={`pointer-events-none absolute right-3 bottom-3 h-4 w-4 transition-transform ${isFamilyRelationshipDropdownOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                        />
+                        {isFamilyRelationshipDropdownOpen && (
+                          <div className={`absolute z-10 w-full mt-1 rounded-lg border shadow-lg max-h-40 overflow-y-auto animate-in fade-in zoom-in-95 duration-150 ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+                            {['mother', 'father', 'sister', 'brother', 'grandmother', 'grandfather', 'aunt', 'uncle', 'cousin', 'niece', 'nephew', 'son', 'daughter', 'spouse'].map((option) => (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() => { setNewOccFamilyRelationship(option); setIsFamilyRelationshipDropdownOpen(false) }}
+                                className={`w-full text-left px-3 py-2.5 text-sm transition-colors capitalize ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'} ${option === newOccFamilyRelationship ? (isDark ? 'bg-white/5 font-medium' : 'bg-gray-50 font-medium') : ''}`}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 gap-3">
                       <div>
                         <Label className={`text-sm ${labelClass}`}>Valid ID (photo)</Label>
                         <input
@@ -501,9 +602,13 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                     </div>
                     <Button
                       className="gap-2"
-                      disabled={addingOccupant || !newOccFirstName.trim()}
+                      disabled={addingOccupant || !newOccFirstName.trim() || (newOccRelationship === 'family member' && !newOccFamilyRelationship)}
                       onClick={async () => {
                         if (!tenantId || !unitId || !newOccFirstName.trim()) return
+                        if (newOccRelationship === 'family member' && !newOccFamilyRelationship) {
+                          toast.error('Please select a family relationship')
+                          return
+                        }
                         setAddingOccupant(true)
                         try {
                           let photoUrl: string | undefined
@@ -518,6 +623,8 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                             sex: newOccSex || undefined,
                             phone: newOccPhone || undefined,
                             birthdate: newOccBirthdate || undefined,
+                            relationship: newOccRelationship,
+                            family_relationship: newOccFamilyRelationship || undefined,
                             id_photo_url: photoUrl,
                           })
                           setOccupants(prev => [...prev, occ])
@@ -526,6 +633,8 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
                           setNewOccSex('')
                           setNewOccPhone('')
                           setNewOccBirthdate('')
+                          setNewOccRelationship('family member')
+                          setNewOccFamilyRelationship('')
                           setNewOccupantIdFile(null)
                           if (fileInputRef.current) fileInputRef.current.value = ''
                           toast.success('Occupant added')

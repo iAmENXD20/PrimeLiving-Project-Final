@@ -533,6 +533,8 @@ export interface UnitOccupant {
   sex?: string | null
   phone?: string | null
   birthdate?: string | null
+  relationship?: string
+  family_relationship?: string | null
   id_photo_url?: string | null
   created_at: string
 }

@@ -76,7 +76,7 @@ export async function addOccupant(
   res: Response
 ): Promise<void> {
   try {
-    const { unit_id, tenant_id, full_name, first_name, last_name, id_photo_url, birthdate } = req.body;
+    const { unit_id, tenant_id, full_name, first_name, last_name, id_photo_url, birthdate, relationship, family_relationship } = req.body;
 
     const resolvedFullName = full_name || `${first_name || ''} ${last_name || ''}`.trim()
 
@@ -117,6 +117,8 @@ export async function addOccupant(
         full_name: resolvedFullName,
         id_photo_url: id_photo_url || null,
         birthdate: birthdate || null,
+        relationship: relationship || 'family member',
+        family_relationship: family_relationship || null,
       })
       .select()
       .single();
@@ -142,11 +144,13 @@ export async function updateOccupant(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const { full_name, id_photo_url } = req.body;
+    const { full_name, id_photo_url, relationship, family_relationship } = req.body;
 
     const updates: any = { updated_at: new Date().toISOString() };
     if (full_name !== undefined) updates.full_name = full_name.trim();
     if (id_photo_url !== undefined) updates.id_photo_url = id_photo_url;
+    if (relationship !== undefined) updates.relationship = relationship;
+    if (family_relationship !== undefined) updates.family_relationship = family_relationship;
 
     const { data, error } = await supabaseAdmin
       .from("unit_occupants")

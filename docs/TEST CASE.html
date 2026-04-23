@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PrimeLiving V3 — Test Cases</title>
+<style>
+  body { font-family: 'Times New Roman', serif; font-size: 12pt; margin: 40px 50px; color: #222; }
+  h2 { font-size: 14pt; margin-top: 30px; margin-bottom: 4px; }
+  h3 { font-size: 13pt; margin-top: 20px; margin-bottom: 10px; }
+  p.caption { font-size: 12pt; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  th { background: #333; color: #fff; text-align: left; padding: 8px 12px; font-size: 12pt; }
+  td { border-bottom: 1px solid #ccc; padding: 10px 12px; vertical-align: top; font-size: 11.5pt; }
+  td:first-child { width: 30%; font-weight: 500; }
+  td:last-child { width: 70%; }
+  ol { margin: 0; padding-left: 20px; }
+  ol li { margin-bottom: 2px; }
+  em { font-style: italic; }
+  .page-break { page-break-before: always; }
+  @media print {
+    body { margin: 20px 30px; }
+    h2 { page-break-before: always; }
+    h2:first-of-type { page-break-before: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<h2>Table 1.</h2>
+<h3>Functional Suitability Test</h3>
+
+<table>
+<tr><th>Test on Module</th><th>Steps Undertaken</th></tr>
+
+<tr>
+<td>Login Module<br>(Owner)</td>
+<td><ol>
+  <li>Opened the system login page.</li>
+  <li>Typed email: <em>owner@email.com</em>.</li>
+  <li>Typed password.</li>
+  <li>Clicked <strong>Login</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Login Module<br>(Manager)</td>
+<td><ol>
+  <li>Opened the system login page.</li>
+  <li>Typed email: <em>manager@email.com</em>.</li>
+  <li>Typed password.</li>
+  <li>Clicked <strong>Login</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Login Module<br>(Tenant)</td>
+<td><ol>
+  <li>Opened the system login page.</li>
+  <li>Typed email: <em>tenant@email.com</em>.</li>
+  <li>Typed password.</li>
+  <li>Clicked <strong>Login</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Login Module<br>(Invalid Credentials)</td>
+<td><ol>
+  <li>Opened the system login page.</li>
+  <li>Typed incorrect email and password.</li>
+  <li>Clicked <strong>Login</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Password Reset Module</td>
+<td><ol>
+  <li>Clicked <strong>Forgot Password</strong> link on the login page.</li>
+  <li>Typed email: <em>owner@email.com</em>.</li>
+  <li>Clicked <strong>Send Reset Link</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Logout Module</td>
+<td><ol>
+  <li>Logged in as any user role.</li>
+  <li>Clicked <strong>Logout</strong> button in the sidebar.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Owner Dashboard<br>(Overview)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Overview</strong> tab.</li>
+  <li>Selected the Month and Year filter.</li>
+  <li>Viewed statistics cards and recent activity history.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Property Management<br>(Add Property)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Manage My Apartment</strong> tab.</li>
+  <li>Clicked <strong>Add Property</strong> button.</li>
+  <li>Typed building name and filled in address fields.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Unit Management<br>(Add Unit)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Manage My Apartment</strong> tab.</li>
+  <li>Selected a property: <em>Apartment 1</em>.</li>
+  <li>Clicked <strong>Add Unit</strong> button.</li>
+  <li>Typed unit name, monthly rent, and max occupancy.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Unit Management<br>(Edit Unit)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked on a unit to open its detail modal.</li>
+  <li>Changed the monthly rent and unit status.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>User Management<br>(Invite Manager)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>User Management</strong> tab then <strong>Managers</strong> sub-tab.</li>
+  <li>Clicked <strong>Add Manager</strong> button.</li>
+  <li>Filled in first name, last name, email, and phone number.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>User Management<br>(Approve Tenant)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>User Management</strong> tab then <strong>Tenants</strong> sub-tab.</li>
+  <li>Filtered by <em>Pending Verification</em> status.</li>
+  <li>Clicked <strong>Approve</strong> on a pending tenant.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Maintenance Request<br>(Owner View)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Maintenance Request</strong> tab.</li>
+  <li>Applied status and priority filters.</li>
+  <li>Searched by keyword: <em>gripo</em>.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Payment Verification<br>(Owner)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Payment History</strong> tab.</li>
+  <li>Located a payment with pending verification status.</li>
+  <li>Reviewed the receipt image.</li>
+  <li>Clicked <strong>Approve</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Analytics Module<br>(Charts)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Analytics</strong> tab.</li>
+  <li>Viewed the revenue line chart, property distribution pie chart, and maintenance trends bar chart.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Audit Reports Module<br>(Quarterly Report)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Audit Reports</strong> tab.</li>
+  <li>Selected Year: <em>2025</em> and Quarter: <em>Q1</em>.</li>
+  <li>Viewed summary cards and monthly breakdown.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Audit Reports Module<br>(Add Expense)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Audit Reports</strong> then Expenses section.</li>
+  <li>Clicked <strong>Add Expense</strong> button.</li>
+  <li>Filled in date, type, description, and amount.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Activity Logs Module</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Activity Logs</strong> tab.</li>
+  <li>Applied role filter and date range: <em>06/01/2025 to 06/15/2025</em>.</li>
+  <li>Searched by keyword.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Announcements Module<br>(Owner)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked <strong>New Announcement</strong> button.</li>
+  <li>Typed title and message content.</li>
+  <li>Selected recipient tenants.</li>
+  <li>Clicked <strong>Publish</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Account Settings<br>(Owner)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Account Settings</strong> tab.</li>
+  <li>Updated phone number and clicked <strong>Save</strong>.</li>
+  <li>Typed current password, new password, and confirm password.</li>
+  <li>Clicked <strong>Submit</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Manager Dashboard<br>(Overview)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Navigated to <strong>Overview</strong> tab.</li>
+  <li>Viewed statistics cards for active tenants, maintenance, and managed apartments.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Manage Apartment<br>(Manager)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Navigated to <strong>Manage Apartment</strong> tab.</li>
+  <li>Viewed managed units with tenant assignments and status indicators.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Maintenance Request<br>(Update Status)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Navigated to <strong>Maintenance Request</strong> tab.</li>
+  <li>Located a pending request.</li>
+  <li>Clicked <strong>Mark as In Progress</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Payment Verification<br>(Manager)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Navigated to <strong>Payment History</strong> tab.</li>
+  <li>Located a pending cash payment in the verification queue.</li>
+  <li>Reviewed receipt image and clicked <strong>Approve</strong>.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Record Cash Payment<br>(Manager)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Clicked <strong>Record Cash Payment</strong> button.</li>
+  <li>Selected tenant, billing period, and payment mode.</li>
+  <li>Clicked <strong>Submit</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Documents Module<br>(Upload)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Navigated to <strong>Documents</strong> tab.</li>
+  <li>Selected a PDF file and assigned it to a tenant.</li>
+  <li>Clicked <strong>Upload</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Notifications Module<br>(Manager)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Navigated to <strong>Notifications</strong> tab.</li>
+  <li>Clicked on an unread notification to view details.</li>
+  <li>Clicked <strong>Mark All as Read</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Announcements Module<br>(Manager)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Clicked <strong>New Announcement</strong> button.</li>
+  <li>Typed title and message content.</li>
+  <li>Clicked <strong>Publish</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Account Settings<br>(Manager)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Navigated to <strong>Account Settings</strong> tab.</li>
+  <li>Updated phone number and birthdate.</li>
+  <li>Changed password and clicked <strong>Submit</strong>.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Tenant Dashboard<br>(Overview)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Overview</strong> tab.</li>
+  <li>Viewed statistics, unit information, and lease details.</li>
+  <li>Scrolled through recent activity.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Maintenance Request<br>(Submit Request)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Request Maintenance</strong> then <strong>Request</strong> tab.</li>
+  <li>Typed title and description of the issue.</li>
+  <li>Selected priority level: <em>High</em>.</li>
+  <li>Uploaded photos of the issue.</li>
+  <li>Clicked <strong>Submit</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Maintenance Request<br>(Track Request)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Request Maintenance</strong> then <strong>Tracking</strong> tab.</li>
+  <li>Viewed the list of submitted requests with status badges.</li>
+  <li>Clicked on a request to view full details.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Maintenance Request<br>(Rate Service)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Located a resolved maintenance request.</li>
+  <li>Selected a star rating and typed a review comment.</li>
+  <li>Clicked <strong>Submit Review</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Payment Module<br>(Submit Proof)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Payments</strong> tab.</li>
+  <li>Selected billing period and payment mode: <em>GCash</em>.</li>
+  <li>Uploaded receipt image.</li>
+  <li>Clicked <strong>Submit</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Payment Module<br>(Payment History)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Payments</strong> then <strong>Payment History</strong> section.</li>
+  <li>Viewed the list of all payments with status and mode.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Documents Module<br>(Tenant View)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Documents</strong> tab.</li>
+  <li>Viewed the list of shared documents.</li>
+  <li>Clicked <strong>Download</strong> on a document.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Notifications Module<br>(Tenant)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Notifications</strong> tab.</li>
+  <li>Checked the unread badge count.</li>
+  <li>Clicked on an unread notification to view full content.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Account Settings<br>(Tenant)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Account Settings</strong> tab.</li>
+  <li>Updated phone number and birthdate.</li>
+  <li>Changed password and clicked <strong>Submit</strong>.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Occupant Management<br>(Tenant)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Account Settings</strong> then <strong>Occupants</strong> section.</li>
+  <li>Clicked <strong>Add Occupant</strong> button.</li>
+  <li>Filled in name, sex, phone, and birthdate.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Real-Time Updates<br>(Maintenance)</td>
+<td><ol>
+  <li>Logged in as Tenant in Browser 1 and as Owner in Browser 2.</li>
+  <li>Tenant submitted a new maintenance request.</li>
+  <li>Switched to Owner's browser and checked the dashboard.</li>
+  <li>Observed results — request appeared without manual refresh.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Real-Time Updates<br>(Payment)</td>
+<td><ol>
+  <li>Logged in as Tenant in Browser 1 and as Owner in Browser 2.</li>
+  <li>Tenant submitted a payment proof.</li>
+  <li>Switched to Owner's browser and checked the payment queue.</li>
+  <li>Observed results — payment appeared without manual refresh.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Real-Time Updates<br>(Announcement)</td>
+<td><ol>
+  <li>Logged in as Owner in Browser 1 and as Tenant in Browser 2.</li>
+  <li>Owner published a new announcement.</li>
+  <li>Switched to Tenant's browser and checked the notifications tab.</li>
+  <li>Observed results — notification appeared without manual refresh.</li>
+</ol></td>
+</tr>
+
+</table>
+
+<!-- ==================== USABILITY TEST ==================== -->
+
+<div class="page-break"></div>
+
+<h2>Table 2.</h2>
+<h3>Usability Test</h3>
+
+<table>
+<tr><th>Test on Module</th><th>Steps Undertaken</th></tr>
+
+<tr>
+<td>Login Module</td>
+<td><ol>
+  <li>Opened the system login page.</li>
+  <li>Typed username and password.</li>
+  <li>Clicked <strong>Login</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Owner Dashboard<br>(Overview Navigation)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked <strong>Overview</strong> tab in the sidebar.</li>
+  <li>Scrolled through the dashboard statistics and recent activity.</li>
+  <li>Used the Month/Year filter dropdown.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Property Management<br>(Add Property)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked <strong>Manage My Apartment</strong> tab.</li>
+  <li>Clicked <strong>Add Property</strong> button.</li>
+  <li>Entered property name: <em>Sunrise Residences</em>.</li>
+  <li>Filled in the address fields.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Unit Management<br>(Add and Edit Unit)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Selected a property from the list.</li>
+  <li>Clicked <strong>Add Unit</strong> button.</li>
+  <li>Typed unit name: <em>Unit 5</em>, rent: <em>₱10,000</em>.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Clicked on the newly added unit to edit its details.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>User Management<br>(Invite Manager)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked <strong>User Management</strong> then <strong>Managers</strong> tab.</li>
+  <li>Clicked <strong>+Add Manager</strong> button.</li>
+  <li>Entered manager name: <em>Maria Santos</em>.</li>
+  <li>Typed email and phone number.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Maintenance Request<br>(Owner Viewing)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked <strong>Maintenance Request</strong> tab.</li>
+  <li>Used the status filter dropdown to select <em>Pending</em>.</li>
+  <li>Typed in the search field to find a specific request.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Payment History<br>(Verify Payment)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked <strong>Payment History</strong> tab.</li>
+  <li>Located a pending payment in the verification queue.</li>
+  <li>Viewed the payment receipt image.</li>
+  <li>Clicked <strong>Approve</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Audit Reports Module<br>(Generate Report)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked <strong>Audit Reports</strong> tab.</li>
+  <li>Selected Year: <em>2025</em>, Quarter: <em>Q2</em>.</li>
+  <li>Viewed summary cards and monthly revenue breakdown.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Activity Logs Module<br>(Filter and Search)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked <strong>Activity Logs</strong> tab.</li>
+  <li>Clicked the <strong>Filter</strong> button.</li>
+  <li>Selected role: <em>Tenant</em> and set date range.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Announcements Module<br>(Publish Announcement)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked <strong>New Announcement</strong> button.</li>
+  <li>Typed title: <em>Water Interruption Advisory</em>.</li>
+  <li>Typed the message body.</li>
+  <li>Selected recipients: <em>All Tenants</em>.</li>
+  <li>Clicked <strong>Publish</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Manager Dashboard<br>(Overview Navigation)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Clicked <strong>Overview</strong> tab in the sidebar.</li>
+  <li>Viewed statistics cards and recent maintenance/payment activity.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Maintenance Request<br>(Manager Status Update)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Clicked <strong>Maintenance Request</strong> tab.</li>
+  <li>Located a pending request from a tenant.</li>
+  <li>Clicked <strong>Mark as In Progress</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Record Cash Payment<br>(Manager)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Clicked <strong>Payment History</strong> tab.</li>
+  <li>Clicked <strong>Record Cash Payment</strong> button.</li>
+  <li>Selected tenant: <em>Leo Borromeo</em> and billing period.</li>
+  <li>Clicked <strong>Submit</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Documents Module<br>(Upload Document)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Clicked <strong>Documents</strong> tab.</li>
+  <li>Selected a PDF file to upload.</li>
+  <li>Assigned it to tenant: <em>Leo Borromeo</em>.</li>
+  <li>Clicked <strong>Upload</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Tenant Dashboard<br>(Overview Navigation)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Clicked <strong>Overview</strong> tab in the sidebar.</li>
+  <li>Viewed statistics cards, unit information, and lease dates.</li>
+  <li>Scrolled through recent activity and FAQ section.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Submit Maintenance Request<br>(Tenant)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Clicked <strong>Request Maintenance</strong> tab.</li>
+  <li>Typed title: <em>Sira ang gripo sa kusina</em>.</li>
+  <li>Typed description of the issue.</li>
+  <li>Selected priority: <em>High</em>.</li>
+  <li>Uploaded photos using the photo slots.</li>
+  <li>Clicked <strong>Submit</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Submit Payment Proof<br>(Tenant)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Clicked <strong>Payments</strong> tab.</li>
+  <li>Selected billing period: <em>June 2025</em>.</li>
+  <li>Selected payment mode: <em>GCash</em>.</li>
+  <li>Uploaded receipt image.</li>
+  <li>Clicked <strong>Submit</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>View Documents<br>(Tenant)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Clicked <strong>Documents</strong> tab.</li>
+  <li>Viewed the list of shared documents.</li>
+  <li>Clicked <strong>Download</strong> button on a document.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Account Settings<br>(Update Profile)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Clicked <strong>Account Settings</strong> tab.</li>
+  <li>Updated phone number: <em>+639201234567</em>.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Changed password using the password form.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Manage Occupants<br>(Add Occupant)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Clicked <strong>Account Settings</strong> then <strong>Occupants</strong> section.</li>
+  <li>Clicked <strong>Add Occupant</strong> button.</li>
+  <li>Entered occupant name: <em>Maria Borromeo</em>.</li>
+  <li>Filled in sex, phone, and birthdate fields.</li>
+  <li>Clicked <strong>Save</strong> button.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+</table>
+
+<!-- ==================== PERFORMANCE EFFICIENCY TEST ==================== -->
+
+<div class="page-break"></div>
+
+<h2>Table 3.</h2>
+<h3>Performance Efficiency Test</h3>
+
+<table>
+<tr><th>Test on Module</th><th>Steps Undertaken</th></tr>
+
+<tr>
+<td>Login Module<br>(Response Time)</td>
+<td><ol>
+  <li>Opened the system login page.</li>
+  <li>Typed valid email and password.</li>
+  <li>Clicked <strong>Login</strong> button.</li>
+  <li>Measured the time from button click to dashboard load.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Dashboard Loading<br>(Owner)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to the <strong>Overview</strong> tab.</li>
+  <li>Measured the time for statistics cards and recent activity to fully load.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Dashboard Loading<br>(Manager)</td>
+<td><ol>
+  <li>Logged in as Manager.</li>
+  <li>Navigated to the <strong>Overview</strong> tab.</li>
+  <li>Measured the time for statistics cards and recent activity to fully load.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Dashboard Loading<br>(Tenant)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to the <strong>Overview</strong> tab.</li>
+  <li>Measured the time for statistics cards, unit info, and lease details to fully load.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Property Management<br>(Load Units List)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Manage My Apartment</strong> tab.</li>
+  <li>Selected a property with multiple units.</li>
+  <li>Measured the time for all units to render in the list.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Maintenance Request<br>(Load Request List)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Maintenance Request</strong> tab.</li>
+  <li>Measured the time for the request list with status badges to fully load.</li>
+  <li>Applied a filter and measured the re-render time.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Payment History<br>(Load Records)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Payment History</strong> tab.</li>
+  <li>Measured the time for payment records and statistics to load.</li>
+  <li>Applied status filter and measured the re-render time.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Analytics Module<br>(Chart Rendering)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Analytics</strong> tab.</li>
+  <li>Measured the time for all charts (revenue, property, maintenance) to fully render.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Audit Reports<br>(Generate Report)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Audit Reports</strong> tab.</li>
+  <li>Selected Year: <em>2025</em> and Quarter: <em>Q1</em>.</li>
+  <li>Measured the time for the report data and summary cards to load.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Activity Logs<br>(Load and Filter)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Activity Logs</strong> tab.</li>
+  <li>Measured the time for the log entries to load.</li>
+  <li>Applied a date range filter and measured the re-render time.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Real-Time Update<br>(Propagation Speed)</td>
+<td><ol>
+  <li>Logged in as Tenant in Browser 1 and as Owner in Browser 2.</li>
+  <li>Tenant submitted a new maintenance request.</li>
+  <li>Measured the time from submission to the request appearing on Owner's dashboard.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Payment Submission<br>(Upload Speed)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Payments</strong> tab.</li>
+  <li>Selected billing period and payment mode.</li>
+  <li>Uploaded a receipt image and clicked <strong>Submit</strong>.</li>
+  <li>Measured the time from submit to confirmation display.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Maintenance Photo Upload<br>(Upload Speed)</td>
+<td><ol>
+  <li>Logged in as Tenant.</li>
+  <li>Navigated to <strong>Request Maintenance</strong> tab.</li>
+  <li>Uploaded 4 photos using the photo slots.</li>
+  <li>Measured the time for each photo to upload and display the preview.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Search and Filter<br>(Response Time)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Navigated to <strong>Maintenance Request</strong> tab.</li>
+  <li>Typed a keyword in the search field.</li>
+  <li>Measured the time for filtered results to appear.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+<tr>
+<td>Page Navigation<br>(Tab Switching Speed)</td>
+<td><ol>
+  <li>Logged in as Owner.</li>
+  <li>Clicked through each sidebar tab: Overview, Manage Apartment, User Management, Maintenance, Payments, Analytics, Audit Reports, Activity Logs, Account Settings.</li>
+  <li>Measured the transition time between each tab.</li>
+  <li>Observed results.</li>
+</ol></td>
+</tr>
+
+</table>
+
+</body>
+</html>

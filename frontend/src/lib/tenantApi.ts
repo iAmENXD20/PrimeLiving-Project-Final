@@ -390,6 +390,8 @@ export interface UnitOccupant {
   sex: string | null
   phone: string | null
   birthdate: string | null
+  relationship: string
+  family_relationship: string | null
   id_photo_url: string | null
   created_at: string
   updated_at: string
@@ -399,14 +401,16 @@ export async function getUnitOccupants(unitId: string): Promise<UnitOccupant[]> 
   return api.get<UnitOccupant[]>(`/apartments/occupants/${unitId}`)
 }
 
-export async function addUnitOccupant(data: { unit_id: string; tenant_id: string; first_name: string; last_name: string; sex?: string; phone?: string; birthdate?: string; full_name?: string; id_photo_url?: string }): Promise<UnitOccupant> {
+export async function addUnitOccupant(data: { unit_id: string; tenant_id: string; first_name: string; last_name: string; sex?: string; phone?: string; birthdate?: string; relationship?: string; family_relationship?: string; full_name?: string; id_photo_url?: string }): Promise<UnitOccupant> {
   return api.post<UnitOccupant>('/apartments/occupants', {
     ...data,
     full_name: data.full_name || `${data.first_name} ${data.last_name}`.trim(),
+    relationship: data.relationship || 'family member',
+    family_relationship: data.family_relationship || null,
   })
 }
 
-export async function updateUnitOccupant(id: string, updates: { full_name?: string; id_photo_url?: string }): Promise<UnitOccupant> {
+export async function updateUnitOccupant(id: string, updates: { full_name?: string; relationship?: string; family_relationship?: string; id_photo_url?: string }): Promise<UnitOccupant> {
   return api.put<UnitOccupant>(`/apartments/occupants/${id}`, updates)
 }
 
