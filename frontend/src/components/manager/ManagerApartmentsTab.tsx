@@ -642,14 +642,14 @@ export default function ManagerApartmentsTab({ managerId, ownerId }: ManagerApar
                           {occ.id_photo_url ? (
                             <button
                               type="button"
-                              onClick={() => setViewingIdPhoto(occ.id_photo_url)}
+                              onClick={() => setViewingIdPhoto(occ.id_photo_url!)}
                               className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               View ID
                             </button>
                           ) : (
-                            <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No ID uploaded</span>
+                            <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No data</span>
                           )}
                         </div>
                       ))

@@ -249,27 +249,27 @@ export async function updateMaintenanceStatus(
   res: Response
 ): Promise<void> {
   try {
-    const { id } = req.params;
-    const { status } = req.body;
+    const { id } = req.params
+    const { status } = req.body
 
     const { data, error } = await supabaseAdmin
       .from("maintenance")
       .update({ status })
       .eq("id", id)
       .select()
-      .single();
+      .single()
 
     if (error) {
-      sendError(res, error.message, 500);
-      return;
+      sendError(res, error.message, 500)
+      return
     }
 
     if (data?.tenant_id) {
       const { data: tenant } = await supabaseAdmin
         .from("tenants")
-        .select("phone")
+        .select("first_name, last_name, email")
         .eq("id", data.tenant_id)
-        .maybeSingle();
+        .maybeSingle()
 
       if (data.apartmentowner_id && data.tenant_id) {
         await createNotification({
@@ -280,16 +280,16 @@ export async function updateMaintenanceStatus(
           type: "maintenance_status_updated",
           title: "Maintenance Update",
           message: `Your request "${data.title}" is now ${status.replace("_", " ")}.`,
-        });
+        })
       }
     }
 
-    sendSuccess(res, data, "Maintenance status updated successfully");
+    sendSuccess(res, data, "Maintenance status updated successfully")
 
     if (data?.apartmentowner_id) {
       const actorName = req.user?.id
         ? await resolveActorName(req.user.id, req.user.role, req.user.email)
-        : "System";
+        : "System"
       logActivity({
         apartmentowner_id: data.apartmentowner_id,
         actor_id: req.user?.id || null,
@@ -300,10 +300,10 @@ export async function updateMaintenanceStatus(
         entity_id: id,
         description: `Maintenance "${data.title}" status changed to ${status}`,
         metadata: { title: data.title, status },
-      });
+      })
     }
   } catch (err: any) {
-    sendError(res, err.message, 500);
+    sendError(res, err.message, 500)
   }
 }
 

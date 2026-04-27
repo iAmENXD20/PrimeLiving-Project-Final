@@ -154,7 +154,7 @@ export async function checkBillingNotifications(): Promise<void> {
         unit_id: tenant.unit_id,
       });
 
-      // Notify manager
+      // Notify managers
       if (tenant.apartmentowner_id) {
         const { data: managers } = await supabaseAdmin
           .from("managers")
@@ -187,28 +187,11 @@ export async function checkBillingNotifications(): Promise<void> {
   }
 }
 
-let schedulerInterval: ReturnType<typeof setInterval> | null = null;
-
-export function startBillingScheduler(): void {
-  console.log("[BillingScheduler] Started — checking every hour");
-
-  // Run immediately on startup
-  checkBillingNotifications().catch((err) =>
-    console.error("[BillingScheduler] Initial check failed:", err)
-  );
-
-  // Then run hourly
-  schedulerInterval = setInterval(() => {
-    checkBillingNotifications().catch((err) =>
-      console.error("[BillingScheduler] Scheduled check failed:", err)
-    );
-  }, CHECK_INTERVAL_MS);
-}
-
-export function stopBillingScheduler(): void {
-  if (schedulerInterval) {
-    clearInterval(schedulerInterval);
-    schedulerInterval = null;
-    console.log("[BillingScheduler] Stopped");
-  }
+export async function startBillingScheduler(): Promise<void> {
+  console.log("[BillingScheduler] Starting...");
+  // Run immediately on start
+  await checkBillingNotifications();
+  // Then run every hour
+  setInterval(checkBillingNotifications, CHECK_INTERVAL_MS);
+  console.log("[BillingScheduler] Started - will check every hour");
 }

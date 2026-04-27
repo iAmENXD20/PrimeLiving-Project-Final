@@ -1986,14 +1986,14 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                           {occ.id_photo_url ? (
                             <button
                               type="button"
-                              onClick={() => window.open(occ.id_photo_url!, '_blank')}
+                              onClick={() => setViewingIdPhoto(occ.id_photo_url!)}
                               className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors whitespace-nowrap"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               View ID
                             </button>
                           ) : (
-                            <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No ID uploaded</span>
+                            <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No data</span>
                           )}
                         </div>
                       ))}
@@ -2142,6 +2142,14 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                             )}
                           </div>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setViewingIdPhoto(occ.id_photo_url!)}
+                          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors whitespace-nowrap"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          View ID
+                        </button>
                       </div>
                     ))}
                   </div>

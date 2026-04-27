@@ -183,16 +183,17 @@ export interface UnitOccupant {
   id: string
   unit_id: string
   tenant_id: string
-  full_name: string
-  first_name: string
-  last_name: string
+  full_name: string | null
+  first_name: string | null
+  last_name: string | null
   sex: string | null
   phone: string | null
   birthdate: string | null
-  relationship: string
+  relationship: string | null
   family_relationship: string | null
   id_photo_url: string | null
   created_at: string
+  updated_at?: string
 }
 
 export async function getUnitOccupants(unitId: string): Promise<UnitOccupant[]> {
