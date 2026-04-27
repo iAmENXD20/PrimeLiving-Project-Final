@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { ArrowLeft, Building2, CheckCircle2, KeyRound, Sun, Moon, Eye, EyeOff, Upload, FileText, ChevronDown, X, Lock, Check, IdCard } from 'lucide-react'
-import { supabase } from '../lib/supabase'
-import api from '../lib/apiClient'
+import { inviteSupabase } from '@/lib/inviteAuth'
 import { useTheme } from '@/context/ThemeContext'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -17,6 +16,43 @@ const ID_TYPE_OPTIONS = [
   'PhilHealth ID',
   'Others',
 ]
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
+async function confirmActivationWithInviteSession(payload: {
+  id_type: string
+  id_type_other: string | null
+  id_front_photo_url: string
+  id_back_photo_url: string
+}) {
+  const {
+    data: { session },
+  } = await inviteSupabase.auth.getSession()
+
+  if (!session?.access_token) {
+    throw new Error('Activation session expired. Please reopen your invitation link and try again.')
+  }
+
+  const response = await fetch(`${API_URL}/tenants/confirm-activation`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify(payload),
+  })
+
+  let json: { success?: boolean; error?: string; message?: string } = {}
+  try {
+    json = await response.json()
+  } catch {
+    // Keep a normalized error path even when the server returns no JSON body.
+  }
+
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || json.message || 'Failed to finalize account activation. Please try again.')
+  }
+}
 
 export default function InviteConfirmPage() {
   const [searchParams] = useSearchParams()
@@ -151,7 +187,7 @@ export default function InviteConfirmPage() {
     setSuccessMessage(null)
 
     if (tokenHash) {
-      const { error: verifyError } = await supabase.auth.verifyOtp({
+      const { error: verifyError } = await inviteSupabase.auth.verifyOtp({
         token_hash: tokenHash,
         type: type as EmailOtpType,
       })
@@ -162,7 +198,7 @@ export default function InviteConfirmPage() {
         return
       }
     } else {
-      const { data: sessionData } = await supabase.auth.getSession()
+      const { data: sessionData } = await inviteSupabase.auth.getSession()
       if (!sessionData.session) {
         setError('Invalid or expired invite link. Please request a new invitation email.')
         setVerifying(false)
@@ -170,7 +206,7 @@ export default function InviteConfirmPage() {
       }
     }
 
-    const { error: passwordError } = await supabase.auth.updateUser({
+    const { error: passwordError } = await inviteSupabase.auth.updateUser({
       password,
     })
 
@@ -184,14 +220,14 @@ export default function InviteConfirmPage() {
     let idPhotoUrl = ''
     let idBackPhotoUrl = ''
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await inviteSupabase.auth.getUser()
       if (!user) throw new Error('User not found')
       if (!idFile || !idBackFile) throw new Error('ID photos are required')
 
       // Upload front
       const frontExt = idFile.name.split('.').pop() || 'jpg'
       const frontPath = `${user.id}/front_${Date.now()}.${frontExt}`
-      const { error: frontError } = await supabase.storage
+      const { error: frontError } = await inviteSupabase.storage
         .from('verification-ids')
         .upload(frontPath, idFile, { upsert: true })
       if (frontError) throw frontError
@@ -200,7 +236,7 @@ export default function InviteConfirmPage() {
       // Upload back
       const backExt = idBackFile.name.split('.').pop() || 'jpg'
       const backPath = `${user.id}/back_${Date.now()}.${backExt}`
-      const { error: backError } = await supabase.storage
+      const { error: backError } = await inviteSupabase.storage
         .from('verification-ids')
         .upload(backPath, idBackFile, { upsert: true })
       if (backError) throw backError
@@ -213,16 +249,20 @@ export default function InviteConfirmPage() {
 
     // Update status and save ID verification data
     try {
-      await api.put('/tenants/confirm-activation', {
+      await confirmActivationWithInviteSession({
         id_type: idType === 'Others' ? 'Others' : idType,
         id_type_other: idType === 'Others' ? idTypeOther.trim() : null,
         id_front_photo_url: idPhotoUrl,
         id_back_photo_url: idBackPhotoUrl,
       })
-    } catch (activationErr: any) {
-      console.error('Activation API error:', activationErr)
-      // Continue anyway — photos are already uploaded to storage
+    } catch (activationErr: unknown) {
+      const message = activationErr instanceof Error ? activationErr.message : 'Failed to finalize account activation.'
+      setError(message)
+      setVerifying(false)
+      return
     }
+
+    await inviteSupabase.auth.signOut({ scope: 'local' })
 
     setSuccessMessage("You're all set! Your account is currently under review by management for verification.")
     setVerifying(false)

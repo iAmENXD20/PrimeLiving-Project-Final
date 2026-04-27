@@ -10,10 +10,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   useEffect(() => {
     // Get the current session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      // If session exists but "remember me" was not checked and browser was reopened, sign out
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      // Never sign out here: global auth storage is shared across same-origin tabs.
+      // We only gate access for this tab when no local non-persistent marker exists.
       if (session && !localStorage.getItem('app-remember') && !sessionStorage.getItem('app-session-active')) {
-        await supabase.auth.signOut()
         setSession(null)
         setLoading(false)
         return
