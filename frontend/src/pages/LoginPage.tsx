@@ -19,15 +19,45 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>
 
-function normalizeRole(rawRole: unknown): 'owner' | 'manager' | 'tenant' {
-  if (typeof rawRole !== 'string') return 'owner'
+type UserRole = 'owner' | 'manager' | 'tenant'
+
+function normalizeRole(rawRole: unknown): UserRole | null {
+  if (typeof rawRole !== 'string') return null
 
   const normalized = rawRole.toLowerCase().trim()
   if (normalized === 'client' || normalized === 'owner') return 'owner'
   if (normalized === 'manager') return 'manager'
   if (normalized === 'tenant') return 'tenant'
 
-  return 'owner'
+  return null
+}
+
+async function resolveRoleFromProfiles(authUserId: string): Promise<UserRole | null> {
+  const shouldIgnore = (error: unknown) =>
+    error instanceof ApiError && (error.status === 403 || error.status === 404)
+
+  try {
+    await api.get(`/tenants/by-auth/${authUserId}`)
+    return 'tenant'
+  } catch (error: unknown) {
+    if (!shouldIgnore(error)) throw error
+  }
+
+  try {
+    await api.get(`/managers/by-auth/${authUserId}`)
+    return 'manager'
+  } catch (error: unknown) {
+    if (!shouldIgnore(error)) throw error
+  }
+
+  try {
+    await api.get(`/owners/by-auth/${authUserId}`)
+    return 'owner'
+  } catch (error: unknown) {
+    if (!shouldIgnore(error)) throw error
+  }
+
+  return null
 }
 
 export default function LoginPage() {
@@ -73,26 +103,55 @@ export default function LoginPage() {
         password: data.password,
       })
 
+      const expectedUserId = typeof loginRes.user?.id === 'string' ? loginRes.user.id : null
+
+      // Always clear any previous local session before applying new credentials.
+      await supabase.auth.signOut({ scope: 'local' })
+
       const session = loginRes.session
       if (session?.access_token && session?.refresh_token) {
-        await supabase.auth.setSession({
+        const { error: setSessionError } = await supabase.auth.setSession({
           access_token: session.access_token,
           refresh_token: session.refresh_token,
         })
+        if (setSessionError) throw setSessionError
+      } else {
+        // Fallback: establish session directly when backend payload has no tokens.
+        const { error: directSignInError } = await supabase.auth.signInWithPassword({
+          email: data.email,
+          password: data.password,
+        })
+        if (directSignInError) throw directSignInError
       }
 
-      const user = loginRes.user
-
       localStorage.removeItem('app-remember')
+
+      let { data: sessionData } = await supabase.auth.getSession()
+      let activeUserId = sessionData.session?.user?.id || null
+
+      // Ensure the active frontend session matches the authenticated backend user.
+      if (expectedUserId && activeUserId && expectedUserId !== activeUserId) {
+        const { data: directSignInData, error: directSignInError } = await supabase.auth.signInWithPassword({
+          email: data.email,
+          password: data.password,
+        })
+
+        if (directSignInError || !directSignInData.session?.user?.id) {
+          throw new Error('Session mismatch detected. Please try signing in again.')
+        }
+
+        activeUserId = directSignInData.session.user.id
+        sessionData = { session: directSignInData.session }
+      }
+
+      if (!sessionData.session || !activeUserId) {
+        throw new Error('Unable to establish a valid login session. Please try again.')
+      }
+
       sessionStorage.setItem('app-session-active', 'true')
 
-      // Route based on normalized role from backend (with metadata fallback)
-      let role = normalizeRole(
-        user?.user_metadata?.role ??
-        user?.app_metadata?.role ??
-        user?.app_metadata?.user_role,
-      )
-
+      // Route using backend-resolved role to avoid stale metadata redirects.
+      let role: UserRole | null = null
       try {
         const me = await api.get<{ user: { role: string } }>('/auth/me')
         role = normalizeRole(me.user?.role)
@@ -104,7 +163,21 @@ export default function LoginPage() {
           setPendingAlert(msg)
           return
         }
-        // Keep metadata-derived fallback role
+
+        await supabase.auth.signOut({ scope: 'local' })
+        toast.error(meErr instanceof Error ? meErr.message : 'Failed to determine account role. Please try signing in again.')
+        return
+      }
+
+      // Fallback to profile-based role resolution (more reliable for mixed metadata cases).
+      if (!role) {
+        role = await resolveRoleFromProfiles(activeUserId)
+      }
+
+      if (!role) {
+        await supabase.auth.signOut({ scope: 'local' })
+        toast.error('Your account role could not be determined. Please contact support.')
+        return
       }
 
       toast.success('Login successful!')

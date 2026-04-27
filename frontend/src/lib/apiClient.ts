@@ -152,39 +152,56 @@ export function debugLog(tag: string, ...args: unknown[]) {
   if (isDebug()) console.log(`%c[${tag}]`, 'color:#00bcd4;font-weight:bold', ...args)
 }
 
-// Cached token to avoid calling getSession() on every single request
+// Cache the current session token metadata for cache keying and quick reuse.
 let _cachedToken: string | null = null
 let _tokenExpiresAt = 0
+
+function setCachedToken(token: string | null, expiresAt?: number | null) {
+  _cachedToken = token
+
+  if (!token) {
+    _tokenExpiresAt = 0
+    return
+  }
+
+  const expiresAtMs = (expiresAt || 0) * 1000
+  _tokenExpiresAt = expiresAtMs
+    ? Math.min(expiresAtMs - 60_000, Date.now() + 300_000)
+    : Date.now() + 300_000
+}
+
+if (typeof window !== 'undefined') {
+  supabase.auth.onAuthStateChange((event, session) => {
+    setCachedToken(session?.access_token ?? null, session?.expires_at)
+
+    if (event === 'SIGNED_OUT') {
+      clearApiCache()
+    }
+  })
+}
 
 /**
  * Get the current Supabase session access token.
  * Returns null if the user is not authenticated.
  */
 async function getAccessToken(): Promise<string | null> {
-  // Return cached token if still valid (5s buffer)
-  if (_cachedToken && Date.now() < _tokenExpiresAt) {
-    return _cachedToken
-  }
-
   const { data } = await supabase.auth.getSession()
   if (data.session?.access_token) {
-    _cachedToken = data.session.access_token
-    // Cache for the session's remaining lifetime minus 60s buffer, max 5 minutes
-    const expiresAt = (data.session.expires_at || 0) * 1000
-    _tokenExpiresAt = expiresAt ? Math.min(expiresAt - 60_000, Date.now() + 300_000) : Date.now() + 300_000
-    return _cachedToken
+    setCachedToken(data.session.access_token, data.session.expires_at)
+    return data.session.access_token
   }
 
+  // Session is missing (e.g. just signed out) so stale tokens must not be reused.
+  setCachedToken(null)
+
+  // If a refresh token exists, this restores a valid access token.
   const { data: refreshed } = await supabase.auth.refreshSession()
   if (refreshed.session?.access_token) {
-    _cachedToken = refreshed.session.access_token
-    const expiresAt = (refreshed.session.expires_at || 0) * 1000
-    _tokenExpiresAt = expiresAt ? Math.min(expiresAt - 60_000, Date.now() + 300_000) : Date.now() + 300_000
-    return _cachedToken
+    setCachedToken(refreshed.session.access_token, refreshed.session.expires_at)
+    return refreshed.session.access_token
   }
 
-  _cachedToken = null
-  _tokenExpiresAt = 0
+  setCachedToken(null)
   return null
 }
 

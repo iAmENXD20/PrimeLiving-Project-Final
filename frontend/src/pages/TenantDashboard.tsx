@@ -46,9 +46,12 @@ export default function TenantDashboard() {
     try {
       const data = await getCurrentTenant()
       if (data) {
+        const unreadCountPromise = getUnreadNotificationCount(data.id, data.apartmentowner_id || null)
+          .catch(() => 0)
+
         const [aptInfo, count] = await Promise.all([
           data.unit_id ? getTenantApartmentInfo(data.unit_id) : Promise.resolve(null),
-          getUnreadNotificationCount(data.id, data.apartmentowner_id || null),
+          unreadCountPromise,
         ])
         const ownerId = aptInfo?.apartmentowner_id || data.apartmentowner_id || null
         const aptAddr = aptInfo?.apartment_address || aptInfo?.address || null
