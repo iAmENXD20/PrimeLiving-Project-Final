@@ -19,6 +19,7 @@ import {
   getTenantApartmentInfo,
   type UnitOccupant,
 } from '@/lib/tenantApi'
+import TwoFactorSetup from '@/components/shared/TwoFactorSetup'
 
 const passwordSchema = z
   .object({
@@ -766,6 +767,9 @@ export default function TenantAccountTab({ tenantId, tenantName, tenantPhone, ap
           </div>
         </form>
       </div>
+
+      {/* Two-Factor Authentication */}
+      <TwoFactorSetup />
     </div>
   )
 }

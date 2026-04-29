@@ -11,6 +11,7 @@ import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/utils'
 import { getManagedApartments } from '@/lib/managerApi'
+import TwoFactorSetup from '@/components/shared/TwoFactorSetup'
 
 const passwordSchema = z
   .object({
@@ -364,6 +365,9 @@ export default function ManagerSettingsTab({ managerId, managerName, managerPhon
           </Button>
         </form>
       </div>
+
+      {/* Two-Factor Authentication */}
+      <TwoFactorSetup />
     </div>
   )
 }

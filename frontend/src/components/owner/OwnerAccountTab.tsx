@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/utils'
+import TwoFactorSetup from '@/components/shared/TwoFactorSetup'
 
 const passwordSchema = z
   .object({
@@ -299,6 +300,9 @@ export default function OwnerAccountTab({ ownerId }: OwnerAccountTabProps) {
           </div>
         </form>
       </div>
+
+      {/* Two-Factor Authentication */}
+      <TwoFactorSetup />
     </div>
   )
 }

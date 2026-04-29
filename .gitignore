@@ -1,0 +1,9 @@
+# VS Code MCP config (contains sensitive tokens)
+.vscode/mcp.json
+
+# Environment files
+.env
+.env.*
+
+# Dependencies
+node_modules/

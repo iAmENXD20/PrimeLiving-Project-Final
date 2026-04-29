@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 import { CardsSkeleton } from '../components/ui/skeleton'
+import TwoFactorEnforcementOverlay from '../components/shared/TwoFactorEnforcementOverlay'
 
 const ManagerOverviewTab = lazy(() => import('../components/manager/ManagerOverviewTab'))
 const ManagerMaintenanceTab = lazy(() => import('../components/manager/ManagerMaintenanceTab'))
@@ -172,6 +173,9 @@ export default function ManagerDashboard() {
         isDark ? 'bg-[#0A1628] text-white' : 'bg-gray-50 text-gray-900'
       }`}
     >
+      {/* 2FA enforcement — blocks dashboard until 2FA is set up */}
+      <TwoFactorEnforcementOverlay role="Manager" />
+
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div

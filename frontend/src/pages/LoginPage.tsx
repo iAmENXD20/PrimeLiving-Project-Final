@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Building2, Eye, EyeOff, Sun, Moon, X, Mail, ShieldAlert } from 'lucide-react'
+import { Building2, Eye, EyeOff, Sun, Moon, X, Mail, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -67,6 +67,10 @@ export default function LoginPage() {
   const [isResetting, setIsResetting] = useState(false)
   const [pendingAlert, setPendingAlert] = useState<string | null>(null)
   const [checkingSetup, setCheckingSetup] = useState(true)
+  // TOTP 2FA challenge state
+  const [totpState, setTotpState] = useState<{ factorId: string; destination: string } | null>(null)
+  const [totpCode, setTotpCode] = useState('')
+  const [totpVerifying, setTotpVerifying] = useState(false)
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
@@ -180,21 +184,45 @@ export default function LoginPage() {
         return
       }
 
-      toast.success('Login successful!')
+      const destination = role === 'manager' ? '/manager' : role === 'tenant' ? '/tenant' : '/owner'
 
-      if (role === 'manager') {
-        navigate('/manager')
-      } else if (role === 'tenant') {
-        navigate('/tenant')
-      } else {
-        navigate('/owner')
+      // Check if the user has 2FA enrolled and needs to complete AAL2
+      const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+      if (aalData?.nextLevel === 'aal2') {
+        const { data: factorsData } = await supabase.auth.mfa.listFactors()
+        const totp = factorsData?.totp?.find((f) => f.status === 'verified')
+        if (totp) {
+          setTotpState({ factorId: totp.id, destination })
+          return
+        }
       }
+
+      toast.success('Login successful!')
+      navigate(destination)
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 403) {
         setPendingAlert(err.message)
       } else {
         toast.error(err instanceof Error ? err.message : 'Login failed')
       }
+    }
+  }
+
+  const handleTotpVerify = async () => {
+    if (!totpState) return
+    setTotpVerifying(true)
+    try {
+      const { error } = await supabase.auth.mfa.challengeAndVerify({
+        factorId: totpState.factorId,
+        code: totpCode.replace(/\s/g, ''),
+      })
+      if (error) throw error
+      toast.success('Login successful!')
+      navigate(totpState.destination)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Invalid code. Please try again.')
+    } finally {
+      setTotpVerifying(false)
     }
   }
 
@@ -254,6 +282,52 @@ export default function LoginPage() {
           </div>
         </div>
       )}
+      {/* 2FA TOTP Verification Modal */}
+      {totpState && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className={`relative w-full max-w-sm rounded-2xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-11 h-11 rounded-xl bg-primary/15 flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Two-Factor Authentication</h3>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Enter the code from your authenticator app</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="000 000"
+                maxLength={7}
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/[^0-9\s]/g, ''))}
+                className={`text-2xl tracking-[0.4em] text-center font-mono h-14 ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter' && totpCode.replace(/\s/g, '').length >= 6) handleTotpVerify() }}
+              />
+              <Button
+                onClick={handleTotpVerify}
+                disabled={totpCode.replace(/\s/g, '').length < 6 || totpVerifying}
+                className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-2.5"
+              >
+                {totpVerifying ? 'Verifying...' : 'Verify Code'}
+              </Button>
+              <button
+                type="button"
+                onClick={async () => { await supabase.auth.signOut(); setTotpState(null); setTotpCode('') }}
+                className={`w-full text-sm text-center ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'} transition-colors`}
+              >
+                Cancel — sign in with a different account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         {/* Background Image */}

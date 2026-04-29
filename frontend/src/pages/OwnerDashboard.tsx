@@ -5,6 +5,7 @@ import OwnerTopBar from '../components/owner/OwnerTopBar'
 import { getCurrentOwner, getOwnerDashboardStats } from '../lib/ownerApi'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import { CardsSkeleton } from '../components/ui/skeleton'
+import TwoFactorEnforcementOverlay from '../components/shared/TwoFactorEnforcementOverlay'
 
 const OwnerOverviewTab = lazy(() => import('../components/owner/OwnerOverviewTab'))
 const OwnerManageApartmentTab = lazy(() => import('../components/owner/OwnerManageApartmentTab'))
@@ -114,6 +115,9 @@ export default function OwnerDashboard() {
         isDark ? 'bg-[#0A1628] text-white' : 'bg-gray-50 text-gray-900'
       }`}
     >
+      {/* 2FA enforcement — blocks dashboard until 2FA is set up */}
+      <TwoFactorEnforcementOverlay role="Owner" />
+
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
