@@ -144,3 +144,110 @@ export function accountApprovedEmailHtml({
   </body>
 </html>`;
 }
+
+export function announcementEmailHtml({
+  tenantName,
+  senderName,
+  senderRole,
+  title,
+  message,
+}: {
+  tenantName: string;
+  senderName: string;
+  senderRole: string;
+  title: string;
+  message: string;
+}): string {
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+            <tr>
+              <td style="background:#1e3a5f;padding:24px 28px;">
+                <h1 style="margin:0;font-size:22px;color:#ffffff;">📢 New Announcement</h1>
+                <p style="margin:8px 0 0;font-size:14px;color:#cbd5e1;">From ${senderName} (${senderRole})</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                <p style="margin:0 0 16px;font-size:15px;">Hi ${tenantName},</p>
+                <p style="margin:0 0 16px;font-size:15px;color:#334155;">You have a new announcement from your property management:</p>
+                <table role="presentation" width="100%" style="background:#f0f6ff;border:1px solid #bfdbfe;border-radius:10px;margin:16px 0;">
+                  <tr>
+                    <td style="padding:18px 20px;">
+                      <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#1e3a5f;">${title}</p>
+                      <p style="margin:0;font-size:14px;line-height:22px;color:#334155;white-space:pre-wrap;">${message}</p>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Log in to PrimeLiving to view the full announcement and reply.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 28px;">
+                <p style="margin:0;font-size:12px;color:#64748b;">PrimeLiving Property Management</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+export function announcementReplyEmailHtml({
+  recipientName,
+  tenantName,
+  announcementTitle,
+  replyMessage,
+}: {
+  recipientName: string;
+  tenantName: string;
+  announcementTitle: string;
+  replyMessage: string;
+}): string {
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+            <tr>
+              <td style="background:#064e3b;padding:24px 28px;">
+                <h1 style="margin:0;font-size:22px;color:#ffffff;">💬 Tenant Reply</h1>
+                <p style="margin:8px 0 0;font-size:14px;color:#a7f3d0;">Reply to your announcement</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                <p style="margin:0 0 16px;font-size:15px;">Hi ${recipientName},</p>
+                <p style="margin:0 0 12px;font-size:15px;color:#334155;">
+                  <strong>${tenantName}</strong> replied to your announcement: <em>"${announcementTitle}"</em>
+                </p>
+                <table role="presentation" width="100%" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;margin:12px 0;">
+                  <tr>
+                    <td style="padding:16px 18px;">
+                      <p style="margin:0;font-size:14px;line-height:22px;color:#1e293b;white-space:pre-wrap;">${replyMessage}</p>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Log in to PrimeLiving to view and respond in the announcements section.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 28px;">
+                <p style="margin:0;font-size:12px;color:#64748b;">PrimeLiving Property Management</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}

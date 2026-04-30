@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
 import api, { ApiError } from '@/lib/apiClient'
+import { getMfaPreference, sendEmailOtp, verifyEmailOtp } from '@/lib/mfaApi'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -71,6 +72,11 @@ export default function LoginPage() {
   const [totpState, setTotpState] = useState<{ factorId: string; destination: string } | null>(null)
   const [totpCode, setTotpCode] = useState('')
   const [totpVerifying, setTotpVerifying] = useState(false)
+  // Email OTP 2FA state
+  const [emailOtpState, setEmailOtpState] = useState<{ destination: string } | null>(null)
+  const [emailOtpCode, setEmailOtpCode] = useState('')
+  const [emailOtpVerifying, setEmailOtpVerifying] = useState(false)
+  const [emailOtpMasked, setEmailOtpMasked] = useState('')
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
@@ -186,7 +192,7 @@ export default function LoginPage() {
 
       const destination = role === 'manager' ? '/manager' : role === 'tenant' ? '/tenant' : '/owner'
 
-      // Check if the user has 2FA enrolled and needs to complete AAL2
+      // Check if the user has TOTP enrolled and needs to complete AAL2
       const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
       if (aalData?.nextLevel === 'aal2') {
         const { data: factorsData } = await supabase.auth.mfa.listFactors()
@@ -195,6 +201,20 @@ export default function LoginPage() {
           setTotpState({ factorId: totp.id, destination })
           return
         }
+      }
+
+      // Check if the user has Email OTP as their 2FA method
+      const pref = await getMfaPreference().catch(() => ({ mfa_method: null }))
+      if (pref.mfa_method === 'email') {
+        try {
+          const res = await sendEmailOtp()
+          setEmailOtpMasked(res.maskedEmail)
+          setEmailOtpState({ destination })
+          setEmailOtpCode('')
+        } catch {
+          toast.error('Failed to send email OTP. Please try again.')
+        }
+        return
       }
 
       toast.success('Login successful!')
@@ -223,6 +243,32 @@ export default function LoginPage() {
       toast.error(err instanceof Error ? err.message : 'Invalid code. Please try again.')
     } finally {
       setTotpVerifying(false)
+    }
+  }
+
+  const handleEmailOtpVerify = async () => {
+    if (!emailOtpState) return
+    setEmailOtpVerifying(true)
+    try {
+      await verifyEmailOtp(emailOtpCode.replace(/\s/g, ''))
+      // Mark as verified in session so enforcement overlay knows
+      sessionStorage.setItem('email_otp_verified', 'true')
+      toast.success('Login successful!')
+      navigate(emailOtpState.destination)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Invalid code. Please try again.')
+    } finally {
+      setEmailOtpVerifying(false)
+    }
+  }
+
+  const handleResendEmailOtp = async () => {
+    try {
+      const res = await sendEmailOtp()
+      setEmailOtpMasked(res.maskedEmail)
+      toast.success('A new code has been sent to your email.')
+    } catch {
+      toast.error('Failed to resend code. Please try again.')
     }
   }
 
@@ -319,6 +365,59 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={async () => { await supabase.auth.signOut(); setTotpState(null); setTotpCode('') }}
+                className={`w-full text-sm text-center ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'} transition-colors`}
+              >
+                Cancel — sign in with a different account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2FA Email OTP Verification Modal */}
+      {emailOtpState && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className={`relative w-full max-w-sm rounded-2xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-11 h-11 rounded-xl bg-blue-500/15 flex items-center justify-center">
+                <Mail className="w-6 h-6 text-blue-500" />
+              </div>
+              <div>
+                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Email Verification Code</h3>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Code sent to {emailOtpMasked}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="000 000"
+                maxLength={7}
+                value={emailOtpCode}
+                onChange={(e) => setEmailOtpCode(e.target.value.replace(/[^0-9\s]/g, ''))}
+                className={`text-2xl tracking-[0.4em] text-center font-mono h-14 ${isDark ? 'bg-[#0A1628] border-[#1E293B] text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter' && emailOtpCode.replace(/\s/g, '').length >= 6) handleEmailOtpVerify() }}
+              />
+              <Button
+                onClick={handleEmailOtpVerify}
+                disabled={emailOtpCode.replace(/\s/g, '').length < 6 || emailOtpVerifying}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5"
+              >
+                {emailOtpVerifying ? 'Verifying...' : 'Verify Code'}
+              </Button>
+              <button
+                type="button"
+                onClick={handleResendEmailOtp}
+                className={`w-full text-sm text-center ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} transition-colors`}
+              >
+                Resend code
+              </button>
+              <button
+                type="button"
+                onClick={async () => { await supabase.auth.signOut(); setEmailOtpState(null); setEmailOtpCode('') }}
                 className={`w-full text-sm text-center ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'} transition-colors`}
               >
                 Cancel — sign in with a different account

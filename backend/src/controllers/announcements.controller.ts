@@ -2,9 +2,10 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
-import { createNotifications } from "../utils/notifications";
+import { createNotifications, createNotification } from "../utils/notifications";
 import { sendSmsToMany } from "../utils/sms";
 import { logActivity, resolveActorName } from "../utils/activityLog";
+import { sendEmail, announcementEmailHtml, announcementReplyEmailHtml } from "../utils/email";
 
 /**
  * GET /api/announcements
@@ -150,6 +151,7 @@ export async function createAnnouncement(
         type: "announcement_created",
         title: notificationTitle,
         message: notificationMessage,
+        entity_id: data.id,
       }));
 
       const managerNotifications: Array<{
@@ -176,6 +178,7 @@ export async function createAnnouncement(
             type: "announcement_created",
             title: notificationTitle,
             message: notificationMessage,
+            entity_id: data.id,
           }))
         );
       }
@@ -192,6 +195,34 @@ export async function createAnnouncement(
         sendSmsToMany(tenantPhones, smsMessage, { apartmentowner_id }).catch(
           (err) => console.error("Announcement SMS failed:", err)
         );
+      }
+
+      // Send emails to tenants with email addresses
+      const tenantEmailsQuery = supabaseAdmin
+        .from("tenants")
+        .select("first_name, last_name, email")
+        .eq("apartmentowner_id", apartmentowner_id)
+        .eq("status", "active")
+        .not("email", "is", null);
+
+      const filteredEmailQuery = recipientTenantIds.length > 0
+        ? tenantEmailsQuery.in("id", recipientTenantIds)
+        : tenantEmailsQuery;
+
+      const { data: tenantEmailData } = await filteredEmailQuery;
+      for (const t of tenantEmailData || []) {
+        if (!t.email) continue;
+        sendEmail({
+          to: t.email,
+          subject: `New Announcement: ${title}`,
+          html: announcementEmailHtml({
+            tenantName: `${t.first_name} ${t.last_name}`.trim() || t.email,
+            senderName,
+            senderRole: senderRoleLabel,
+            title,
+            message,
+          }),
+        }).catch((err) => console.error("Announcement email failed:", err));
       }
     }
 
@@ -265,6 +296,154 @@ export async function deleteAnnouncement(
         description: `Deleted announcement: ${announcement.title}`,
       });
     }
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * POST /api/announcements/:id/replies
+ * Tenant replies to an announcement
+ */
+export async function createAnnouncementReply(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { id: announcementId } = req.params;
+    const { message } = req.body;
+
+    if (!message?.trim()) {
+      sendError(res, "Reply message is required", 400);
+      return;
+    }
+
+    // Get tenant profile from auth user
+    const { data: tenant, error: tenantErr } = await supabaseAdmin
+      .from("tenants")
+      .select("id, first_name, last_name")
+      .eq("auth_user_id", req.user!.id)
+      .maybeSingle();
+
+    if (tenantErr || !tenant) {
+      sendError(res, "Tenant profile not found", 404);
+      return;
+    }
+
+    const tenantFullName = `${tenant.first_name} ${tenant.last_name}`.trim();
+
+    // Get the announcement details
+    const { data: announcement, error: annErr } = await supabaseAdmin
+      .from("announcements")
+      .select("id, title, apartmentowner_id")
+      .eq("id", announcementId)
+      .single();
+
+    if (annErr || !announcement) {
+      sendError(res, "Announcement not found", 404);
+      return;
+    }
+
+    // Insert the reply
+    const { data: reply, error: replyErr } = await supabaseAdmin
+      .from("announcement_replies")
+      .insert({
+        announcement_id: announcementId,
+        tenant_id: tenant.id,
+        tenant_name: tenantFullName,
+        message: message.trim(),
+      })
+      .select()
+      .single();
+
+    if (replyErr) {
+      sendError(res, replyErr.message, 500);
+      return;
+    }
+
+    sendSuccess(res, reply, "Reply sent successfully", 201);
+
+    // Notify all active managers for this owner
+    const ownerId = announcement.apartmentowner_id;
+    const { data: managers } = await supabaseAdmin
+      .from("apartment_managers")
+      .select("id, email, first_name, last_name")
+      .eq("apartmentowner_id", ownerId)
+      .eq("status", "active");
+
+    const { data: owner } = await supabaseAdmin
+      .from("apartment_owners")
+      .select("id, first_name, last_name, email")
+      .eq("id", ownerId)
+      .maybeSingle();
+
+    const notifTitle = `${tenantFullName} replied to your announcement`;
+    const notifMsg = `"${announcement.title}"\n\nReply: ${message.trim()}`;
+
+    // In-app notifications for managers
+    const managerNotifs = (managers || []).map((mgr: any) => ({
+      apartmentowner_id: ownerId,
+      recipient_role: "manager" as const,
+      recipient_id: mgr.id,
+      type: "announcement_reply",
+      title: notifTitle,
+      message: notifMsg,
+      entity_id: announcementId,
+    }));
+
+    if (managerNotifs.length > 0) {
+      createNotifications(managerNotifs).catch((err) =>
+        console.error("Failed to create reply notifications:", err)
+      );
+    }
+
+    // Email managers and owner
+    const emailRecipients: { name: string; email: string }[] = [];
+    if (owner?.email) emailRecipients.push({ name: `${owner.first_name} ${owner.last_name}`.trim(), email: owner.email });
+    for (const mgr of managers || []) {
+      if (mgr.email) emailRecipients.push({ name: `${mgr.first_name} ${mgr.last_name}`.trim(), email: mgr.email });
+    }
+
+    for (const recipient of emailRecipients) {
+      sendEmail({
+        to: recipient.email,
+        subject: `Tenant Reply: ${announcement.title}`,
+        html: announcementReplyEmailHtml({
+          recipientName: recipient.name || recipient.email,
+          tenantName: tenantFullName,
+          announcementTitle: announcement.title,
+          replyMessage: message.trim(),
+        }),
+      }).catch((err) => console.error("Reply email failed:", err));
+    }
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}
+
+/**
+ * GET /api/announcements/:id/replies
+ * Owner/Manager gets all replies for an announcement
+ */
+export async function getAnnouncementReplies(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { id: announcementId } = req.params;
+
+    const { data, error } = await supabaseAdmin
+      .from("announcement_replies")
+      .select("*")
+      .eq("announcement_id", announcementId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      sendError(res, error.message, 500);
+      return;
+    }
+
+    sendSuccess(res, data || []);
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

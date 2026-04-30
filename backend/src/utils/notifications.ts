@@ -2,13 +2,14 @@ import { supabaseAdmin } from "../config/supabase";
 
 interface NotificationPayload {
   apartmentowner_id: string;
-  recipient_role: "manager" | "tenant";
+  recipient_role: "manager" | "tenant" | "owner";
   recipient_id: string;
   type: string;
   title: string;
   message: string;
   apartment_id?: string | null;
   unit_id?: string | null;
+  entity_id?: string | null;
 }
 
 async function resolveApartmentId(payload: NotificationPayload): Promise<string | null> {

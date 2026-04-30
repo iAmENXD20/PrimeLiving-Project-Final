@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Bell, Megaphone, Check, Trash2 } from 'lucide-react'
+import { Bell, Megaphone, Check, Trash2, MessageSquare, Send } from 'lucide-react'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { useTheme } from '../../context/ThemeContext'
 import {
@@ -8,6 +8,7 @@ import {
   markAllTenantNotificationsRead,
   deleteTenantNotification,
   deleteAllTenantNotifications,
+  replyToAnnouncement,
   type TenantNotification,
 } from '../../lib/tenantApi'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
@@ -27,6 +28,10 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
   const loadVersion = useRef(0)
   const [confirmAction, setConfirmAction] = useState<{ type: 'one'; id: string } | { type: 'all' } | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [replyingToId, setReplyingToId] = useState<string | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const [replySubmitting, setReplySubmitting] = useState(false)
+  const [replySuccess, setReplySuccess] = useState<string | null>(null)
 
   const loadNotifications = useCallback(async (skipCache = false) => {
     const version = ++loadVersion.current
@@ -112,6 +117,22 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
       onRead?.()
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error)
+    }
+  }
+
+  const handleReplySubmit = async (announcementId: string) => {
+    if (!replyText.trim()) return
+    try {
+      setReplySubmitting(true)
+      await replyToAnnouncement(announcementId, replyText.trim())
+      setReplySuccess(announcementId)
+      setReplyText('')
+      setReplyingToId(null)
+      setTimeout(() => setReplySuccess(null), 3000)
+    } catch (err) {
+      console.error('Failed to send reply:', err)
+    } finally {
+      setReplySubmitting(false)
     }
   }
 
@@ -205,7 +226,7 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
                   <span>•</span>
                   <span>{formatDate(notification.created_at)}</span>
                 </div>
-                <div className="mt-3 flex items-center gap-2">
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
                   {!notification.is_read && (
                     <button
                       onClick={() => handleMarkRead(notification.id)}
@@ -219,6 +240,32 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
                       Mark read
                     </button>
                   )}
+                  {notification.type === 'announcement_created' && notification.entity_id && (
+                    <button
+                      onClick={() => {
+                        if (replyingToId === notification.entity_id) {
+                          setReplyingToId(null)
+                          setReplyText('')
+                        } else {
+                          setReplyingToId(notification.entity_id!)
+                          setReplyText('')
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${
+                        isDark
+                          ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
+                          : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                      }`}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      {replyingToId === notification.entity_id ? 'Cancel' : 'Reply'}
+                    </button>
+                  )}
+                  {replySuccess === notification.entity_id && (
+                    <span className={`text-xs font-medium ${
+                      isDark ? 'text-green-400' : 'text-green-600'
+                    }`}>Reply sent!</span>
+                  )}
                   <button
                     onClick={() => setConfirmAction({ type: 'one', id: notification.id })}
                     className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${
@@ -231,6 +278,36 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
                     Delete
                   </button>
                 </div>
+                {replyingToId === notification.entity_id && notification.entity_id && (
+                  <div className={`mt-3 p-3 rounded-lg border ${
+                    isDark ? 'bg-[#0A1525] border-[#1E293B]' : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value.slice(0, 500))}
+                      placeholder="Write your reply to the manager/owner..."
+                      rows={3}
+                      className={`w-full resize-none rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                        isDark
+                          ? 'bg-[#111D32] border-[#1E293B] text-white placeholder:text-gray-500'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400'
+                      }`}
+                    />
+                    <div className="flex items-center justify-between mt-2">
+                      <span className={`text-xs ${
+                        isDark ? 'text-gray-500' : 'text-gray-400'
+                      }`}>{replyText.length}/500</span>
+                      <button
+                        onClick={() => handleReplySubmit(notification.entity_id!)}
+                        disabled={replySubmitting || !replyText.trim()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        {replySubmitting ? 'Sending...' : 'Send Reply'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

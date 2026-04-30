@@ -84,6 +84,7 @@ export interface TenantNotification {
   message: string
   is_read: boolean
   created_at: string
+  entity_id?: string | null
 }
 
 export interface TenantDocument {
@@ -434,4 +435,9 @@ export async function renewTenantContract(tenantId: string): Promise<void> {
 
 export async function endTenantContract(tenantId: string): Promise<void> {
   await api.put(`/tenants/${tenantId}/end-contract`, {})
+}
+
+// ── Announcement Replies ────────────────────────────────────
+export async function replyToAnnouncement(announcementId: string, message: string): Promise<void> {
+  await api.post(`/announcements/${announcementId}/replies`, { message })
 }

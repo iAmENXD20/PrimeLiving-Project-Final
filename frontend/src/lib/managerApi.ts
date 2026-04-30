@@ -598,3 +598,18 @@ export async function createManagerApartmentLog(log: {
 export async function checkLeaseExpiry(ownerId: string): Promise<{ checked: number; notified: number }> {
   return api.post<{ checked: number; notified: number }>(`/tenants/check-lease-expiry?apartmentowner_id=${ownerId}`, {})
 }
+
+// ── Announcement Replies ────────────────────────────────────
+export interface AnnouncementReply {
+  id: string
+  announcement_id: string
+  tenant_id: string
+  tenant_name: string
+  message: string
+  is_read: boolean
+  created_at: string
+}
+
+export async function getAnnouncementReplies(announcementId: string): Promise<AnnouncementReply[]> {
+  return api.get<AnnouncementReply[]>(`/announcements/${announcementId}/replies`)
+}

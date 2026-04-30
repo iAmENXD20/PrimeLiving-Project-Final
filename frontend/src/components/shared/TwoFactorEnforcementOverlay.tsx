@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { ShieldCheck } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import TwoFactorSetup from './TwoFactorSetup'
+import { getMfaPreference } from '@/lib/mfaApi'
 
 interface TwoFactorEnforcementOverlayProps {
   /** Role label shown in the message (e.g. "Owner", "Manager", "Tenant") */
@@ -17,15 +18,22 @@ export default function TwoFactorEnforcementOverlay({ role }: TwoFactorEnforceme
   async function checkEnrollment() {
     setChecking(true)
     try {
-      const { data, error } = await supabase.auth.mfa.listFactors()
-      console.log('[2FA Enforcement] listFactors result:', { data, error })
-      if (error) {
-        console.warn('[2FA] Could not check factors, treating as unenrolled:', error.message)
+      // Check both TOTP (Supabase MFA) and Email OTP preference in parallel
+      const [mfaRes, prefRes] = await Promise.all([
+        supabase.auth.mfa.listFactors(),
+        getMfaPreference().catch(() => ({ mfa_method: null })),
+      ])
+      if (mfaRes.error) {
+        console.warn('[2FA] Could not check factors, treating as unenrolled:', mfaRes.error.message)
         setRequired(true)
         return
       }
-      const enrolled = data?.totp?.some((f) => f.status === 'verified') ?? false
-      console.log('[2FA Enforcement] enrolled:', enrolled, '→ required:', !enrolled)
+      const totpEnrolled = mfaRes.data?.totp?.some((f) => f.status === 'verified') ?? false
+      const emailOtpEnabled = prefRes.mfa_method === 'email'
+      // If email OTP is the user's method, also require that they've verified it this session
+      const emailOtpVerifiedThisSession = emailOtpEnabled && sessionStorage.getItem('email_otp_verified') === 'true'
+      const enrolled = totpEnrolled || emailOtpVerifiedThisSession
+      console.log('[2FA Enforcement] totp:', totpEnrolled, 'emailOtp:', emailOtpEnabled, 'emailOtpSession:', emailOtpVerifiedThisSession, '→ required:', !enrolled)
       setRequired(!enrolled)
     } catch (err) {
       console.warn('[2FA] Unexpected error checking enrollment:', err)

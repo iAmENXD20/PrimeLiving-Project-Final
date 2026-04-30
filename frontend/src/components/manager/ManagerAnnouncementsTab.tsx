@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Trash2, Megaphone, Send } from 'lucide-react'
+import { Plus, Trash2, Megaphone, Send, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { formatPhone } from '@/lib/utils'
@@ -9,7 +9,9 @@ import {
   deleteAnnouncement,
   getActiveTenants,
   getManagedApartments,
+  getAnnouncementReplies,
   type Announcement,
+  type AnnouncementReply,
 } from '../../lib/managerApi'
 import { toast } from 'sonner'
 import ConfirmationModal from '@/components/ui/ConfirmationModal'
@@ -35,6 +37,9 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
   const [selectedTenantIds, setSelectedTenantIds] = useState<string[]>([])
   const [announcementToDelete, setAnnouncementToDelete] = useState<Announcement | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [replies, setReplies] = useState<Record<string, AnnouncementReply[]>>({})
+  const [expandedReplies, setExpandedReplies] = useState<string | null>(null)
+  const [loadingReplies, setLoadingReplies] = useState<Record<string, boolean>>({})
   const ownerIdRef = useRef<string | null>(null)
 
   async function load() {
@@ -124,6 +129,24 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
     } finally {
       setDeleting(false)
       setAnnouncementToDelete(null)
+    }
+  }
+
+  const handleToggleReplies = async (announcementId: string) => {
+    if (expandedReplies === announcementId) {
+      setExpandedReplies(null)
+      return
+    }
+    setExpandedReplies(announcementId)
+    if (replies[announcementId]) return // already loaded
+    setLoadingReplies((prev) => ({ ...prev, [announcementId]: true }))
+    try {
+      const data = await getAnnouncementReplies(announcementId)
+      setReplies((prev) => ({ ...prev, [announcementId]: data }))
+    } catch {
+      toast.error('Failed to load replies')
+    } finally {
+      setLoadingReplies((prev) => ({ ...prev, [announcementId]: false }))
     }
   }
 
@@ -318,6 +341,56 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
               <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                 {getAnnouncementAudienceLabel(a)}
               </p>
+              <div className="mt-3">
+                <button
+                  onClick={() => handleToggleReplies(a.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border ${
+                    isDark
+                      ? 'bg-[#111D32] border-[#1E293B] text-blue-300 hover:bg-[#0A1525]'
+                      : 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100'
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  {loadingReplies[a.id]
+                    ? 'Loading...'
+                    : expandedReplies === a.id
+                    ? 'Hide Replies'
+                    : replies[a.id]
+                    ? `Replies (${replies[a.id].length})`
+                    : 'View Replies'
+                  }
+                  {expandedReplies === a.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              {expandedReplies === a.id && (
+                <div className={`mt-3 space-y-2 border-t pt-3 ${
+                  isDark ? 'border-[#1E293B]' : 'border-gray-100'
+                }`}>
+                  {(replies[a.id] || []).length === 0 ? (
+                    <p className={`text-sm italic ${
+                      isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`}>No replies yet.</p>
+                  ) : (
+                    (replies[a.id] || []).map((reply) => (
+                      <div key={reply.id} className={`rounded-lg p-3 ${
+                        isDark ? 'bg-[#0A1525]' : 'bg-gray-50'
+                      }`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-xs font-semibold ${
+                            isDark ? 'text-blue-300' : 'text-blue-600'
+                          }`}>{reply.tenant_name}</span>
+                          <span className={`text-xs ${
+                            isDark ? 'text-gray-500' : 'text-gray-400'
+                          }`}>{new Date(reply.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        </div>
+                        <p className={`text-sm mt-1 ${
+                          isDark ? 'text-gray-300' : 'text-gray-700'
+                        }`}>{reply.message}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
             <button
               onClick={() => setAnnouncementToDelete(a)}

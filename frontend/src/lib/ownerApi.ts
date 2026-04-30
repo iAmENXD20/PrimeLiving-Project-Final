@@ -641,3 +641,18 @@ export async function createExpense(expense: { apartmentowner_id: string; apartm
 export async function deleteExpense(id: string): Promise<void> {
   await api.delete(`/expenses/${id}`)
 }
+
+// ── Announcement Replies ────────────────────────────────────
+export interface AnnouncementReply {
+  id: string
+  announcement_id: string
+  tenant_id: string
+  tenant_name: string
+  message: string
+  is_read: boolean
+  created_at: string
+}
+
+export async function getAnnouncementReplies(announcementId: string): Promise<AnnouncementReply[]> {
+  return api.get<AnnouncementReply[]>(`/announcements/${announcementId}/replies`)
+}
