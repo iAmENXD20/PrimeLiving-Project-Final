@@ -31,7 +31,6 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [smsSending, setSmsSending] = useState(false)
   const [tenants, setTenants] = useState<{ id: string; name: string; phone: string | null; unit_name?: string | null }[]>([])
   const [recipientMode, setRecipientMode] = useState<'all' | 'multiple'>('all')
   const [selectedTenantIds, setSelectedTenantIds] = useState<string[]>([])
@@ -100,7 +99,7 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
         recipientTenantIds,
       )
 
-      toast.success('Announcement created and SMS sent to tenants with phone numbers')
+      toast.success('Announcement created and sent to tenants')
       await load()
       setTitle('')
       setMessage('')
@@ -217,15 +216,7 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
                 : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
             } focus:outline-none focus:border-primary`}
           />
-          {(title.trim() || message.trim()) && (() => {
-            const smsLength = `${title}\n\n${message}`.length
-            const isOver = smsLength > 160
-            return (
-              <p className={`text-xs mt-1 ${isOver ? 'text-amber-500' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                SMS preview: {smsLength}/160 characters{isOver && ' (will be truncated)'}
-              </p>
-            )
-          })()}
+
 
           <div className="space-y-2">
             <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -303,11 +294,11 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
             </button>
             <button
               onClick={handleCreate}
-              disabled={submitting || smsSending || !title.trim() || !message.trim()}
+              disabled={submitting || !title.trim() || !message.trim()}
               className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
             >
               <Send className="w-4 h-4" />
-              {smsSending ? 'Sending SMS...' : submitting ? 'Posting...' : 'Post and Notify'}
+              {submitting ? 'Posting...' : 'Post and Notify'}
             </button>
           </div>
         </div>

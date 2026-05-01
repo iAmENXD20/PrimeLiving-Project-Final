@@ -4,7 +4,7 @@ import OwnerSidebar from '../components/owner/OwnerSidebar'
 import OwnerTopBar from '../components/owner/OwnerTopBar'
 import { getCurrentOwner, getOwnerDashboardStats } from '../lib/ownerApi'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
-import { CardsSkeleton } from '../components/ui/skeleton'
+import { CardsSkeleton, DashboardPageSkeleton } from '../components/ui/skeleton'
 import TwoFactorEnforcementOverlay from '../components/shared/TwoFactorEnforcementOverlay'
 
 const OwnerOverviewTab = lazy(() => import('../components/owner/OwnerOverviewTab'))
@@ -65,12 +65,7 @@ export default function OwnerDashboard() {
 
   const renderContent = () => {
     if (loading) {
-      return (
-        <div className="space-y-4">
-          <div className={`h-8 w-48 rounded ${isDark ? 'bg-white/10' : 'bg-gray-200'} animate-pulse`} />
-          <CardsSkeleton count={4} />
-        </div>
-      )
+      return <DashboardPageSkeleton />
     }
 
     if (!owner) {
@@ -115,7 +110,6 @@ export default function OwnerDashboard() {
         isDark ? 'bg-[#0A1628] text-white' : 'bg-gray-50 text-gray-900'
       }`}
     >
-      {/* 2FA enforcement — blocks dashboard until 2FA is set up */}
       <TwoFactorEnforcementOverlay role="Owner" />
 
       {/* Mobile overlay */}
@@ -146,7 +140,7 @@ export default function OwnerDashboard() {
 
         {/* Page content */}
         <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0 overflow-y-auto">
-          <Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+          <Suspense fallback={<DashboardPageSkeleton />}>
             {renderContent()}
           </Suspense>
         </main>

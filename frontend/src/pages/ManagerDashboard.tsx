@@ -7,7 +7,7 @@ import { getCurrentManager, getManagerNotifications, getManagerDashboardStats, c
 import { supabase } from '../lib/supabase'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
-import { CardsSkeleton } from '../components/ui/skeleton'
+import { CardsSkeleton, DashboardPageSkeleton } from '../components/ui/skeleton'
 import TwoFactorEnforcementOverlay from '../components/shared/TwoFactorEnforcementOverlay'
 
 const ManagerOverviewTab = lazy(() => import('../components/manager/ManagerOverviewTab'))
@@ -17,6 +17,7 @@ const ManagerSettingsTab = lazy(() => import('../components/manager/ManagerSetti
 const ManagerPaymentsTab = lazy(() => import('../components/manager/ManagerPaymentsTab'))
 const ManagerDocumentsTab = lazy(() => import('../components/manager/ManagerDocumentsTab'))
 const ManagerNotificationsTab = lazy(() => import('../components/manager/ManagerNotificationsTab'))
+const ManagerReportsTab = lazy(() => import('../components/manager/ManagerReportsTab'))
 
 export default function ManagerDashboard() {
   const { isDark } = useTheme()
@@ -125,12 +126,7 @@ export default function ManagerDashboard() {
 
   const renderContent = () => {
     if (loading) {
-      return (
-        <div className="space-y-4">
-          <div className={`h-8 w-48 rounded ${isDark ? 'bg-white/10' : 'bg-gray-200'} animate-pulse`} />
-          <CardsSkeleton count={4} />
-        </div>
-      )
+      return <DashboardPageSkeleton />
     }
 
     if (!manager) {
@@ -160,6 +156,8 @@ export default function ManagerDashboard() {
         return <ManagerDocumentsTab managerId={manager.id} ownerId={manager.ownerId || ''} />
       case 'notifications':
         return <ManagerNotificationsTab managerId={manager.id} ownerId={manager.ownerId || ''} onRead={refreshNotificationCount} />
+      case 'reports':
+        return <ManagerReportsTab managerId={manager.id} ownerId={manager.ownerId || ''} />
       case 'settings':
         return <ManagerSettingsTab managerId={manager.id} managerName={manager.name} managerPhone={manager.phone} ownerId={manager.ownerId} />
       default:
@@ -173,7 +171,6 @@ export default function ManagerDashboard() {
         isDark ? 'bg-[#0A1628] text-white' : 'bg-gray-50 text-gray-900'
       }`}
     >
-      {/* 2FA enforcement — blocks dashboard until 2FA is set up */}
       <TwoFactorEnforcementOverlay role="Manager" />
 
       {/* Mobile overlay */}
@@ -205,7 +202,7 @@ export default function ManagerDashboard() {
 
         {/* Page content */}
         <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">
-          <Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+          <Suspense fallback={<DashboardPageSkeleton />}>
             {renderContent()}
           </Suspense>
         </main>

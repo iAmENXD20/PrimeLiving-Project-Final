@@ -31,7 +31,9 @@ export interface TenantMaintenanceRequest {
   description: string
   priority: 'low' | 'medium' | 'high' | 'urgent'
   status: 'pending' | 'in_progress' | 'resolved' | 'closed'
+  category: 'plumbing' | 'electrical' | 'hvac' | 'structural' | 'appliances' | 'pest_control' | 'cleaning' | 'other'
   photo_url: string | null
+  assigned_repairman_id: string | null
   review_rating: number | null
   review_comment: string | null
   reviewed_at: string | null
@@ -162,10 +164,12 @@ export async function createTenantMaintenanceRequest(request: {
   title: string
   description: string
   priority: 'low' | 'medium' | 'high' | 'urgent'
+  category?: 'plumbing' | 'electrical' | 'hvac' | 'structural' | 'appliances' | 'pest_control' | 'cleaning' | 'other'
   photo_url?: string | null
 }) {
   return api.post<TenantMaintenanceRequest>('/maintenance', {
     ...request,
+    category: request.category || 'other',
     photo_url: request.photo_url || null,
   })
 }

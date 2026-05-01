@@ -26,6 +26,7 @@ const requestSchema = z.object({
   title: z.string().min(3, 'Title is required'),
   description: z.string().min(10, 'Please provide a detailed description'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
+  category: z.enum(['plumbing', 'electrical', 'hvac', 'structural', 'appliances', 'pest_control', 'cleaning', 'other']),
 })
 
 type RequestForm = z.infer<typeof requestSchema>
@@ -82,12 +83,15 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
     formState: { errors, isSubmitting },
   } = useForm<RequestForm>({
     resolver: zodResolver(requestSchema),
-    defaultValues: { priority: 'medium' },
+    defaultValues: { priority: 'medium', category: 'other' },
   })
 
   const selectedPriority = watch('priority')
+  const selectedCategory = watch('category')
   const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false)
   const priorityDropdownRef = useRef<HTMLDivElement>(null)
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
+  const categoryDropdownRef = useRef<HTMLDivElement>(null)
 
   const loadRequests = useCallback(async (skipCache = false) => {
     const version = ++loadVersion.current
@@ -118,6 +122,9 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
       if (priorityDropdownRef.current && !priorityDropdownRef.current.contains(e.target as Node)) {
         setPriorityDropdownOpen(false)
       }
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setCategoryDropdownOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -145,6 +152,7 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
         title: data.title,
         description: data.description,
         priority: data.priority,
+        category: data.category,
         photo_url: photoUrlValue,
       })
       toast.success('Maintenance request submitted!')
@@ -198,6 +206,14 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
     : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-primary'
 
   const labelClass = isDark ? 'text-gray-300' : 'text-gray-700'
+
+  const CATEGORY_ICONS: Record<string, string> = {
+    plumbing: '🔧', electrical: '⚡', hvac: '❄️',
+    structural: '🏗️', appliances: '🔌', pest_control: '🐛',
+    cleaning: '🧹', other: '📋',
+  }
+  const categoryLabel = (c: string) =>
+    c === 'pest_control' ? 'Pest Control' : c.charAt(0).toUpperCase() + c.slice(1)
 
   const priorityColor = (p: string) => {
     switch (p) {
@@ -346,6 +362,55 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
                           }`}
                         >
                           <span className={`w-2 h-2 rounded-full ${opt.dot}`} />
+                          {opt.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Category */}
+            <div className="space-y-1.5">
+              <Label className={labelClass}>Category</Label>
+              <div className="relative" ref={categoryDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+                  className={`w-full appearance-none rounded-lg px-3 py-2 pr-10 text-sm font-medium text-left border transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${inputClass}`}
+                >
+                  {selectedCategory === 'hvac' ? 'HVAC' : selectedCategory === 'pest_control' ? 'Pest Control' : selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
+                </button>
+                <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none transition-transform ${categoryDropdownOpen ? 'rotate-180' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                {categoryDropdownOpen && (
+                  <div className={`absolute z-20 w-full mt-1 rounded-lg border shadow-lg overflow-hidden ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+                    {([
+                      { value: 'plumbing', label: 'Plumbing', icon: '🔧' },
+                      { value: 'electrical', label: 'Electrical', icon: '⚡' },
+                      { value: 'hvac', label: 'HVAC', icon: '❄️' },
+                      { value: 'structural', label: 'Structural', icon: '🏗️' },
+                      { value: 'appliances', label: 'Appliances', icon: '🔌' },
+                      { value: 'pest_control', label: 'Pest Control', icon: '🐛' },
+                      { value: 'cleaning', label: 'Cleaning', icon: '🧹' },
+                      { value: 'other', label: 'Other', icon: '📋' },
+                    ] as const).map((opt) => {
+                      const isSelected = selectedCategory === opt.value
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setValue('category', opt.value)
+                            setCategoryDropdownOpen(false)
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${
+                            isSelected
+                              ? isDark ? 'bg-primary/10 text-primary font-medium' : 'bg-primary/5 text-primary-700 font-medium'
+                              : isDark ? 'text-white hover:bg-white/5' : 'text-gray-900 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span>{opt.icon}</span>
                           {opt.label}
                         </button>
                       )
@@ -613,12 +678,23 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
                       })}
                     </div>
 
-                    {/* Priority badge */}
-                    <div className="mt-4 flex items-center gap-2">
-                      <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Priority:</span>
-                      <span className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded-full ${priorityColor(req.priority)}`}>
-                        {req.priority}
-                      </span>
+                    {/* Priority + Category badges */}
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Priority:</span>
+                        <span className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded-full capitalize ${priorityColor(req.priority)}`}>
+                          {req.priority}
+                        </span>
+                      </div>
+                      {req.category && (
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Category:</span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full ${isDark ? 'bg-white/5 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                            <span>{CATEGORY_ICONS[req.category] || '📋'}</span>
+                            {categoryLabel(req.category)}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Mark as Resolved — only when in_progress */}

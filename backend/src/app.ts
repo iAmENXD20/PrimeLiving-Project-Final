@@ -22,6 +22,7 @@ import revenuesRoutes from "./routes/revenues.routes";
 import apartmentLogsRoutes from "./routes/apartment-logs.routes";
 import expensesRoutes from "./routes/expenses.routes";
 import emailOtpRoutes from "./routes/emailOtp.routes";
+import repairmenRoutes from "./routes/repairmen.routes";
 
 const app = express();
 
@@ -64,6 +65,7 @@ app.use("/api/revenues", revenuesRoutes);
 app.use("/api/apartment-logs", apartmentLogsRoutes);
 app.use("/api/expenses", expensesRoutes);
 app.use("/api/auth/mfa", emailOtpRoutes);
+app.use("/api/repairmen", repairmenRoutes);
 
 // ── Error Handling ──
 app.use(notFoundHandler);

@@ -46,9 +46,6 @@ export default function ManagerTenantsTab({ managerId, ownerId }: ManagerTenants
   const [showCredentials, setShowCredentials] = useState(false)
   const [credentials, setCredentials] = useState({ email: '' })
   const [copiedField, setCopiedField] = useState<string | null>(null)
-  const [smsPhone, setSmsPhone] = useState('')
-  const [smsSending, setSmsSending] = useState(false)
-  const [smsSent, setSmsSent] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [emailCooldown, setEmailCooldown] = useState(0)
@@ -710,8 +707,6 @@ export default function ManagerTenantsTab({ managerId, ownerId }: ManagerTenants
                 <Button
                   onClick={() => {
                     setShowCredentials(false)
-                    setSmsPhone('')
-                    setSmsSent(false)
                     setEmailSent(false)
                     setEmailCooldown(0)
                   }}

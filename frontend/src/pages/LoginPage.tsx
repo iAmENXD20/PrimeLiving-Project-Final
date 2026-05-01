@@ -192,30 +192,30 @@ export default function LoginPage() {
 
       const destination = role === 'manager' ? '/manager' : role === 'tenant' ? '/tenant' : '/owner'
 
-      // Check if the user has TOTP enrolled and needs to complete AAL2
-      const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-      if (aalData?.nextLevel === 'aal2') {
-        const { data: factorsData } = await supabase.auth.mfa.listFactors()
-        const totp = factorsData?.totp?.find((f) => f.status === 'verified')
-        if (totp) {
-          setTotpState({ factorId: totp.id, destination })
-          return
-        }
-      }
-
-      // Check if the user has Email OTP as their 2FA method
-      const pref = await getMfaPreference().catch(() => ({ mfa_method: null }))
-      if (pref.mfa_method === 'email') {
-        try {
-          const res = await sendEmailOtp()
-          setEmailOtpMasked(res.maskedEmail)
-          setEmailOtpState({ destination })
-          setEmailOtpCode('')
-        } catch {
-          toast.error('Failed to send email OTP. Please try again.')
-        }
-        return
-      }
+      // 2FA checks temporarily disabled
+      // // Check if the user has TOTP enrolled and needs to complete AAL2
+      // const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+      // if (aalData?.nextLevel === 'aal2') {
+      //   const { data: factorsData } = await supabase.auth.mfa.listFactors()
+      //   const totp = factorsData?.totp?.find((f) => f.status === 'verified')
+      //   if (totp) {
+      //     setTotpState({ factorId: totp.id, destination })
+      //     return
+      //   }
+      // }
+      // // Check if the user has Email OTP as their 2FA method
+      // const pref = await getMfaPreference().catch(() => ({ mfa_method: null }))
+      // if (pref.mfa_method === 'email') {
+      //   try {
+      //     const res = await sendEmailOtp()
+      //     setEmailOtpMasked(res.maskedEmail)
+      //     setEmailOtpState({ destination })
+      //     setEmailOtpCode('')
+      //   } catch {
+      //     toast.error('Failed to send email OTP. Please try again.')
+      //   }
+      //   return
+      // }
 
       toast.success('Login successful!')
       navigate(destination)
@@ -380,8 +380,8 @@ export default function LoginPage() {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className={`relative w-full max-w-sm rounded-2xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-11 h-11 rounded-xl bg-blue-500/15 flex items-center justify-center">
-                <Mail className="w-6 h-6 text-blue-500" />
+              <div className="w-11 h-11 rounded-xl bg-primary/15 flex items-center justify-center">
+                <Mail className="w-6 h-6 text-primary" />
               </div>
               <div>
                 <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Email Verification Code</h3>
@@ -404,14 +404,14 @@ export default function LoginPage() {
               <Button
                 onClick={handleEmailOtpVerify}
                 disabled={emailOtpCode.replace(/\s/g, '').length < 6 || emailOtpVerifying}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5"
+                className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-2.5"
               >
                 {emailOtpVerifying ? 'Verifying...' : 'Verify Code'}
               </Button>
               <button
                 type="button"
                 onClick={handleResendEmailOtp}
-                className={`w-full text-sm text-center ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} transition-colors`}
+                className={`w-full text-sm text-center ${isDark ? 'text-primary-400 hover:text-primary-300' : 'text-primary-600 hover:text-primary-700'} transition-colors`}
               >
                 Resend code
               </button>

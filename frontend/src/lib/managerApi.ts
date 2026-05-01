@@ -13,7 +13,9 @@ export interface MaintenanceRequest {
   description: string
   priority: 'low' | 'medium' | 'high' | 'urgent'
   status: 'pending' | 'in_progress' | 'resolved' | 'closed'
+  category: 'plumbing' | 'electrical' | 'hvac' | 'structural' | 'appliances' | 'pest_control' | 'cleaning' | 'other'
   photo_url: string | null
+  assigned_repairman_id: string | null
   review_rating: number | null
   review_comment: string | null
   reviewed_at: string | null
@@ -21,6 +23,19 @@ export interface MaintenanceRequest {
   updated_at: string
   tenant_name?: string
   apartment_name?: string
+  repairman_name?: string
+}
+
+export interface Repairman {
+  id: string
+  apartmentowner_id: string
+  name: string
+  phone: string | null
+  specialty: string | null
+  notes: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface ManagerProfile {
@@ -128,9 +143,25 @@ export async function getManagerMaintenanceRequests(managerId: string): Promise<
   }))
 }
 
-// ── Update Maintenance Request Status ──────────────────────
-export async function updateMaintenanceStatus(id: string, status: MaintenanceRequest['status']) {
-  await api.put(`/maintenance/${id}/status`, { status })
+export async function updateMaintenanceStatus(id: string, status: MaintenanceRequest['status'], assigned_repairman_id?: string | null) {
+  await api.put(`/maintenance/${id}/status`, { status, ...(assigned_repairman_id !== undefined ? { assigned_repairman_id } : {}) })
+}
+
+// ── Repairmen ──────────────────────────────────────────────
+export async function getRepairmen(managerId: string): Promise<Repairman[]> {
+  return api.get<Repairman[]>(`/repairmen?manager_id=${managerId}`)
+}
+
+export async function createRepairman(payload: { apartmentowner_id: string; name: string; phone?: string; specialty?: string; notes?: string }): Promise<Repairman> {
+  return api.post<Repairman>('/repairmen', payload)
+}
+
+export async function updateRepairman(id: string, payload: Partial<Pick<Repairman, 'name' | 'phone' | 'specialty' | 'notes' | 'is_active'>>): Promise<Repairman> {
+  return api.put<Repairman>(`/repairmen/${id}`, payload)
+}
+
+export async function deleteRepairman(id: string): Promise<void> {
+  await api.delete(`/repairmen/${id}`)
 }
 
 // ── Get Managed Apartments (Units with Tenant info) ────────

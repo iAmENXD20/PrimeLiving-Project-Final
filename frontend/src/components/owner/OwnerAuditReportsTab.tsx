@@ -2,8 +2,12 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
-import { getOwnerPayments, getOwnerProperties, getExpenses, createExpense, deleteExpense, type OwnerPayment, type Property, type Expense } from '../../lib/ownerApi'
-import { PhilippinePeso, TrendingUp, Calendar, Download, ChevronDown, Plus, Trash2, X, Printer, FileText, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { getOwnerPayments, getOwnerProperties, getExpenses, createExpense, deleteExpense, getOwnerTenants, getOwnerMaintenanceRequests, getOwnerUnits, type OwnerPayment, type Property, type Expense, type OwnerTenant, type MaintenanceRequest } from '../../lib/ownerApi'
+import { PhilippinePeso, TrendingUp, Calendar, Download, ChevronDown, Plus, Trash2, X, Printer, FileText, AlertTriangle, ChevronLeft, ChevronRight, BarChart2, PieChart as PieChartIcon } from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area,
+} from 'recharts'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
@@ -11,7 +15,7 @@ interface OwnerAuditReportsTabProps {
   ownerId: string
 }
 
-type SectionTab = 'quarterly' | 'annual' | 'expenses'
+type SectionTab = 'quarterly' | 'annual' | 'expenses' | 'tenants' | 'maintenance' | 'analytics'
 
 interface RevenueRow {
   label: string
@@ -74,6 +78,11 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
   const quarterRef = useRef<HTMLDivElement>(null)
   const propRef = useRef<HTMLDivElement>(null)
 
+  const [tenants, setTenants] = useState<OwnerTenant[]>([])
+  const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([])
+  const [tenantPage, setTenantPage] = useState(1)
+  const [maintPage, setMaintPage] = useState(1)
+
   // Expense records (persisted to DB)
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [showExpenseForm, setShowExpenseForm] = useState(false)
@@ -83,6 +92,9 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
   const [showTaxNotice, setShowTaxNotice] = useState(false)
   const [pendingExportFn, setPendingExportFn] = useState<(() => void) | null>(null)
 
+  // Analytics chunk mode
+  const [analyticsChunkMode, setAnalyticsChunkMode] = useState<'monthly' | 'quarterly'>('monthly')
+
   // Pagination state
   const ROWS_PER_PAGE = 10
   const [qPayPage, setQPayPage] = useState(1)
@@ -91,24 +103,35 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
   const [expPage, setExpPage] = useState(1)
 
   // Reset pages when filters change
-  useEffect(() => { setQPayPage(1); setAPayPage(1); setAExpPage(1); setExpPage(1) }, [selectedYear, selectedQuarter, selectedProperty])
+  useEffect(() => { setQPayPage(1); setAPayPage(1); setAExpPage(1); setExpPage(1); setTenantPage(1); setMaintPage(1) }, [selectedYear, selectedQuarter, selectedProperty])
 
   const loadReports = useCallback((skipCache = false) => {
     const version = ++loadVersion.current
     if (!initialLoadDone.current) setLoading(true)
     const opts = { skipCache }
-    Promise.all([getOwnerPayments(ownerId, opts), getOwnerProperties(ownerId, opts), getExpenses(ownerId, undefined, opts)])
-      .then(([p, props, exp]) => { if (loadVersion.current !== version) return; setPayments(p); setProperties(props); setExpenses(exp); initialLoadDone.current = true })
-      .catch(() => { if (loadVersion.current !== version) return; setPayments([]); setProperties([]); setExpenses([]) })
+    Promise.all([getOwnerPayments(ownerId, opts), getOwnerProperties(ownerId, opts), getExpenses(ownerId, undefined, opts), getOwnerTenants(ownerId, true, opts), getOwnerMaintenanceRequests(ownerId), getOwnerUnits(ownerId, opts)])
+      .then(([p, props, exp, ten, maint, units]) => {
+        if (loadVersion.current !== version) return
+        // Build unit name map
+        const unitNameMap = new Map(units.map(u => [u.id, u.name]))
+        const enrichedTenants = ten.map((t: any) => ({
+          ...t,
+          apartment_name: t.unit_id ? unitNameMap.get(t.unit_id) || '—' : '—',
+        }))
+        setPayments(p); setProperties(props); setExpenses(exp); setTenants(enrichedTenants); setMaintenanceRequests(maint); initialLoadDone.current = true
+      })
+      .catch(() => { if (loadVersion.current !== version) return; setPayments([]); setProperties([]); setExpenses([]); setTenants([]); setMaintenanceRequests([]) })
       .finally(() => { if (loadVersion.current === version) setLoading(false) })
   }, [ownerId])
 
   useEffect(() => { loadReports() }, [ownerId])
 
-  // Real-time: auto-refresh when payments or expenses change
+  // Real-time: auto-refresh when payments, expenses, tenants, or maintenance change
   useRealtimeSubscription(`owner-audit-${ownerId}`, [
     { table: 'payments', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadReports(true) },
     { table: 'expenses', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadReports(true) },
+    { table: 'tenants', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadReports(true) },
+    { table: 'maintenance_requests', filter: `apartmentowner_id=eq.${ownerId}`, onChanged: () => loadReports(true) },
   ])
 
   // Close dropdowns on outside click
@@ -688,6 +711,9 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
           { key: 'quarterly' as SectionTab, label: 'Quarterly Report' },
           { key: 'annual' as SectionTab, label: 'Annual Report' },
           { key: 'expenses' as SectionTab, label: 'Expense Records' },
+        { key: 'tenants' as SectionTab, label: 'Tenant Directory' },
+        { key: 'maintenance' as SectionTab, label: 'Maintenance Report' },
+        { key: 'analytics' as SectionTab, label: 'Analytics' },
         ]).map(tab => (
           <button
             key={tab.key}
@@ -989,6 +1015,655 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
           </div>
         </div>
       )}
+
+      {/* ══════════════ TENANT DIRECTORY ══════════════ */}
+      {activeTab === 'tenants' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              {tenants.length} tenant{tenants.length !== 1 ? 's' : ''} across all units
+            </p>
+            <ExportRow
+              onCSV={() => triggerExport(() => {
+                const headers = ['No.', 'Name', 'Email', 'Phone', 'Unit', 'Status', 'Monthly Rent (₱)', 'Move-in Date']
+                const rows = tenants.map((t, i) => [
+                  i + 1,
+                  `${t.first_name} ${t.last_name}`,
+                  (t as any).email || '—',
+                  t.phone || '—',
+                  (t as any).apartment_name || t.unit_id || '—',
+                  t.status,
+                  t.monthly_rent ?? '—',
+                  (t as any).move_in_date ? new Date((t as any).move_in_date).toLocaleDateString() : '—',
+                ] as (string | number)[])
+                exportCSV(headers, rows, `Tenant_Directory_${new Date().toISOString().slice(0, 10)}.csv`)
+              })}
+              onExcel={() => triggerExport(async () => {
+                const headers = ['No.', 'Name', 'Email', 'Phone', 'Unit', 'Status', 'Monthly Rent (₱)', 'Move-in Date']
+                const rows = tenants.map((t, i) => [
+                  i + 1,
+                  `${t.first_name} ${t.last_name}`,
+                  (t as any).email || '—',
+                  t.phone || '—',
+                  (t as any).apartment_name || t.unit_id || '—',
+                  t.status,
+                  t.monthly_rent ?? '—',
+                  (t as any).move_in_date ? new Date((t as any).move_in_date).toLocaleDateString() : '—',
+                ] as (string | number)[])
+                await exportExcel(headers, rows, `Tenant_Directory_${new Date().toISOString().slice(0, 10)}.xlsx`)
+              })}
+              onPDF={() => triggerExport(async () => {
+                const { default: jsPDF } = await import('jspdf')
+                const autoTable = (await import('jspdf-autotable')).default
+                const doc = new jsPDF('landscape')
+                doc.setFontSize(18)
+                doc.text('Tenant Directory', 14, 20)
+                doc.setFontSize(11)
+                doc.text(`Generated: ${new Date().toLocaleDateString()}  —  Total: ${tenants.length} tenant(s)`, 14, 28)
+                autoTable(doc, {
+                  startY: 36,
+                  head: [['No.', 'Name', 'Email', 'Phone', 'Unit', 'Status', 'Rent (PHP)', 'Move-in']],
+                  body: tenants.map((t, i) => [
+                    i + 1,
+                    `${t.first_name} ${t.last_name}`,
+                    (t as any).email || '—',
+                    t.phone || '—',
+                    (t as any).apartment_name || '—',
+                    t.status,
+                    t.monthly_rent ? Number(t.monthly_rent).toLocaleString() : '—',
+                    (t as any).move_in_date ? new Date((t as any).move_in_date).toLocaleDateString() : '—',
+                  ]),
+                  styles: { fontSize: 8 },
+                })
+                doc.save(`Tenant_Directory_${new Date().toISOString().slice(0, 10)}.pdf`)
+              })}
+            />
+          </div>
+          {loading ? <TableSkeleton rows={5} /> : (
+            <div className={`${cardClass} overflow-x-auto`}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+                    {['No.', 'Name', 'Email', 'Phone', 'Unit', 'Status', 'Monthly Rent', 'Move-in'].map(h => (
+                      <th key={h} className={`text-left py-3 px-4 font-medium text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tenants.length === 0 ? (
+                    <tr><td colSpan={8} className={`text-center py-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No tenants found</td></tr>
+                  ) : tenants.slice((tenantPage - 1) * ROWS_PER_PAGE, tenantPage * ROWS_PER_PAGE).map((t, i) => (
+                    <tr key={t.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                      <td className={`py-2.5 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{(tenantPage - 1) * ROWS_PER_PAGE + i + 1}</td>
+                      <td className={`py-2.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'} whitespace-nowrap`}>{t.first_name} {t.last_name}</td>
+                      <td className={`py-2.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{(t as any).email || '—'}</td>
+                      <td className={`py-2.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{t.phone || '—'}</td>
+                      <td className={`py-2.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{(t as any).apartment_name || '—'}</td>
+                      <td className="py-2.5 px-4">
+                        <span className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${
+                          t.status === 'active' ? 'bg-emerald-500/15 text-emerald-400'
+                          : t.status === 'pending' || t.status === 'pending_verification' ? 'bg-amber-500/15 text-amber-400'
+                          : 'bg-gray-500/15 text-gray-400'
+                        }`}>{t.status}</span>
+                      </td>
+                      <td className={`py-2.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {t.monthly_rent ? `₱${Number(t.monthly_rent).toLocaleString()}` : '—'}
+                      </td>
+                      <td className={`py-2.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {(t as any).move_in_date ? new Date((t as any).move_in_date).toLocaleDateString() : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <PaginationControls page={tenantPage} totalItems={tenants.length} onPageChange={setTenantPage} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ MAINTENANCE REPORT ══════════════ */}
+      {activeTab === 'maintenance' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              {maintenanceRequests.length} request{maintenanceRequests.length !== 1 ? 's' : ''} total
+            </p>
+            <ExportRow
+              onCSV={() => triggerExport(() => {
+                const headers = ['No.', 'Title', 'Description', 'Tenant', 'Priority', 'Status', 'Date', 'Review Comment']
+                const rows = maintenanceRequests.map((m, i) => [
+                  i + 1, m.title, m.description, m.tenant_name || '—', m.priority, m.status,
+                  new Date(m.created_at).toLocaleDateString(),
+                  m.review_comment || '—',
+                ] as (string | number)[])
+                exportCSV(headers, rows, `Maintenance_Report_${new Date().toISOString().slice(0, 10)}.csv`)
+              })}
+              onExcel={() => triggerExport(async () => {
+                const headers = ['No.', 'Title', 'Description', 'Tenant', 'Priority', 'Status', 'Date', 'Review Comment']
+                const rows = maintenanceRequests.map((m, i) => [
+                  i + 1, m.title, m.description, m.tenant_name || '—', m.priority, m.status,
+                  new Date(m.created_at).toLocaleDateString(),
+                  m.review_comment || '—',
+                ] as (string | number)[])
+                await exportExcel(headers, rows, `Maintenance_Report_${new Date().toISOString().slice(0, 10)}.xlsx`)
+              })}
+              onPDF={() => triggerExport(async () => {
+                const { default: jsPDF } = await import('jspdf')
+                const autoTable = (await import('jspdf-autotable')).default
+                const doc = new jsPDF('landscape')
+                doc.setFontSize(18)
+                doc.text('Maintenance Report', 14, 20)
+                doc.setFontSize(11)
+                doc.text(`Generated: ${new Date().toLocaleDateString()}  —  Total: ${maintenanceRequests.length}`, 14, 28)
+                const pending = maintenanceRequests.filter(m => m.status === 'pending').length
+                const inProgress = maintenanceRequests.filter(m => m.status === 'in_progress').length
+                const resolved = maintenanceRequests.filter(m => m.status === 'resolved' || m.status === 'closed').length
+                doc.text(`Pending: ${pending}  |  In Progress: ${inProgress}  |  Resolved/Closed: ${resolved}`, 14, 36)
+                autoTable(doc, {
+                  startY: 44,
+                  head: [['No.', 'Title', 'Description', 'Tenant', 'Priority', 'Status', 'Date', 'Review Comment']],
+                  body: maintenanceRequests.map((m, i) => [
+                    i + 1, m.title, m.description, m.tenant_name || '—', m.priority, m.status.replace('_', ' '),
+                    new Date(m.created_at).toLocaleDateString(),
+                    m.review_comment || '—',
+                  ]),
+                  styles: { fontSize: 7 },
+                })
+                doc.save(`Maintenance_Report_${new Date().toISOString().slice(0, 10)}.pdf`)
+              })}
+            />
+          </div>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: 'Pending', count: maintenanceRequests.filter(m => m.status === 'pending').length, color: 'text-amber-400', bg: 'bg-amber-500/15' },
+              { label: 'In Progress', count: maintenanceRequests.filter(m => m.status === 'in_progress').length, color: 'text-blue-400', bg: 'bg-blue-500/15' },
+              { label: 'Resolved', count: maintenanceRequests.filter(m => m.status === 'resolved').length, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
+              { label: 'Closed', count: maintenanceRequests.filter(m => m.status === 'closed').length, color: 'text-gray-400', bg: 'bg-gray-500/15' },
+            ].map(card => (
+              <div key={card.label} className={`${cardClass} p-4`}>
+                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{card.label}</p>
+                <p className={`text-2xl font-bold mt-1 ${card.color}`}>{card.count}</p>
+              </div>
+            ))}
+          </div>
+          {loading ? <TableSkeleton rows={5} /> : (
+            <div className={`${cardClass} overflow-x-auto`}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+                    {['No.', 'Title', 'Description', 'Tenant', 'Priority', 'Status', 'Date'].map(h => (
+                      <th key={h} className={`text-left py-3 px-4 font-medium text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {maintenanceRequests.length === 0 ? (
+                    <tr><td colSpan={7} className={`text-center py-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No maintenance requests found</td></tr>
+                  ) : maintenanceRequests.slice((maintPage - 1) * ROWS_PER_PAGE, maintPage * ROWS_PER_PAGE).map((m, i) => (
+                    <tr key={m.id} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'}`}>
+                      <td className={`py-2.5 px-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{(maintPage - 1) * ROWS_PER_PAGE + i + 1}</td>
+                      <td className={`py-2.5 px-4 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{m.title}</td>
+                      <td className={`py-2.5 px-4 max-w-[180px] truncate ${isDark ? 'text-gray-300' : 'text-gray-600'}`} title={m.description}>{m.description}</td>
+                      <td className={`py-2.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{m.tenant_name || '—'}</td>
+                      <td className="py-2.5 px-4">
+                        <span className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${
+                          m.priority === 'urgent' ? 'bg-red-500/15 text-red-400'
+                          : m.priority === 'high' ? 'bg-orange-500/15 text-orange-400'
+                          : m.priority === 'medium' ? 'bg-amber-500/15 text-amber-400'
+                          : 'bg-gray-500/15 text-gray-400'
+                        }`}>{m.priority}</span>
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <span className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${
+                          m.status === 'resolved' || m.status === 'closed' ? 'bg-emerald-500/15 text-emerald-400'
+                          : m.status === 'in_progress' ? 'bg-blue-500/15 text-blue-400'
+                          : 'bg-amber-500/15 text-amber-400'
+                        }`}>{m.status.replace('_', ' ')}</span>
+                      </td>
+                      <td className={`py-2.5 px-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{new Date(m.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <PaginationControls page={maintPage} totalItems={maintenanceRequests.length} onPageChange={setMaintPage} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ ANALYTICS ══════════════ */}
+      {activeTab === 'analytics' && (() => {
+        // ── Colors ───────────────────────────────────────────
+        const PAID_COLOR = '#10b981'
+        const PENDING_COLOR = '#f59e0b'
+        const OVERDUE_COLOR = '#ef4444'
+        const EXPENSE_COLOR = '#6366f1'
+        const EXPENSE_PIE_COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#64748b']
+
+        // ── All-time totals ──────────────────────────────────
+        const allTimePaid = payments.filter(isPaid).reduce((s, p) => s + Number(p.amount), 0)
+        const allTimeExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0)
+        const allTimeNet = allTimePaid - allTimeExpenses
+        const allTimePending = payments.filter(isPending).reduce((s, p) => s + Number(p.amount), 0)
+        const allTimeOverdue = payments.filter(isOverdue).reduce((s, p) => s + Number(p.amount), 0)
+        const paidCount = payments.filter(isPaid).length
+        const totalCount = payments.length
+        const collectionRate = totalCount > 0 ? Math.round((paidCount / totalCount) * 100) : 0
+        const expenseToIncomeRatio = allTimePaid > 0 ? Math.round((allTimeExpenses / allTimePaid) * 100) : 0
+
+        // ── Monthly chart data (12 months for selected year) ─
+        const monthlyChartData = Array.from({ length: 12 }, (_, i) => {
+          const monthPayments = filteredPayments.filter(p =>
+            new Date(p.payment_date).getFullYear() === selectedYear && new Date(p.payment_date).getMonth() === i
+          )
+          const monthExpenses = expenses.filter(e =>
+            new Date(e.date).getFullYear() === selectedYear && new Date(e.date).getMonth() === i
+          )
+          const revenue = monthPayments.filter(isPaid).reduce((s, p) => s + Number(p.amount), 0)
+          const expense = monthExpenses.reduce((s, e) => s + Number(e.amount), 0)
+          return {
+            period: new Date(selectedYear, i).toLocaleString('default', { month: 'short' }),
+            Revenue: revenue,
+            Expenses: expense,
+            Net: revenue - expense,
+          }
+        })
+
+        // ── Quarterly chunk data ─────────────────────────────
+        const quarterlyChartData = [1, 2, 3, 4].map(q => {
+          const startMonth = (q - 1) * 3
+          const qPayments = filteredPayments.filter(p => {
+            const d = new Date(p.payment_date)
+            return d.getFullYear() === selectedYear && d.getMonth() >= startMonth && d.getMonth() < startMonth + 3
+          })
+          const qExpenses = expenses.filter(e => {
+            const d = new Date(e.date)
+            return d.getFullYear() === selectedYear && d.getMonth() >= startMonth && d.getMonth() < startMonth + 3
+          })
+          const revenue = qPayments.filter(isPaid).reduce((s, p) => s + Number(p.amount), 0)
+          const expense = qExpenses.reduce((s, e) => s + Number(e.amount), 0)
+          return { period: QUARTER_LABELS[q], Revenue: revenue, Expenses: expense, Net: revenue - expense }
+        })
+
+        // ── Chunk toggle state (monthly / quarterly) ─────────
+        // We use a local variable derived from a ref since we are inside an IIFE render
+        const chartData = analyticsChunkMode === 'quarterly' ? quarterlyChartData : monthlyChartData
+
+        // ── Year-over-year comparison ────────────────────────
+        const prevYear = selectedYear - 1
+        const prevYearPaid = filteredPayments
+          .filter(p => new Date(p.payment_date).getFullYear() === prevYear && isPaid(p))
+          .reduce((s, p) => s + Number(p.amount), 0)
+        const yoyChange = prevYearPaid > 0 ? ((totalIncome - prevYearPaid) / prevYearPaid) * 100 : null
+
+        // ── Month-over-month growth ──────────────────────────
+        const currentMonthIdx = monthlyChartData.findLastIndex(m => m.Revenue > 0)
+        const prevMonthIdx = currentMonthIdx > 0 ? currentMonthIdx - 1 : -1
+        const currentMonthRevenue = currentMonthIdx >= 0 ? monthlyChartData[currentMonthIdx].Revenue : 0
+        const prevMonthRevenue = prevMonthIdx >= 0 ? monthlyChartData[prevMonthIdx].Revenue : 0
+        const momChange = prevMonthRevenue > 0 ? ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100 : null
+
+        // ── Status pie data ──────────────────────────────────
+        const statusPieData = [
+          { name: 'Paid', value: yearPayments.filter(isPaid).reduce((s, p) => s + Number(p.amount), 0), color: PAID_COLOR },
+          { name: 'Pending', value: yearPayments.filter(isPending).reduce((s, p) => s + Number(p.amount), 0), color: PENDING_COLOR },
+          { name: 'Overdue', value: yearPayments.filter(isOverdue).reduce((s, p) => s + Number(p.amount), 0), color: OVERDUE_COLOR },
+        ].filter(d => d.value > 0)
+
+        // ── Expense breakdown ────────────────────────────────
+        const expenseByType = yearExpenses.reduce<Record<string, number>>((acc, e) => {
+          acc[e.type] = (acc[e.type] || 0) + Number(e.amount)
+          return acc
+        }, {})
+        const expensePieData = Object.entries(expenseByType)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value)
+
+        // ── Top months ───────────────────────────────────────
+        const topMonths = [...monthlyChartData].sort((a, b) => b.Revenue - a.Revenue).slice(0, 3)
+
+        // ── Descriptive insights ─────────────────────────────
+        const bestMonth = monthlyChartData.reduce((best, m) => m.Revenue > best.Revenue ? m : best, monthlyChartData[0])
+        const worstMonth = monthlyChartData.filter(m => m.Revenue > 0).reduce((w, m) => m.Revenue < w.Revenue ? m : w, monthlyChartData.find(m => m.Revenue > 0) || monthlyChartData[0])
+        const highestExpenseType = expensePieData[0]
+        const activeMos = monthlyChartData.filter(m => m.Revenue > 0).length
+        const lossMonths = monthlyChartData.filter(m => m.Revenue > 0 && m.Net < 0).length
+
+        function buildInsights(): { type: 'success' | 'warning' | 'danger' | 'info'; text: string }[] {
+          const insights: { type: 'success' | 'warning' | 'danger' | 'info'; text: string }[] = []
+          if (totalCount === 0) {
+            insights.push({ type: 'info', text: `No payments recorded in ${selectedYear} yet. Start by adding tenants and payment records.` })
+            return insights
+          }
+          // Collection rate
+          if (collectionRate >= 90) insights.push({ type: 'success', text: `Excellent collection rate of ${collectionRate}% — almost all payments are being settled on time.` })
+          else if (collectionRate >= 70) insights.push({ type: 'info', text: `Collection rate is ${collectionRate}%, which is moderate. Sending payment reminders could help push this above 90%.` })
+          else insights.push({ type: 'danger', text: `Collection rate is only ${collectionRate}%. A large portion of payments are unpaid. Consider following up with tenants on overdue balances.` })
+          // Year-over-year
+          if (yoyChange !== null) {
+            if (yoyChange > 0) insights.push({ type: 'success', text: `Revenue grew by ${Math.abs(yoyChange).toFixed(1)}% compared to ${prevYear} (₱${prevYearPaid.toLocaleString()} → ₱${totalIncome.toLocaleString()}).` })
+            else if (yoyChange < -5) insights.push({ type: 'warning', text: `Revenue dropped by ${Math.abs(yoyChange).toFixed(1)}% versus ${prevYear}. Review vacancy and overdue trends.` })
+            else insights.push({ type: 'info', text: `Revenue is relatively stable compared to ${prevYear} (${yoyChange >= 0 ? '+' : ''}${yoyChange.toFixed(1)}% change).` })
+          }
+          // Month-over-month
+          if (momChange !== null && currentMonthIdx >= 0) {
+            const mLabel = monthlyChartData[currentMonthIdx].period
+            if (momChange > 10) insights.push({ type: 'success', text: `${mLabel} showed a strong ${momChange.toFixed(1)}% revenue increase compared to the previous active month.` })
+            else if (momChange < -10) insights.push({ type: 'warning', text: `Revenue in ${mLabel} declined by ${Math.abs(momChange).toFixed(1)}% compared to the prior month.` })
+          }
+          // Best month
+          if (bestMonth.Revenue > 0) insights.push({ type: 'info', text: `Best month in ${selectedYear}: ${bestMonth.period} with ₱${bestMonth.Revenue.toLocaleString()} in collections.` })
+          // Loss months
+          if (lossMonths > 0) insights.push({ type: 'warning', text: `${lossMonths} month${lossMonths > 1 ? 's' : ''} in ${selectedYear} ran at a net loss (expenses exceeded revenue).` })
+          // Expense ratio
+          if (expenseToIncomeRatio > 70) insights.push({ type: 'danger', text: `Expenses account for ${expenseToIncomeRatio}% of total income — very high. Consider reviewing recurring costs.` })
+          else if (expenseToIncomeRatio > 40) insights.push({ type: 'warning', text: `Expenses are ${expenseToIncomeRatio}% of income. Keep monitoring to maintain a healthy margin.` })
+          else if (expenseToIncomeRatio > 0) insights.push({ type: 'success', text: `Expense ratio is ${expenseToIncomeRatio}% — well managed. Net profit margin looks healthy.` })
+          // Overdue alert
+          if (allTimeOverdue > 0) insights.push({ type: 'danger', text: `₱${allTimeOverdue.toLocaleString()} in overdue payments across all records. These may need direct follow-up.` })
+          // Largest expense category
+          if (highestExpenseType) insights.push({ type: 'info', text: `Largest expense category in ${selectedYear}: ${highestExpenseType.name} at ₱${highestExpenseType.value.toLocaleString()}.` })
+          return insights
+        }
+
+        const insights = buildInsights()
+        // Match the site's dark-navy palette; left-border accent for type
+        const insightLeft: Record<string, string> = {
+          success: 'border-l-emerald-500',
+          warning: 'border-l-amber-500',
+          danger: 'border-l-red-500',
+          info: 'border-l-blue-500',
+        }
+        const insightIconColor: Record<string, string> = {
+          success: 'text-emerald-400',
+          warning: 'text-amber-400',
+          danger: 'text-red-400',
+          info: 'text-blue-400',
+        }
+        const insightBase = isDark
+          ? 'border border-[#1E293B] bg-[#0A1628] border-l-4'
+          : 'border border-gray-200 bg-white border-l-4'
+        const insightText = isDark ? 'text-gray-300' : 'text-gray-700'
+
+        const tooltipStyle = { backgroundColor: isDark ? '#111D32' : '#fff', borderColor: isDark ? '#1E293B' : '#e5e7eb', color: isDark ? '#fff' : '#111827' }
+        const axisColor = isDark ? '#6b7280' : '#9ca3af'
+        const gridColor = isDark ? '#1E293B' : '#f3f4f6'
+
+        return (
+          <div className="space-y-6">
+
+            {/* ── Smart Insights Panel ─────────────────────── */}
+            <div className={`${cardClass} p-5`}>
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart2 className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Financial Insights — {selectedYear}</p>
+                <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                  {activeMos} active month{activeMos !== 1 ? 's' : ''} of data
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {insights.map((ins, i) => (
+                  <div key={i} className={`flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm ${insightBase} ${insightLeft[ins.type]} ${insightText}`}>
+                    <span className={`mt-0.5 flex-shrink-0 font-bold text-xs ${insightIconColor[ins.type]}`}>
+                      {ins.type === 'success' ? '✓' : ins.type === 'warning' ? '!' : ins.type === 'danger' ? '✕' : '→'}
+                    </span>
+                    {ins.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── All-time KPI strip ─────────────────────────── */}
+            <div>
+              <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>All-time Overview</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {[
+                  { label: 'Total Income', value: `₱${allTimePaid.toLocaleString()}`, color: 'text-emerald-400', bg: 'bg-emerald-500/15', icon: PhilippinePeso, desc: 'Total verified collected revenue' },
+                  { label: 'Total Expenses', value: `₱${allTimeExpenses.toLocaleString()}`, color: 'text-indigo-400', bg: 'bg-indigo-500/15', icon: TrendingUp, desc: 'All recorded operational costs' },
+                  { label: 'Net Profit', value: `₱${allTimeNet.toLocaleString()}`, color: allTimeNet >= 0 ? 'text-emerald-400' : 'text-red-400', bg: allTimeNet >= 0 ? 'bg-emerald-500/15' : 'bg-red-500/15', icon: BarChart2, desc: 'Income minus all expenses' },
+                  { label: 'Pending', value: `₱${allTimePending.toLocaleString()}`, color: 'text-amber-400', bg: 'bg-amber-500/15', icon: Calendar, desc: 'Payments awaiting verification' },
+                  { label: 'Overdue', value: `₱${allTimeOverdue.toLocaleString()}`, color: 'text-red-400', bg: 'bg-red-500/15', icon: AlertTriangle, desc: 'Past-due payments not collected' },
+                  { label: 'Collection Rate', value: `${collectionRate}%`, color: collectionRate >= 80 ? 'text-emerald-400' : collectionRate >= 50 ? 'text-amber-400' : 'text-red-400', bg: 'bg-blue-500/15', icon: PieChartIcon, desc: `${paidCount} of ${totalCount} payments paid` },
+                ].map(card => (
+                  <div key={card.label} className={`${cardClass} p-4 group relative`} title={card.desc}>
+                    <div className={`w-8 h-8 rounded-lg ${card.bg} flex items-center justify-center mb-2`}>
+                      <card.icon className={`w-4 h-4 ${card.color}`} />
+                    </div>
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-0.5`}>{card.label}</p>
+                    <p className={`text-base font-bold ${card.color}`}>{card.value}</p>
+                    <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{card.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Year quick stats row ───────────────────────── */}
+            <div className={`${cardClass} p-4`}>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                  <strong className={isDark ? 'text-white' : 'text-gray-900'}>{selectedYear} Summary</strong>
+                </span>
+                <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                  Revenue: <span className="font-semibold text-emerald-400">₱{totalIncome.toLocaleString()}</span>
+                </span>
+                <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                  Expenses: <span className="font-semibold text-indigo-400">₱{totalExpenses.toLocaleString()}</span>
+                </span>
+                <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                  Net: <span className={`font-semibold ${(totalIncome - totalExpenses) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>₱{(totalIncome - totalExpenses).toLocaleString()}</span>
+                </span>
+                {yoyChange !== null && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${yoyChange >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                    {yoyChange >= 0 ? '+' : ''}{yoyChange.toFixed(1)}% vs {prevYear}
+                  </span>
+                )}
+                {momChange !== null && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${momChange >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                    MoM: {momChange >= 0 ? '+' : ''}{momChange.toFixed(1)}%
+                  </span>
+                )}
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${expenseToIncomeRatio <= 40 ? 'bg-emerald-500/15 text-emerald-400' : expenseToIncomeRatio <= 70 ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400'}`}>
+                  Exp/Inc ratio: {expenseToIncomeRatio}%
+                </span>
+              </div>
+            </div>
+
+            {/* ── Income vs Expenses Chart (chunk toggle) ─────── */}
+            <div className={`${cardClass} p-5`}>
+              <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
+                <div>
+                  <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Income vs Expenses</p>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {analyticsChunkMode === 'monthly' ? 'Monthly breakdown' : 'Quarterly chunks'} for {selectedYear}
+                    {selectedProperty !== 'all' ? ` · ${properties.find(p => p.id === selectedProperty)?.name || ''}` : ' · All Apartments'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Chunk mode toggle */}
+                  <div className={`flex rounded-lg border p-0.5 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
+                    {(['monthly', 'quarterly'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setAnalyticsChunkMode(mode)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
+                          analyticsChunkMode === mode
+                            ? 'bg-primary text-white'
+                            : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                  <DropdownBtn
+                    value={String(selectedYear)}
+                    isOpen={isYearOpen}
+                    onToggle={() => setIsYearOpen(!isYearOpen)}
+                    parentRef={yearRef}
+                    options={availableYears.map(y => ({ key: String(y), label: String(y), onClick: () => { setSelectedYear(y); setIsYearOpen(false) } }))}
+                  />
+                </div>
+              </div>
+              {chartData.every(d => d.Revenue === 0 && d.Expenses === 0) ? (
+                <div className={`flex items-center justify-center h-48 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  No income or expense data for {selectedYear}. Try a different year.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                    <XAxis dataKey="period" tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₱${(v / 1000).toFixed(0)}k`} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => [`₱${v.toLocaleString()}`, name]} />
+                    <Legend wrapperStyle={{ fontSize: 12, color: axisColor }} />
+                    <Bar dataKey="Revenue" name="Revenue" fill={PAID_COLOR} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Expenses" name="Expenses" fill={EXPENSE_COLOR} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              <p className={`text-xs mt-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                {chartData.filter(d => d.Revenue > 0).length} period{chartData.filter(d => d.Revenue > 0).length !== 1 ? 's' : ''} with revenue recorded.
+                {lossMonths > 0 && ` ⚠ ${lossMonths} month${lossMonths > 1 ? 's' : ''} where expenses exceeded revenue.`}
+              </p>
+            </div>
+
+            {/* ── Net Income Trend ──────────────────────────────── */}
+            <div className={`${cardClass} p-5`}>
+              <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Net Income Trend</p>
+              <p className={`text-xs mt-0.5 mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Revenue minus expenses per month — positive means profitable, negative means operating at a loss.
+              </p>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={monthlyChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="netGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={PAID_COLOR} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={PAID_COLOR} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                  <XAxis dataKey="period" tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₱${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`₱${v.toLocaleString()}`, 'Net Income']} />
+                  <Area type="monotone" dataKey="Net" stroke={PAID_COLOR} fill="url(#netGradient)" strokeWidth={2} dot={{ r: 3 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* ── Two-column: status donut + expense pie ──────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Payment Status Distribution */}
+              <div className={`${cardClass} p-5`}>
+                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Status Distribution</p>
+                <p className={`text-xs mt-0.5 mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{selectedYear} — breakdown by collected amount</p>
+                {statusPieData.length > 0 ? (
+                  <>
+                    <p className={`text-xs mb-3 italic ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {statusPieData.find(d => d.name === 'Paid') ? `${Math.round((statusPieData.find(d => d.name === 'Paid')!.value / statusPieData.reduce((s, d) => s + d.value, 0)) * 100)}% of total billings are fully paid.` : 'No paid payments this year.'}
+                      {statusPieData.find(d => d.name === 'Overdue') ? ` ₱${statusPieData.find(d => d.name === 'Overdue')!.value.toLocaleString()} is overdue.` : ''}
+                    </p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
+                          {statusPieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                        </Pie>
+                        <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`₱${v.toLocaleString()}`, undefined]} />
+                        <Legend wrapperStyle={{ fontSize: 12, color: axisColor }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </>
+                ) : (
+                  <div className={`flex items-center justify-center h-48 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No payment data for {selectedYear}.</div>
+                )}
+              </div>
+
+              {/* Expense Breakdown by Type */}
+              <div className={`${cardClass} p-5`}>
+                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Expense Breakdown by Type</p>
+                <p className={`text-xs mt-0.5 mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{selectedYear} — where money is going</p>
+                {expensePieData.length > 0 ? (
+                  <>
+                    <p className={`text-xs mb-3 italic ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {`Largest cost: ${expensePieData[0].name} at ₱${expensePieData[0].value.toLocaleString()} (${Math.round((expensePieData[0].value / yearExpenses.reduce((s, e) => s + Number(e.amount), 0)) * 100)}% of total).`}
+                    </p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie data={expensePieData} cx="50%" cy="50%" outerRadius={85} paddingAngle={3} dataKey="value">
+                          {expensePieData.map((_, index) => <Cell key={`exp-${index}`} fill={EXPENSE_PIE_COLORS[index % EXPENSE_PIE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`₱${v.toLocaleString()}`, undefined]} />
+                        <Legend wrapperStyle={{ fontSize: 11, color: axisColor }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </>
+                ) : (
+                  <div className={`flex items-center justify-center h-48 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No expenses logged for {selectedYear}. Add expenses in the Expense Records tab.</div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Top Revenue Months + Worst Month ────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className={`${cardClass} p-5`}>
+                <p className={`font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Top Revenue Months</p>
+                <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Highest-earning months of {selectedYear} — use these to identify seasonal patterns.
+                </p>
+                {topMonths.every(m => m.Revenue === 0) ? (
+                  <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No paid payments in {selectedYear}.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {topMonths.map((m, i) => (
+                      <div key={m.period} className="flex items-center gap-3">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                          i === 0 ? 'bg-yellow-400/20 text-yellow-400' : i === 1 ? 'bg-gray-400/20 text-gray-400' : 'bg-amber-700/20 text-amber-700'
+                        }`}>{i + 1}</span>
+                        <span className={`w-10 text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{m.period}</span>
+                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6' }}>
+                          <div className="h-full rounded-full bg-emerald-400" style={{ width: `${topMonths[0].Revenue > 0 ? (m.Revenue / topMonths[0].Revenue) * 100 : 0}%` }} />
+                        </div>
+                        <span className="text-sm font-semibold text-emerald-400 flex-shrink-0">₱{m.Revenue.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Monthly detail table */}
+              <div className={`${cardClass} p-5`}>
+                <p className={`font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Monthly Snapshot</p>
+                <p className={`text-xs mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Revenue, expenses, and net for each month of {selectedYear}.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className={`border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+                        {['Month', 'Revenue', 'Expenses', 'Net'].map(h => (
+                          <th key={h} className={`text-left py-2 px-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyChartData.map(row => (
+                        <tr key={row.period} className={`border-b last:border-0 ${isDark ? 'border-[#1E293B]' : 'border-gray-100'} ${row.Revenue === 0 && row.Expenses === 0 ? 'opacity-30' : ''}`}>
+                          <td className={`py-1.5 px-2 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{row.period}</td>
+                          <td className="py-1.5 px-2 text-emerald-400 font-medium">{row.Revenue > 0 ? `₱${row.Revenue.toLocaleString()}` : '—'}</td>
+                          <td className="py-1.5 px-2 text-indigo-400">{row.Expenses > 0 ? `₱${row.Expenses.toLocaleString()}` : '—'}</td>
+                          <td className={`py-1.5 px-2 font-semibold ${row.Net > 0 ? 'text-emerald-400' : row.Net < 0 ? 'text-red-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}>
+                            {row.Revenue > 0 || row.Expenses > 0 ? `₱${row.Net.toLocaleString()}` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )
+      })()}
 
       {/* ── Add Expense Modal ──────────────────────────────── */}
       {showExpenseForm && createPortal(

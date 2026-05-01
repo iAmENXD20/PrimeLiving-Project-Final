@@ -18,6 +18,20 @@ type StatusFilter = (typeof STATUSES)[number]
 const PRIORITIES = ['all', 'low', 'medium', 'high', 'urgent'] as const
 type PriorityFilter = (typeof PRIORITIES)[number]
 
+const CATEGORIES = ['all', 'plumbing', 'electrical', 'hvac', 'structural', 'appliances', 'pest_control', 'cleaning', 'other'] as const
+type CategoryFilter = (typeof CATEGORIES)[number]
+
+const CATEGORY_ICONS: Record<string, string> = {
+  plumbing: '🔧', electrical: '⚡', hvac: '❄️', structural: '🏗️',
+  appliances: '🔌', pest_control: '🐛', cleaning: '🧹', other: '📋',
+}
+
+function categoryLabel(c: string) {
+  if (c === 'hvac') return 'HVAC'
+  if (c === 'pest_control') return 'Pest Control'
+  return c.charAt(0).toUpperCase() + c.slice(1)
+}
+
 const statusColor: Record<string, string> = {
   pending: 'bg-yellow-500/15 text-yellow-500',
   in_progress: 'bg-blue-400/15 text-blue-400',
@@ -56,10 +70,13 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [statusOpen, setStatusOpen] = useState(false)
   const [priorityOpen, setPriorityOpen] = useState(false)
+  const [categoryOpen, setCategoryOpen] = useState(false)
   const statusRef = useRef<HTMLDivElement>(null)
   const priorityRef = useRef<HTMLDivElement>(null)
+  const categoryRef = useRef<HTMLDivElement>(null)
   const [alertedIds, setAlertedIds] = useState<Set<string>>(new Set())
   const [alertingId, setAlertingId] = useState<string | null>(null)
   const [viewRequest, setViewRequest] = useState<MaintenanceRequest | null>(null)
@@ -99,6 +116,7 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
     function handleClickOutside(e: MouseEvent) {
       if (statusRef.current && !statusRef.current.contains(e.target as Node)) setStatusOpen(false)
       if (priorityRef.current && !priorityRef.current.contains(e.target as Node)) setPriorityOpen(false)
+      if (categoryRef.current && !categoryRef.current.contains(e.target as Node)) setCategoryOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -125,6 +143,7 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
   const filtered = requests.filter((r) => {
     if (statusFilter !== 'all' && r.status !== statusFilter) return false
     if (priorityFilter !== 'all' && r.priority !== priorityFilter) return false
+    if (categoryFilter !== 'all' && r.category !== categoryFilter) return false
     if (search) {
       const q = search.toLowerCase()
       return (
@@ -143,7 +162,7 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
 
   useEffect(() => {
     setPage(1)
-  }, [search, statusFilter, priorityFilter, requests.length])
+  }, [search, statusFilter, priorityFilter, categoryFilter, requests.length])
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages)
@@ -263,6 +282,40 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
             </div>
           </div>
         </div>
+
+        {/* Category dropdown */}
+        <div className="flex items-center gap-2">
+          <span className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Category:</span>
+          <div ref={categoryRef} className="relative">
+            <button
+              onClick={() => { setCategoryOpen(!categoryOpen); setStatusOpen(false); setPriorityOpen(false) }}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                isDark ? 'bg-[#111D32] border-[#1E293B] text-white' : 'bg-white border-gray-200 text-gray-900'
+              }`}
+            >
+              {categoryFilter === 'all' ? 'All' : categoryLabel(categoryFilter)}
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${categoryOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`absolute top-full left-0 mt-1 min-w-[180px] rounded-lg border shadow-lg z-20 overflow-hidden transition-all duration-300 ease-out origin-top ${
+              categoryOpen ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-95 -translate-y-1 pointer-events-none'
+            } ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+              <div className="py-1">
+                {CATEGORIES.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => { setCategoryFilter(c); setCategoryOpen(false) }}
+                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors duration-200 flex items-center gap-2 ${
+                      categoryFilter === c ? 'bg-primary/10 text-primary font-medium' : isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {c !== 'all' && <span>{CATEGORY_ICONS[c]}</span>}
+                    {c === 'all' ? 'All' : categoryLabel(c)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Loading */}
@@ -280,6 +333,7 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
                 <th className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Maintenance ID</th>
                 <th className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Name</th>
                 <th className={`text-left py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Description</th>
+                <th className={`text-center py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Category</th>
                 <th className={`text-center py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Priority</th>
                 <th className={`text-center py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Status</th>
                 <th className={`text-center py-3 px-4 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Timestamp</th>
@@ -301,6 +355,11 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
                   <td className={`py-3 px-4 max-w-[200px] ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                     <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{r.title}</p>
                     <p className={`text-sm mt-0.5 truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{r.description}</p>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                      {r.category ? `${CATEGORY_ICONS[r.category] || ''} ${categoryLabel(r.category)}` : '—'}
+                    </span>
                   </td>
                   <td className="py-3 px-4 text-center">
                     <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize ${priorityColor[r.priority] || ''}`}>

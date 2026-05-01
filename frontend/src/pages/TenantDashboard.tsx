@@ -7,7 +7,7 @@ import TenantTopBar from '../components/tenant/TenantTopBar'
 import { getCurrentTenant, getTenantApartmentInfo, getUnreadNotificationCount, getTenantNotifications } from '../lib/tenantApi'
 import useBrowserNotifications from '../hooks/useBrowserNotifications'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
-import { CardsSkeleton } from '../components/ui/skeleton'
+import { CardsSkeleton, DashboardPageSkeleton } from '../components/ui/skeleton'
 import TwoFactorEnforcementOverlay from '../components/shared/TwoFactorEnforcementOverlay'
 
 const TenantOverviewTab = lazy(() => import('../components/tenant/TenantOverviewTab'))
@@ -16,6 +16,7 @@ const TenantPaymentsTab = lazy(() => import('../components/tenant/TenantPayments
 const TenantNotificationsTab = lazy(() => import('../components/tenant/TenantNotificationsTab'))
 const TenantAccountTab = lazy(() => import('../components/tenant/TenantAccountTab'))
 const TenantDocumentsTab = lazy(() => import('../components/tenant/TenantDocumentsTab'))
+const TenantReportsTab = lazy(() => import('../components/tenant/TenantReportsTab'))
 
 export default function TenantDashboard() {
   const { isDark } = useTheme()
@@ -140,12 +141,7 @@ export default function TenantDashboard() {
 
   const renderContent = () => {
     if (loading) {
-      return (
-        <div className="space-y-4">
-          <div className={`h-8 w-48 rounded ${isDark ? 'bg-white/10' : 'bg-gray-200'} animate-pulse`} />
-          <CardsSkeleton count={4} />
-        </div>
-      )
+      return <DashboardPageSkeleton />
     }
 
     if (!tenant) {
@@ -194,6 +190,8 @@ export default function TenantDashboard() {
         return <TenantDocumentsTab tenantId={tenant.id} ownerId={tenant.ownerId} />
       case 'notifications':
         return <TenantNotificationsTab tenantId={tenant.id} ownerId={tenant.ownerId} onRead={refreshNotificationCount} />
+      case 'reports':
+        return <TenantReportsTab tenantId={tenant.id} ownerId={tenant.ownerId} apartmentId={tenant.apartmentId} />
       case 'account':
         return <TenantAccountTab tenantId={tenant.id} tenantName={`${tenant.first_name} ${tenant.last_name}`.trim()} tenantPhone={tenant.phone} apartmentId={tenant.apartmentId} ownerId={tenant.ownerId} apartmentAddress={tenant.apartmentAddress} />
       default:
@@ -207,7 +205,6 @@ export default function TenantDashboard() {
         isDark ? 'bg-[#0A1628] text-white' : 'bg-gray-50 text-gray-900'
       }`}
     >
-      {/* 2FA enforcement — blocks dashboard until 2FA is set up */}
       <TwoFactorEnforcementOverlay role="Tenant" />
 
       {/* Mobile overlay */}
@@ -238,7 +235,7 @@ export default function TenantDashboard() {
 
         {/* Page content */}
         <main className="flex-1 p-4 sm:p-6 text-base sm:text-lg flex flex-col min-h-0">
-          <Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+          <Suspense fallback={<DashboardPageSkeleton />}>
             {renderContent()}
           </Suspense>
         </main>

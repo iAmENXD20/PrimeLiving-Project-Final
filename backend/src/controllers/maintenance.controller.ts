@@ -124,26 +124,17 @@ export async function createMaintenanceRequest(
   res: Response
 ): Promise<void> {
   try {
-    const { tenant_id, unit_id, apartmentowner_id, title, description, priority, photo_url } =
+    const { tenant_id, unit_id, apartmentowner_id, title, description, priority, photo_url, category } =
       req.body;
 
-    // Generate next maintenance_id (MR-2026-001, MR-2026-002, etc.)
-    const currentYear = new Date().getFullYear();
-    const yearPrefix = `MR-${currentYear}-`;
-    const { data: lastEntry } = await supabaseAdmin
-      .from("maintenance")
-      .select("maintenance_id")
-      .like("maintenance_id", `${yearPrefix}%`)
-      .order("maintenance_id", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    let nextNum = 1;
-    if (lastEntry?.maintenance_id) {
-      const lastNumStr = lastEntry.maintenance_id.replace(yearPrefix, "");
-      const parsed = parseInt(lastNumStr, 10);
-      if (!isNaN(parsed)) nextNum = parsed + 1;
+    // Generate next maintenance_id atomically via DB function (prevents race conditions)
+    const { data: idResult, error: idError } = await supabaseAdmin
+      .rpc("generate_maintenance_id");
+    if (idError || !idResult) {
+      sendError(res, "Failed to generate maintenance ID", 500);
+      return;
     }
-    const maintenance_id = `${yearPrefix}${String(nextNum).padStart(3, "0")}`;
+    const maintenance_id = idResult as string;
 
     const { data, error } = await supabaseAdmin
       .from("maintenance")
@@ -154,6 +145,7 @@ export async function createMaintenanceRequest(
         title,
         description,
         priority,
+        category: category || "other",
         status: "pending",
         photo_url: photo_url || null,
         maintenance_id,
@@ -250,11 +242,16 @@ export async function updateMaintenanceStatus(
 ): Promise<void> {
   try {
     const { id } = req.params
-    const { status } = req.body
+    const { status, assigned_repairman_id } = req.body
+
+    const updatePayload: Record<string, unknown> = { status };
+    if (assigned_repairman_id !== undefined) {
+      updatePayload.assigned_repairman_id = assigned_repairman_id || null;
+    }
 
     const { data, error } = await supabaseAdmin
       .from("maintenance")
-      .update({ status })
+      .update(updatePayload)
       .eq("id", id)
       .select()
       .single()

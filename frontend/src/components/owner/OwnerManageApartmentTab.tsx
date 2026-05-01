@@ -124,9 +124,6 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
   const [showCredentials, setShowCredentials] = useState(false)
   const [credentials, setCredentials] = useState({ name: '', email: '', password: '' })
   const [copiedField, setCopiedField] = useState<string | null>(null)
-  const [smsPhone, setSmsPhone] = useState('')
-  const [smsSending, setSmsSending] = useState(false)
-  const [smsSent, setSmsSent] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
 
@@ -1848,8 +1845,6 @@ export default function OwnerManageApartmentTab({ ownerId, mode = 'manage' }: Ow
                 <Button
                   onClick={() => {
                     setShowCredentials(false)
-                    setSmsPhone('')
-                    setSmsSent(false)
                     setEmailSent(false)
                   }}
                   className="bg-primary hover:bg-primary/90 text-white font-semibold"
