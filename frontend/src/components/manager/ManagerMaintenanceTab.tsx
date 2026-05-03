@@ -102,6 +102,7 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
   const assignRef = useRef<HTMLDivElement>(null)
   const [specialtyDropdownOpen, setSpecialtyDropdownOpen] = useState(false)
   const specialtyRef = useRef<HTMLDivElement>(null)
+  const [repairmanDetailModal, setRepairmanDetailModal] = useState<Repairman | null>(null)
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -737,7 +738,11 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {repairmen.map(r => (
-                <div key={r.id} className={`rounded-2xl border p-4 ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'} ${!r.is_active ? 'opacity-50' : ''}`}>
+                <div
+                  key={r.id}
+                  className={`rounded-2xl border p-4 ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'} ${!r.is_active ? 'opacity-50' : ''} cursor-pointer hover:border-primary/50 transition-colors`}
+                  onClick={() => setRepairmanDetailModal(r)}
+                >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2.5">
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-semibold text-sm ${isDark ? 'bg-primary/15 text-primary' : 'bg-primary-100 text-primary-700'}`}>
@@ -748,7 +753,7 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
                         {r.specialty && <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{r.specialty}</p>}
                       </div>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                       <button
                         onClick={() => { setEditingRepairman(r); setShowAddRepairman(false); setRepairmanForm({ name: r.name, phone: r.phone || '', specialty: r.specialty || '', notes: r.notes || '' }) }}
                         className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'} transition-colors`}
@@ -1117,6 +1122,128 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
         onCancel={() => setRepairmanToDeactivate(null)}
         onConfirm={() => { if (repairmanToDeactivate) handleDeactivateRepairman(repairmanToDeactivate) }}
       />
+
+      {/* ── Repairman Detail Modal ── */}
+      {repairmanDetailModal && createPortal(
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" onClick={() => setRepairmanDetailModal(null)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className={`relative w-full max-w-2xl rounded-2xl border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col ${isDark ? 'bg-[#0D1B2A] border-[#1E293B]' : 'bg-white border-gray-200'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base ${isDark ? 'bg-primary/15 text-primary' : 'bg-primary-100 text-primary-700'}`}>
+                  {repairmanDetailModal.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className={`font-bold text-base ${isDark ? 'text-white' : 'text-gray-900'}`}>{repairmanDetailModal.name}</p>
+                  {repairmanDetailModal.specialty && <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{repairmanDetailModal.specialty}</p>}
+                </div>
+              </div>
+              <button onClick={() => setRepairmanDetailModal(null)} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Info row */}
+            <div className={`px-5 py-3 flex flex-wrap gap-4 border-b ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-100 bg-gray-50'}`}>
+              {repairmanDetailModal.phone && (
+                <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>📞 {repairmanDetailModal.phone}</span>
+              )}
+              {repairmanDetailModal.avg_rating !== null && repairmanDetailModal.avg_rating !== undefined ? (
+                <span className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <Star key={s} className={`w-3.5 h-3.5 ${s <= Math.round(repairmanDetailModal.avg_rating!) ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+                  ))}
+                  <span className={`text-xs ml-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {repairmanDetailModal.avg_rating.toFixed(1)} ({repairmanDetailModal.total_reviews} {repairmanDetailModal.total_reviews === 1 ? 'review' : 'reviews'})
+                  </span>
+                </span>
+              ) : (
+                <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No reviews yet</span>
+              )}
+              <span className={`text-xs font-medium ${repairmanDetailModal.is_active ? 'text-emerald-400' : 'text-gray-500'}`}>
+                {repairmanDetailModal.is_active ? '● Active' : '● Inactive'}
+              </span>
+            </div>
+
+            {/* Jobs list */}
+            <div className="overflow-y-auto flex-1 p-4 space-y-3">
+              {(() => {
+                const jobs = requests.filter(r => r.assigned_repairman_id === repairmanDetailModal.id)
+                if (jobs.length === 0) {
+                  return (
+                    <p className={`text-sm text-center py-10 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      No maintenance requests assigned to this repairman yet.
+                    </p>
+                  )
+                }
+                return jobs.map(job => (
+                  <div key={job.id} className={`rounded-xl border p-4 ${isDark ? 'bg-[#111D32] border-[#1E293B]' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <p className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{job.title}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                        job.status === 'closed' ? 'bg-emerald-500/15 text-emerald-400' :
+                        job.status === 'in_progress' ? 'bg-yellow-500/15 text-yellow-400' :
+                        job.status === 'resolved' ? 'bg-blue-500/15 text-blue-400' :
+                        'bg-red-500/15 text-red-400'
+                      }`}>
+                        {job.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{job.description}</p>
+                    <div className="flex flex-wrap gap-3 text-xs mb-2">
+                      {job.tenant_name && <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>👤 {job.tenant_name}</span>}
+                      {job.category && <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>🔧 {job.category}</span>}
+                      <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>📅 {new Date(job.created_at).toLocaleDateString()}</span>
+                    </div>
+                    {/* Ratings */}
+                    {(job.review_rating || job.service_rating) && (
+                      <div className={`mt-2 pt-2 border-t space-y-2 ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+                        {job.review_rating && (
+                          <div>
+                            <p className={`text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Repairman Rating</p>
+                            <div className="flex items-center gap-2">
+                              <div className="flex gap-0.5">
+                                {[1, 2, 3, 4, 5].map(s => (
+                                  <Star key={s} className={`w-3.5 h-3.5 ${s <= job.review_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+                                ))}
+                              </div>
+                              <span className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>{job.review_rating}/5</span>
+                            </div>
+                            {job.review_comment && (
+                              <p className={`text-xs mt-1 italic ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{job.review_comment}"</p>
+                            )}
+                          </div>
+                        )}
+                        {job.service_rating && (
+                          <div>
+                            <p className={`text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Work Done Rating</p>
+                            <div className="flex items-center gap-2">
+                              <div className="flex gap-0.5">
+                                {[1, 2, 3, 4, 5].map(s => (
+                                  <Star key={s} className={`w-3.5 h-3.5 ${s <= job.service_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+                                ))}
+                              </div>
+                              <span className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>{job.service_rating}/5</span>
+                            </div>
+                            {job.service_comment && (
+                              <p className={`text-xs mt-1 italic ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{job.service_comment}"</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
