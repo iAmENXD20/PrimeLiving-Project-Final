@@ -526,19 +526,43 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
               {viewRequest.review_rating && (
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Tenant Review</label>
-                  <div className="flex items-center gap-1 mb-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        className={`w-4 h-4 ${star <= viewRequest.review_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
-                      />
-                    ))}
-                    <span className={`ml-1.5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {viewRequest.review_rating}/5
-                    </span>
+                  {/* Repairman rating */}
+                  <div className="mb-3">
+                    <p className={`text-xs mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Repairman</p>
+                    <div className="flex items-center gap-1 mb-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-4 h-4 ${star <= viewRequest.review_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                        />
+                      ))}
+                      <span className={`ml-1.5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {viewRequest.review_rating}/5
+                      </span>
+                    </div>
+                    {viewRequest.review_comment && (
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{viewRequest.review_comment}"</p>
+                    )}
                   </div>
-                  {viewRequest.review_comment && (
-                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{viewRequest.review_comment}"</p>
+                  {/* Service/work rating */}
+                  {viewRequest.service_rating && (
+                    <div>
+                      <p className={`text-xs mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Work Done</p>
+                      <div className="flex items-center gap-1 mb-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-4 h-4 ${star <= viewRequest.service_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                          />
+                        ))}
+                        <span className={`ml-1.5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          {viewRequest.service_rating}/5
+                        </span>
+                      </div>
+                      {viewRequest.service_comment && (
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{viewRequest.service_comment}"</p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -619,3 +643,4 @@ export default function OwnerMaintenanceTab({ ownerId, ownerName }: OwnerMainten
     </div>
   )
 }
+

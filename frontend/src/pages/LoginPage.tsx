@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Building2, Eye, EyeOff, Sun, Moon, X, Mail, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { Building2, Eye, EyeOff, Sun, Moon, X, Mail, ShieldAlert, ShieldCheck, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -77,6 +77,9 @@ export default function LoginPage() {
   const [emailOtpCode, setEmailOtpCode] = useState('')
   const [emailOtpVerifying, setEmailOtpVerifying] = useState(false)
   const [emailOtpMasked, setEmailOtpMasked] = useState('')
+  // 2FA method selection state (when both TOTP and Email OTP are enabled)
+  const [mfaSelectState, setMfaSelectState] = useState<{ totpFactorId: string; destination: string } | null>(null)
+  const [mfaSelectSending, setMfaSelectSending] = useState(false)
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
@@ -192,30 +195,47 @@ export default function LoginPage() {
 
       const destination = role === 'manager' ? '/manager' : role === 'tenant' ? '/tenant' : '/owner'
 
-      // 2FA checks temporarily disabled
-      // // Check if the user has TOTP enrolled and needs to complete AAL2
-      // const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-      // if (aalData?.nextLevel === 'aal2') {
-      //   const { data: factorsData } = await supabase.auth.mfa.listFactors()
-      //   const totp = factorsData?.totp?.find((f) => f.status === 'verified')
-      //   if (totp) {
-      //     setTotpState({ factorId: totp.id, destination })
-      //     return
-      //   }
-      // }
-      // // Check if the user has Email OTP as their 2FA method
-      // const pref = await getMfaPreference().catch(() => ({ mfa_method: null }))
-      // if (pref.mfa_method === 'email') {
-      //   try {
-      //     const res = await sendEmailOtp()
-      //     setEmailOtpMasked(res.maskedEmail)
-      //     setEmailOtpState({ destination })
-      //     setEmailOtpCode('')
-      //   } catch {
-      //     toast.error('Failed to send email OTP. Please try again.')
-      //   }
-      //   return
-      // }
+      // Check active 2FA methods
+      const [aalResult, prefResult] = await Promise.all([
+        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+        getMfaPreference().catch(() => ({ mfa_method: null })),
+      ])
+
+      const needsAAL2 = aalResult.data?.nextLevel === 'aal2'
+      let totpFactorId: string | null = null
+      if (needsAAL2) {
+        const { data: factorsData } = await supabase.auth.mfa.listFactors()
+        const totp = factorsData?.totp?.find((f) => f.status === 'verified')
+        totpFactorId = totp?.id ?? null
+      }
+
+      const hasEmailOtp = prefResult.mfa_method === 'email'
+      const hasTotpEnabled = !!totpFactorId
+
+      // Both methods active — let user pick
+      if (hasTotpEnabled && hasEmailOtp) {
+        setMfaSelectState({ totpFactorId: totpFactorId!, destination })
+        return
+      }
+
+      // Only TOTP
+      if (hasTotpEnabled) {
+        setTotpState({ factorId: totpFactorId!, destination })
+        return
+      }
+
+      // Only Email OTP
+      if (hasEmailOtp) {
+        try {
+          const res = await sendEmailOtp()
+          setEmailOtpMasked(res.maskedEmail)
+          setEmailOtpState({ destination })
+          setEmailOtpCode('')
+        } catch {
+          toast.error('Failed to send email OTP. Please try again.')
+        }
+        return
+      }
 
       toast.success('Login successful!')
       navigate(destination)
@@ -272,6 +292,27 @@ export default function LoginPage() {
     }
   }
 
+  const handleMfaMethodSelect = async (method: 'totp' | 'email') => {
+    if (!mfaSelectState) return
+    if (method === 'totp') {
+      setTotpState({ factorId: mfaSelectState.totpFactorId, destination: mfaSelectState.destination })
+      setMfaSelectState(null)
+    } else {
+      setMfaSelectSending(true)
+      try {
+        const res = await sendEmailOtp()
+        setEmailOtpMasked(res.maskedEmail)
+        setEmailOtpState({ destination: mfaSelectState.destination })
+        setEmailOtpCode('')
+        setMfaSelectState(null)
+      } catch {
+        toast.error('Failed to send email OTP. Please try again.')
+      } finally {
+        setMfaSelectSending(false)
+      }
+    }
+  }
+
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!resetEmail.trim()) {
@@ -325,6 +366,60 @@ export default function LoginPage() {
                 OK
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* 2FA Method Selection Modal */}
+      {mfaSelectState && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className={`relative w-full max-w-sm rounded-2xl border p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200 ${isDark ? 'bg-[#111C32] border-[#1E293B]' : 'bg-white border-gray-200'}`}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-11 h-11 rounded-xl bg-primary/15 flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Two-Factor Authentication</h3>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Choose how you'd like to verify</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => handleMfaMethodSelect('totp')}
+                disabled={mfaSelectSending}
+                className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left ${isDark ? 'border-[#1E293B] hover:border-primary/50 hover:bg-primary/5' : 'border-gray-200 hover:border-primary/50 hover:bg-primary/5'}`}
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Smartphone className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Authenticator App</p>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Use Google Authenticator or Authy</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMfaMethodSelect('email')}
+                disabled={mfaSelectSending}
+                className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left ${isDark ? 'border-[#1E293B] hover:border-primary/50 hover:bg-primary/5' : 'border-gray-200 hover:border-primary/50 hover:bg-primary/5'}`}
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Mail className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Email One-Time Password</p>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{mfaSelectSending ? 'Sending code...' : 'Receive a code to your email'}</p>
+                </div>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={async () => { await supabase.auth.signOut(); setMfaSelectState(null) }}
+              className={`w-full mt-4 text-sm text-center ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'} transition-colors`}
+            >
+              Cancel — sign in with a different account
+            </button>
           </div>
         </div>
       )}

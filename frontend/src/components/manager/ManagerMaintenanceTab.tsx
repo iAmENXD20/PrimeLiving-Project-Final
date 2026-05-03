@@ -769,6 +769,26 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
                   </div>
                   {r.phone && <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>📞 {r.phone}</p>}
                   {r.notes && <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'} line-clamp-2`}>{r.notes}</p>}
+                  {/* Average rating */}
+                  <div className="flex items-center gap-1.5 mt-2">
+                    {r.avg_rating !== null && r.avg_rating !== undefined ? (
+                      <>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={`w-3.5 h-3.5 ${s <= Math.round(r.avg_rating!) ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                            />
+                          ))}
+                        </div>
+                        <span className={`text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          {r.avg_rating.toFixed(1)} ({r.total_reviews} {r.total_reviews === 1 ? 'review' : 'reviews'})
+                        </span>
+                      </>
+                    ) : (
+                      <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>No reviews yet</span>
+                    )}
+                  </div>
                   <p className={`text-xs mt-2 font-medium ${r.is_active ? 'text-primary-400' : 'text-gray-500'}`}>
                     {r.is_active ? '● Active' : '● Inactive'}
                   </p>
@@ -1025,20 +1045,44 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
               {/* Tenant Review */}
               {selectedRequest.review_rating && (
                 <div className={`rounded-xl border p-4 ${isDark ? 'border-yellow-500/20 bg-yellow-500/5' : 'border-yellow-200 bg-yellow-50'}`}>
-                  <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Tenant Review</p>
-                  <div className="flex items-center gap-1 mb-1.5">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        className={`w-5 h-5 ${star <= selectedRequest.review_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
-                      />
-                    ))}
-                    <span className={`ml-2 text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {selectedRequest.review_rating}/5
-                    </span>
+                  <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Tenant Review</p>
+                  {/* Repairman rating */}
+                  <div className="mb-3">
+                    <p className={`text-xs mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Repairman</p>
+                    <div className="flex items-center gap-1 mb-1.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-5 h-5 ${star <= selectedRequest.review_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                        />
+                      ))}
+                      <span className={`ml-2 text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {selectedRequest.review_rating}/5
+                      </span>
+                    </div>
+                    {selectedRequest.review_comment && (
+                      <p className={`text-sm italic ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{selectedRequest.review_comment}"</p>
+                    )}
                   </div>
-                  {selectedRequest.review_comment && (
-                    <p className={`text-sm italic ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{selectedRequest.review_comment}"</p>
+                  {/* Service/work rating */}
+                  {selectedRequest.service_rating && (
+                    <div>
+                      <p className={`text-xs mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Work Done</p>
+                      <div className="flex items-center gap-1 mb-1.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-5 h-5 ${star <= selectedRequest.service_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                          />
+                        ))}
+                        <span className={`ml-2 text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          {selectedRequest.service_rating}/5
+                        </span>
+                      </div>
+                      {selectedRequest.service_comment && (
+                        <p className={`text-sm italic ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{selectedRequest.service_comment}"</p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -1076,3 +1120,4 @@ export default function ManagerMaintenanceTab({ managerId, ownerId }: ManagerMai
     </div>
   )
 }
+

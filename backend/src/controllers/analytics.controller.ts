@@ -635,3 +635,68 @@ export async function getMaintenanceByMonth(
     sendError(res, err.message, 500);
   }
 }
+
+/**
+ * GET /api/analytics/maintenance-summary
+ * Returns status breakdown, avg ratings, category breakdown for owner's maintenance
+ */
+export async function getMaintenanceSummary(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const apartmentownerId = req.query.apartmentowner_id as string;
+    if (!apartmentownerId) {
+      sendError(res, "apartmentowner_id query parameter is required", 400);
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("maintenance")
+      .select("status, category, review_rating, service_rating")
+      .eq("apartmentowner_id", apartmentownerId);
+
+    if (error) {
+      sendError(res, error.message, 500);
+      return;
+    }
+
+    const rows = data || [];
+
+    // Status breakdown
+    const statusCounts: Record<string, number> = { pending: 0, in_progress: 0, resolved: 0, closed: 0 };
+    for (const r of rows) {
+      if (statusCounts[r.status] !== undefined) statusCounts[r.status]++;
+    }
+
+    // Category breakdown
+    const categoryMap: Record<string, number> = {};
+    for (const r of rows) {
+      if (r.category) {
+        categoryMap[r.category] = (categoryMap[r.category] || 0) + 1;
+      }
+    }
+    const categoryBreakdown = Object.entries(categoryMap).map(([name, count]) => ({ name, count }));
+
+    // Average ratings (only closed requests with ratings)
+    const repairmanRatings = rows.filter((r: any) => r.review_rating).map((r: any) => r.review_rating as number);
+    const serviceRatings = rows.filter((r: any) => r.service_rating).map((r: any) => r.service_rating as number);
+    const avgRepairmanRating = repairmanRatings.length
+      ? Math.round((repairmanRatings.reduce((a: number, b: number) => a + b, 0) / repairmanRatings.length) * 10) / 10
+      : null;
+    const avgServiceRating = serviceRatings.length
+      ? Math.round((serviceRatings.reduce((a: number, b: number) => a + b, 0) / serviceRatings.length) * 10) / 10
+      : null;
+
+    sendSuccess(res, {
+      total: rows.length,
+      statusBreakdown: statusCounts,
+      categoryBreakdown,
+      avgRepairmanRating,
+      avgServiceRating,
+      totalReviewed: repairmanRatings.length,
+    });
+  } catch (err: any) {
+    sendError(res, err.message, 500);
+  }
+}

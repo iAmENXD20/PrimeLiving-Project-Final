@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Plus, Trash2, Megaphone, Send, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
-import { formatPhone } from '@/lib/utils'
 import {
   getAnnouncements,
   createAnnouncement,
@@ -10,6 +9,7 @@ import {
   getActiveTenants,
   getManagedApartments,
   getAnnouncementReplies,
+  createManagerAnnouncementReply,
   type Announcement,
   type AnnouncementReply,
 } from '../../lib/managerApi'
@@ -39,6 +39,9 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
   const [replies, setReplies] = useState<Record<string, AnnouncementReply[]>>({})
   const [expandedReplies, setExpandedReplies] = useState<string | null>(null)
   const [loadingReplies, setLoadingReplies] = useState<Record<string, boolean>>({})
+  const [replyText, setReplyText] = useState('')
+  const [replyingToId, setReplyingToId] = useState<string | null>(null)
+  const [replySubmitting, setReplySubmitting] = useState(false)
   const ownerIdRef = useRef<string | null>(null)
 
   async function load() {
@@ -146,6 +149,23 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
       toast.error('Failed to load replies')
     } finally {
       setLoadingReplies((prev) => ({ ...prev, [announcementId]: false }))
+    }
+  }
+
+  const handleReply = async (announcementId: string) => {
+    if (!replyText.trim()) return
+    setReplySubmitting(true)
+    try {
+      await createManagerAnnouncementReply(announcementId, replyText.trim())
+      setReplyText('')
+      setReplyingToId(null)
+      const updated = await getAnnouncementReplies(announcementId)
+      setReplies((prev) => ({ ...prev, [announcementId]: updated }))
+      toast.success('Reply sent')
+    } catch {
+      toast.error('Failed to send reply')
+    } finally {
+      setReplySubmitting(false)
     }
   }
 
@@ -273,9 +293,6 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
                           ({tenant.unit_name})
                         </span>
                       )}
-                      <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {formatPhone(tenant.phone) || 'No phone'}
-                      </span>
                     </label>
                   )
                 })}
@@ -354,32 +371,58 @@ export default function ManagerAnnouncementsTab({ managerId, managerName, ownerI
                 </button>
               </div>
               {expandedReplies === a.id && (
-                <div className={`mt-3 space-y-2 border-t pt-3 ${
-                  isDark ? 'border-[#1E293B]' : 'border-gray-100'
-                }`}>
-                  {(replies[a.id] || []).length === 0 ? (
-                    <p className={`text-sm italic ${
-                      isDark ? 'text-gray-500' : 'text-gray-400'
-                    }`}>No replies yet.</p>
-                  ) : (
-                    (replies[a.id] || []).map((reply) => (
-                      <div key={reply.id} className={`rounded-lg p-3 ${
-                        isDark ? 'bg-[#0A1525]' : 'bg-gray-50'
-                      }`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`text-xs font-semibold ${
-                            isDark ? 'text-blue-300' : 'text-blue-600'
-                          }`}>{reply.tenant_name}</span>
-                          <span className={`text-xs ${
-                            isDark ? 'text-gray-500' : 'text-gray-400'
-                          }`}>{new Date(reply.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                        </div>
-                        <p className={`text-sm mt-1 ${
-                          isDark ? 'text-gray-300' : 'text-gray-700'
-                        }`}>{reply.message}</p>
-                      </div>
-                    ))
-                  )}
+                <div className={`mt-3 rounded-xl border ${isDark ? 'border-[#1E293B] bg-[#070F1E]' : 'border-gray-200 bg-gray-50'}`}>
+                  <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
+                    {(replies[a.id] || []).length === 0 ? (
+                      <p className={`text-sm italic text-center py-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No replies yet. Start the conversation!</p>
+                    ) : (
+                      (replies[a.id] || []).map((reply) => {
+                        const isStaff = reply.tenant_id === null
+                        return (
+                          <div key={reply.id} className={`flex ${isStaff ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[80%] rounded-xl px-3 py-2 ${
+                              isStaff
+                                ? isDark ? 'bg-primary/20 text-white' : 'bg-primary/10 text-gray-900'
+                                : isDark ? 'bg-[#1E293B] text-gray-200' : 'bg-white border border-gray-200 text-gray-800'
+                            }`}>
+                              <p className={`text-[11px] font-semibold mb-0.5 ${isStaff ? 'text-primary' : isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {reply.tenant_name}{isStaff ? ' (You)' : ''}
+                              </p>
+                              <p className="text-sm">{reply.message}</p>
+                              <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {new Date(reply.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {new Date(reply.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                  {/* Manager reply input */}
+                  <div className={`border-t p-3 ${isDark ? 'border-[#1E293B]' : 'border-gray-200'}`}>
+                    <textarea
+                      value={replyingToId === a.id ? replyText : ''}
+                      onChange={(e) => { setReplyingToId(a.id); setReplyText(e.target.value.slice(0, 500)) }}
+                      onFocus={() => setReplyingToId(a.id)}
+                      placeholder="Reply to this thread..."
+                      rows={2}
+                      className={`w-full resize-none rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                        isDark
+                          ? 'bg-[#111D32] border-[#1E293B] text-white placeholder:text-gray-500'
+                          : 'bg-white border-gray-200 text-gray-900 placeholder:text-gray-400'
+                      }`}
+                    />
+                    <div className="flex justify-end mt-2">
+                      <button
+                        onClick={() => handleReply(a.id)}
+                        disabled={replySubmitting || !(replyingToId === a.id && replyText.trim())}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        {replySubmitting && replyingToId === a.id ? 'Sending...' : 'Reply'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

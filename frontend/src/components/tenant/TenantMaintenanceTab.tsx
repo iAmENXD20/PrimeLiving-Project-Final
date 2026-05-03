@@ -66,6 +66,9 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
   const [reviewRating, setReviewRating] = useState(0)
   const [reviewHover, setReviewHover] = useState(0)
   const [reviewComment, setReviewComment] = useState('')
+  const [serviceRating, setServiceRating] = useState(0)
+  const [serviceHover, setServiceHover] = useState(0)
+  const [serviceComment, setServiceComment] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
   const [resolvingId, setResolvingId] = useState<string | null>(null)
 
@@ -616,198 +619,300 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
                 const currentIdx = statusSteps.indexOf(req.status as typeof statusSteps[number])
                 return (
                   <div key={req.id} className={`${cardClass}`}>
-                    {/* Request Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-5">
-                      <div className="flex items-center gap-3">
-                        <span className={`font-mono text-sm font-bold ${isDark ? 'text-primary' : 'text-blue-600'}`}>
-                          {req.maintenance_id || '—'}
-                        </span>
-                        <h4 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {req.title}
-                        </h4>
-                      </div>
-                      <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        {' · '}
-                        {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
+                    <div className="flex flex-col md:flex-row md:gap-6">
 
-                    <p className={`text-sm mb-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {req.description}
-                    </p>
+                      {/* ─── Left: Details ─── */}
+                      <div className="flex-1 min-w-0">
+                        {/* Request Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                          <div className="flex items-center gap-3">
+                            <span className={`font-mono text-sm font-bold ${isDark ? 'text-primary' : 'text-blue-600'}`}>
+                              {req.maintenance_id || '—'}
+                            </span>
+                            <h4 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {req.title}
+                            </h4>
+                          </div>
+                          <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            {' · '}
+                            {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
 
-                    {/* Progress Map */}
-                    <div className="flex items-center gap-0">
-                      {statusSteps.map((step, i) => {
-                        const isCompleted = i <= currentIdx
-                        const isCurrent = i === currentIdx
-                        return (
-                          <div key={step} className="flex items-center flex-1 last:flex-none">
-                            <div className="flex flex-col items-center">
-                              <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                                  isCurrent
-                                    ? 'bg-primary text-white ring-4 ring-primary/20'
-                                    : isCompleted
-                                    ? 'bg-emerald-500 text-white'
-                                    : isDark ? 'bg-[#1E293B] text-gray-500' : 'bg-gray-200 text-gray-400'
-                                }`}
-                              >
-                                {isCompleted && !isCurrent ? '✓' : i + 1}
+                        <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {req.description}
+                        </p>
+
+                        {/* Progress Map */}
+                        <div className="flex items-center gap-0">
+                          {statusSteps.map((step, i) => {
+                            const isCompleted = i <= currentIdx
+                            const isCurrent = i === currentIdx
+                            return (
+                              <div key={step} className="flex items-center flex-1 last:flex-none">
+                                <div className="flex flex-col items-center">
+                                  <div
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                                      isCurrent
+                                        ? 'bg-primary text-white ring-4 ring-primary/20'
+                                        : isCompleted
+                                        ? 'bg-emerald-500 text-white'
+                                        : isDark ? 'bg-[#1E293B] text-gray-500' : 'bg-gray-200 text-gray-400'
+                                    }`}
+                                  >
+                                    {isCompleted && !isCurrent ? '✓' : i + 1}
+                                  </div>
+                                  <span className={`text-[11px] mt-1.5 font-medium whitespace-nowrap ${
+                                    isCurrent
+                                      ? 'text-primary'
+                                      : isCompleted
+                                      ? isDark ? 'text-emerald-400' : 'text-emerald-600'
+                                      : isDark ? 'text-gray-500' : 'text-gray-400'
+                                  }`}>
+                                    {statusLabels[step]}
+                                  </span>
+                                </div>
+                                {i < statusSteps.length - 1 && (
+                                  <div className={`flex-1 h-0.5 mx-2 mt-[-18px] ${
+                                    i < currentIdx
+                                      ? 'bg-emerald-500'
+                                      : isDark ? 'bg-[#1E293B]' : 'bg-gray-200'
+                                  }`} />
+                                )}
                               </div>
-                              <span className={`text-[11px] mt-1.5 font-medium whitespace-nowrap ${
-                                isCurrent
-                                  ? 'text-primary'
-                                  : isCompleted
-                                  ? isDark ? 'text-emerald-400' : 'text-emerald-600'
-                                  : isDark ? 'text-gray-500' : 'text-gray-400'
-                              }`}>
-                                {statusLabels[step]}
+                            )
+                          })}
+                        </div>
+
+                        {/* Priority + Category badges */}
+                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Priority:</span>
+                            <span className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded-full capitalize ${priorityColor(req.priority)}`}>
+                              {req.priority}
+                            </span>
+                          </div>
+                          {req.category && (
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Category:</span>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full ${isDark ? 'bg-white/5 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                <span>{CATEGORY_ICONS[req.category] || '📋'}</span>
+                                {categoryLabel(req.category)}
                               </span>
                             </div>
-                            {i < statusSteps.length - 1 && (
-                              <div className={`flex-1 h-0.5 mx-2 mt-[-18px] ${
-                                i < currentIdx
-                                  ? 'bg-emerald-500'
-                                  : isDark ? 'bg-[#1E293B]' : 'bg-gray-200'
-                              }`} />
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {/* Priority + Category badges */}
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Priority:</span>
-                        <span className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded-full capitalize ${priorityColor(req.priority)}`}>
-                          {req.priority}
-                        </span>
-                      </div>
-                      {req.category && (
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Category:</span>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full ${isDark ? 'bg-white/5 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                            <span>{CATEGORY_ICONS[req.category] || '📋'}</span>
-                            {categoryLabel(req.category)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Mark as Resolved — only when in_progress */}
-                    {req.status === 'in_progress' && (
-                      <div className={`mt-5 rounded-lg border p-4 ${isDark ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50'}`}>
-                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Has this issue been fixed? Mark it as resolved to proceed with your review.
-                        </p>
-                        <Button
-                          disabled={resolvingId === req.id}
-                          onClick={async () => {
-                            setResolvingId(req.id)
-                            try {
-                              await updateMaintenanceStatus(req.id, 'resolved')
-                              toast.success('Marked as resolved! You can now leave a review.')
-                              await loadRequests()
-                            } catch (err: any) {
-                              toast.error(err.message || 'Failed to update status')
-                            } finally {
-                              setResolvingId(null)
-                            }
-                          }}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-6"
-                        >
-                          {resolvingId === req.id ? 'Updating...' : 'Mark as Resolved'}
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Review Section — Show form for resolved, show submitted review for closed */}
-                    {req.status === 'resolved' && (
-                      <div className={`mt-5 rounded-lg border p-4 ${isDark ? 'border-primary/30 bg-primary/5' : 'border-primary/20 bg-primary/5'}`}>
-                        <p className={`text-sm font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          How was the service? Leave a review to close this request.
-                        </p>
-                        <div className="flex items-center gap-1 mb-3">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              type="button"
-                              onClick={() => { setReviewingId(req.id); setReviewRating(star) }}
-                              onMouseEnter={() => { setReviewingId(req.id); setReviewHover(star) }}
-                              onMouseLeave={() => setReviewHover(0)}
-                              className="transition-transform hover:scale-110"
-                            >
-                              <Star
-                                className={`w-7 h-7 ${
-                                  star <= (reviewingId === req.id ? (reviewHover || reviewRating) : 0)
-                                    ? 'fill-yellow-400 text-yellow-400'
-                                    : isDark ? 'text-gray-600' : 'text-gray-300'
-                                }`}
-                              />
-                            </button>
-                          ))}
-                          {reviewingId === req.id && reviewRating > 0 && (
-                            <span className={`ml-2 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                              {reviewRating}/5
-                            </span>
                           )}
                         </div>
-                        <textarea
-                          placeholder="Comment (optional)"
-                          value={reviewingId === req.id ? reviewComment : ''}
-                          onChange={(e) => { setReviewingId(req.id); setReviewComment(e.target.value) }}
-                          rows={2}
-                          className={`w-full rounded-lg border px-3 py-2 text-sm mb-3 resize-none ${
-                            isDark ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder:text-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder:text-gray-400'
-                          }`}
-                        />
-                        <Button
-                          disabled={submittingReview || !(reviewingId === req.id && reviewRating > 0)}
-                          onClick={async () => {
-                            if (!reviewRating || reviewingId !== req.id) return
-                            setSubmittingReview(true)
-                            try {
-                              await reviewMaintenanceRequest(req.id, reviewRating, reviewComment || undefined)
-                              toast.success('Review submitted! Request is now closed.')
-                              setReviewingId(null)
-                              setReviewRating(0)
-                              setReviewComment('')
-                              await loadRequests()
-                            } catch (err: any) {
-                              toast.error(err.message || 'Failed to submit review')
-                            } finally {
-                              setSubmittingReview(false)
-                            }
-                          }}
-                          className="bg-primary hover:bg-primary/90 text-white font-semibold text-sm px-6"
-                        >
-                          {submittingReview ? 'Submitting...' : 'Submit Review'}
-                        </Button>
-                      </div>
-                    )}
 
-                    {req.status === 'closed' && req.review_rating && (
-                      <div className={`mt-5 rounded-lg border p-4 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
-                        <p className={`text-xs font-medium mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Your Review</p>
-                        <div className="flex items-center gap-1 mb-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              className={`w-4 h-4 ${star <= req.review_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                        {/* Review Section — form for resolved (service/work rating only) */}
+                        {req.status === 'resolved' && (
+                          <div className={`mt-4 rounded-lg border p-4 space-y-3 ${isDark ? 'border-[#1E293B] bg-[#0A1628]/60' : 'border-gray-200 bg-gray-50'}`}>
+                            <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              Rate the Work Done on the Issue
+                            </p>
+                            <div className="flex items-center gap-1 mb-2">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                  key={star}
+                                  type="button"
+                                  onClick={() => { setReviewingId(req.id); setServiceRating(star) }}
+                                  onMouseEnter={() => { setReviewingId(req.id); setServiceHover(star) }}
+                                  onMouseLeave={() => setServiceHover(0)}
+                                  className="transition-transform hover:scale-110"
+                                >
+                                  <Star
+                                    className={`w-7 h-7 ${
+                                      star <= (reviewingId === req.id ? (serviceHover || serviceRating) : 0)
+                                        ? 'fill-yellow-400 text-yellow-400'
+                                        : isDark ? 'text-gray-600' : 'text-gray-300'
+                                    }`}
+                                  />
+                                </button>
+                              ))}
+                              {reviewingId === req.id && serviceRating > 0 && (
+                                <span className={`ml-2 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                  {serviceRating}/5
+                                </span>
+                              )}
+                            </div>
+                            <textarea
+                              placeholder="Comment about the work done (optional)"
+                              value={reviewingId === req.id ? serviceComment : ''}
+                              onChange={(e) => { setReviewingId(req.id); setServiceComment(e.target.value) }}
+                              rows={2}
+                              className={`w-full rounded-lg border px-3 py-2 text-sm resize-none ${
+                                isDark ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder:text-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder:text-gray-400'
+                              }`}
                             />
-                          ))}
-                          <span className={`ml-1.5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                            {req.review_rating}/5
-                          </span>
-                        </div>
-                        {req.review_comment && (
-                          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{req.review_comment}"</p>
+                          </div>
+                        )}
+
+                        {/* Service rating display for closed */}
+                        {req.status === 'closed' && req.service_rating && (
+                          <div className={`mt-4 rounded-lg border p-4 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
+                            <p className={`text-xs font-medium mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Work Done Rating</p>
+                            <div className="flex items-center gap-1 mb-0.5">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-4 h-4 ${star <= req.service_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                                />
+                              ))}
+                              <span className={`ml-1.5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                {req.service_rating}/5
+                              </span>
+                            </div>
+                            {req.service_comment && (
+                              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{req.service_comment}"</p>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
+
+                      {/* Divider */}
+                      <div className={`hidden md:block w-px self-stretch ${isDark ? 'bg-[#1E293B]' : 'bg-gray-200'}`} />
+                      <div className={`md:hidden h-px mt-5 ${isDark ? 'bg-[#1E293B]' : 'bg-gray-200'}`} />
+
+                      {/* ─── Right: Actions ─── */}
+                      <div className="md:w-[48%] mt-5 md:mt-0 flex flex-col gap-4">
+
+                        {/* Assigned repairman */}
+                        {req.repairman_name && (
+                          <div className={`rounded-lg border px-4 py-3 flex items-center gap-3 ${isDark ? 'border-[#1E293B] bg-[#0A1628]/60' : 'border-gray-200 bg-gray-50'}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${isDark ? 'bg-primary/15 text-primary' : 'bg-primary/10 text-primary'}`}>
+                              {req.repairman_name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Assigned Repairman</p>
+                              <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{req.repairman_name}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Mark as Resolved — only when in_progress */}
+                        {req.status === 'in_progress' && (
+                          <div className={`rounded-lg border p-4 ${isDark ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50'}`}>
+                            <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Has this issue been fixed? Mark it as resolved to proceed with your review.
+                            </p>
+                            <Button
+                              disabled={resolvingId === req.id}
+                              onClick={async () => {
+                                setResolvingId(req.id)
+                                try {
+                                  await updateMaintenanceStatus(req.id, 'resolved')
+                                  toast.success('Marked as resolved! You can now leave a review.')
+                                  await loadRequests()
+                                } catch (err: any) {
+                                  toast.error(err.message || 'Failed to update status')
+                                } finally {
+                                  setResolvingId(null)
+                                }
+                              }}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-6 w-full"
+                            >
+                              {resolvingId === req.id ? 'Updating...' : 'Mark as Resolved'}
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Repairman rating form — shown when resolved */}
+                        {req.status === 'resolved' && (
+                          <div className={`rounded-lg border p-4 space-y-3 ${isDark ? 'border-[#1E293B] bg-[#0A1628]/60' : 'border-gray-200 bg-gray-50'}`}>
+                            <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {req.repairman_name ? `Rate the Repairman — ${req.repairman_name}` : 'Rate the Repairman'}
+                            </p>
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                  key={star}
+                                  type="button"
+                                  onClick={() => { setReviewingId(req.id); setReviewRating(star) }}
+                                  onMouseEnter={() => { setReviewingId(req.id); setReviewHover(star) }}
+                                  onMouseLeave={() => setReviewHover(0)}
+                                  className="transition-transform hover:scale-110"
+                                >
+                                  <Star
+                                    className={`w-7 h-7 ${
+                                      star <= (reviewingId === req.id ? (reviewHover || reviewRating) : 0)
+                                        ? 'fill-yellow-400 text-yellow-400'
+                                        : isDark ? 'text-gray-600' : 'text-gray-300'
+                                    }`}
+                                  />
+                                </button>
+                              ))}
+                              {reviewingId === req.id && reviewRating > 0 && (
+                                <span className={`ml-2 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                  {reviewRating}/5
+                                </span>
+                              )}
+                            </div>
+                            <textarea
+                              placeholder="Comment about the repairman (optional)"
+                              value={reviewingId === req.id ? reviewComment : ''}
+                              onChange={(e) => { setReviewingId(req.id); setReviewComment(e.target.value) }}
+                              rows={2}
+                              className={`w-full rounded-lg border px-3 py-2 text-sm resize-none ${
+                                isDark ? 'bg-[#0A1628] border-[#1E293B] text-white placeholder:text-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder:text-gray-400'
+                              }`}
+                            />
+                            {/* Submit button — requires both ratings */}
+                            <Button
+                              disabled={submittingReview || !(reviewingId === req.id && reviewRating > 0 && serviceRating > 0)}
+                              onClick={async () => {
+                                if (!reviewRating || !serviceRating || reviewingId !== req.id) return
+                                setSubmittingReview(true)
+                                try {
+                                  await reviewMaintenanceRequest(req.id, reviewRating, reviewComment || undefined, serviceRating, serviceComment || undefined)
+                                  toast.success('Review submitted! Request is now closed.')
+                                  setReviewingId(null)
+                                  setReviewRating(0)
+                                  setReviewComment('')
+                                  setServiceRating(0)
+                                  setServiceComment('')
+                                  await loadRequests()
+                                } catch (err: any) {
+                                  toast.error(err.message || 'Failed to submit review')
+                                } finally {
+                                  setSubmittingReview(false)
+                                }
+                              }}
+                              className="bg-primary hover:bg-primary/90 text-white font-semibold text-sm px-6 w-full"
+                            >
+                              {submittingReview ? 'Submitting...' : 'Submit Review'}
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Repairman rating display — shown when closed */}
+                        {req.status === 'closed' && req.review_rating && (
+                          <div className={`rounded-lg border p-4 ${isDark ? 'border-[#1E293B] bg-[#0A1628]' : 'border-gray-200 bg-gray-50'}`}>
+                            <p className={`text-xs font-medium mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Repairman Rating</p>
+                            <div className="flex items-center gap-1 mb-0.5">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-4 h-4 ${star <= req.review_rating! ? 'fill-yellow-400 text-yellow-400' : isDark ? 'text-gray-600' : 'text-gray-300'}`}
+                                />
+                              ))}
+                              <span className={`ml-1.5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                {req.review_rating}/5
+                              </span>
+                            </div>
+                            {req.review_comment && (
+                              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>"{req.review_comment}"</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Pending placeholder */}
+                        {req.status === 'pending' && !req.repairman_name && (
+                          <div className={`rounded-lg border px-4 py-3 text-xs ${isDark ? 'border-[#1E293B] text-gray-500' : 'border-gray-200 text-gray-400'}`}>
+                            Waiting for a repairman to be assigned.
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )
               })}
@@ -818,3 +923,4 @@ export default function TenantMaintenanceTab({ tenantId, apartmentId, ownerId }:
     </div>
   )
 }
+

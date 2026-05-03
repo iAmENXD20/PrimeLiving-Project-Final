@@ -91,7 +91,7 @@ export function invalidateAllManagerScopes(): void {
   managerScopeCache.clear();
 }
 
-export async function getManagerScope(managerId: string): Promise<{ apartmentIds: string[]; unitIds: string[] }> {
+export async function getManagerScope(managerId: string): Promise<{ apartmentIds: string[]; unitIds: string[]; ownerId: string | null }> {
   const cached = managerScopeCache.get(managerId);
   if (cached && cached.expires > Date.now()) {
     return cached.data;
@@ -99,14 +99,15 @@ export async function getManagerScope(managerId: string): Promise<{ apartmentIds
 
   const { data: manager } = await supabaseAdmin
     .from("apartment_managers")
-    .select("apartment_id")
+    .select("apartment_id, apartmentowner_id")
     .eq("id", managerId)
     .single();
 
   const apartmentIds = manager?.apartment_id ? [manager.apartment_id] : [];
+  const ownerId: string | null = manager?.apartmentowner_id || null;
 
   if (apartmentIds.length === 0) {
-    const result = { apartmentIds: [], unitIds: [] };
+    const result = { apartmentIds: [], unitIds: [], ownerId };
     managerScopeCache.set(managerId, { data: result, expires: Date.now() + MANAGER_SCOPE_TTL_MS });
     return result;
   }
@@ -118,7 +119,7 @@ export async function getManagerScope(managerId: string): Promise<{ apartmentIds
 
   const unitIds = (units || []).map((u: any) => u.id);
 
-  const result = { apartmentIds, unitIds };
+  const result = { apartmentIds, unitIds, ownerId };
   managerScopeCache.set(managerId, { data: result, expires: Date.now() + MANAGER_SCOPE_TTL_MS });
 
   // Cleanup stale entries periodically

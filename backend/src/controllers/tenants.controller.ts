@@ -918,7 +918,7 @@ export async function approveTenant(
     if (tenant.email) {
       sendEmail({
         to: tenant.email,
-        subject: "Your PrimeLiving Account Has Been Approved",
+        subject: "Your EAMS Account Has Been Approved",
         html: accountApprovedEmailHtml({ name: tenantName, role: "tenant" }),
       }).catch((err) => console.error("[ApproveTenant] Email failed:", err));
     }

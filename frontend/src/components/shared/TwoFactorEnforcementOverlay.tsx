@@ -72,7 +72,7 @@ export default function TwoFactorEnforcementOverlay({ role }: TwoFactorEnforceme
             </div>
           </div>
           <p className={`mt-4 text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            PrimeLiving requires all <span className="font-medium">{role}</span> accounts to enable 2FA before accessing the dashboard.
+            EAMS requires all <span className="font-medium">{role}</span> accounts to enable 2FA before accessing the dashboard.
             This takes under 2 minutes and keeps your account protected.
           </p>
         </div>

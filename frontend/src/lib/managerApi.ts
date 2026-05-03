@@ -18,6 +18,8 @@ export interface MaintenanceRequest {
   assigned_repairman_id: string | null
   review_rating: number | null
   review_comment: string | null
+  service_rating: number | null
+  service_comment: string | null
   reviewed_at: string | null
   created_at: string
   updated_at: string
@@ -36,6 +38,8 @@ export interface Repairman {
   is_active: boolean
   created_at: string
   updated_at: string
+  avg_rating: number | null
+  total_reviews: number
 }
 
 export interface ManagerProfile {
@@ -432,7 +436,7 @@ export async function settleCashBilling(paymentId: string, description?: string,
   await api.put(`/payments/${paymentId}/verify`, { verification_status: 'verified' })
 }
 
-// ── Get Active Tenants (for SMS notifications) ─────────────
+// ── Get Active Tenants (for recipient selection) ─────────────
 export async function getActiveTenants(
   managerId: string,
 ): Promise<{ id: string; name: string; phone: string | null; unit_name?: string | null }[]> {
@@ -643,4 +647,8 @@ export interface AnnouncementReply {
 
 export async function getAnnouncementReplies(announcementId: string): Promise<AnnouncementReply[]> {
   return api.get<AnnouncementReply[]>(`/announcements/${announcementId}/replies`)
+}
+
+export async function createManagerAnnouncementReply(announcementId: string, message: string): Promise<void> {
+  await api.post(`/announcements/${announcementId}/replies`, { message })
 }

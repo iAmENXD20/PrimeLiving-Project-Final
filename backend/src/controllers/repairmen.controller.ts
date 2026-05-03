@@ -48,6 +48,34 @@ export async function getRepairmen(
       return;
     }
 
+    // Enrich with average ratings from completed maintenance reviews
+    if (data && data.length > 0) {
+      const ids = data.map((r: any) => r.id);
+      const { data: ratingsData } = await supabaseAdmin
+        .from("maintenance")
+        .select("assigned_repairman_id, review_rating")
+        .in("assigned_repairman_id", ids)
+        .eq("status", "closed")
+        .not("review_rating", "is", null);
+
+      const ratingMap: Record<string, { sum: number; count: number }> = {};
+      for (const row of ratingsData || []) {
+        if (!row.assigned_repairman_id || !row.review_rating) continue;
+        if (!ratingMap[row.assigned_repairman_id]) ratingMap[row.assigned_repairman_id] = { sum: 0, count: 0 };
+        ratingMap[row.assigned_repairman_id].sum += row.review_rating;
+        ratingMap[row.assigned_repairman_id].count++;
+      }
+
+      const enriched = data.map((r: any) => ({
+        ...r,
+        avg_rating: ratingMap[r.id] ? Math.round((ratingMap[r.id].sum / ratingMap[r.id].count) * 10) / 10 : null,
+        total_reviews: ratingMap[r.id]?.count ?? 0,
+      }));
+
+      sendSuccess(res, enriched);
+      return;
+    }
+
     sendSuccess(res, data);
   } catch (err: any) {
     sendError(res, err.message, 500);

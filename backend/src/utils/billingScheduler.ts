@@ -1,6 +1,5 @@
 import { supabaseAdmin } from "../config/supabase";
 import { createNotification } from "./notifications";
-import { sendSmsSemaphore } from "./sms";
 
 const REMINDER_DAYS_BEFORE = 3;
 const GRACE_DAYS = 3;
@@ -29,23 +28,6 @@ async function notificationAlreadySent(
   return (data && data.length > 0) || false;
 }
 
-async function sendReminderSms(phone: string, tenantName: string, amount: number, dueDate: string): Promise<void> {
-  const msg = `Hi ${tenantName}, your rent of P${amount.toLocaleString()} is due on ${dueDate}. Please settle your payment on time. - E-AMS`;
-  try {
-    await sendSmsSemaphore(phone, msg);
-  } catch (err) {
-    console.error("[BillingScheduler] Reminder SMS failed:", err);
-  }
-}
-
-async function sendOverdueSms(phone: string, tenantName: string, amount: number, dueDate: string): Promise<void> {
-  const msg = `Hi ${tenantName}, your rent of P${amount.toLocaleString()} due on ${dueDate} is now overdue. Please settle immediately. - E-AMS`;
-  try {
-    await sendSmsSemaphore(phone, msg);
-  } catch (err) {
-    console.error("[BillingScheduler] Overdue SMS failed:", err);
-  }
-}
 
 export async function checkBillingNotifications(): Promise<void> {
   try {
@@ -96,11 +78,6 @@ export async function checkBillingNotifications(): Promise<void> {
         message: `Your rent of ₱${payment.amount.toLocaleString()} is due on ${payment.period_from}. Please settle your payment on time.`,
         unit_id: tenant.unit_id,
       });
-
-      // Send SMS
-      if (tenant.phone) {
-        await sendReminderSms(tenant.phone, tenantName, payment.amount, payment.period_from);
-      }
 
       console.log(`[BillingScheduler] Reminder sent to ${tenantName} for ${payment.period_from}`);
     }
@@ -173,11 +150,6 @@ export async function checkBillingNotifications(): Promise<void> {
             unit_id: tenant.unit_id,
           });
         }
-      }
-
-      // Send SMS to tenant
-      if (tenant.phone) {
-        await sendOverdueSms(tenant.phone, tenantName, payment.amount, payment.period_from);
       }
 
       console.log(`[BillingScheduler] Overdue notice sent to ${tenantName} for ${payment.period_from}`);

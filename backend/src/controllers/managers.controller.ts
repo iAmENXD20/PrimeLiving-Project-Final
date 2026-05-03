@@ -520,7 +520,7 @@ export async function approveManager(
     if (manager.email) {
       sendEmail({
         to: manager.email,
-        subject: "Your PrimeLiving Account Has Been Approved",
+        subject: "Your EAMS Account Has Been Approved",
         html: accountApprovedEmailHtml({ name: managerName, role: "manager" }),
       }).catch((err) => console.error("[ApproveManager] Email failed:", err));
     }

@@ -77,7 +77,7 @@ export default function TwoFactorSetup({ onEnrolled }: { onEnrolled?: () => void
       for (const f of unverified) {
         await supabase.auth.mfa.unenroll({ factorId: f.id })
       }
-      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', issuer: 'PrimeLiving' })
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', issuer: 'EAMS' })
       if (error) throw error
       setQrCode(data.totp.qr_code)
       setSecret(data.totp.secret)

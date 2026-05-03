@@ -270,7 +270,6 @@ export async function checkSetup(
       client
         .from("apartment_owners")
         .select("id", { count: "exact", head: true })
-        .eq("status", "active")
     );
 
     if (error) {
@@ -295,12 +294,11 @@ export async function setupOwner(
   res: Response
 ): Promise<void> {
   try {
-    // Block if an owner already exists
+    // Block if an owner already exists (any status)
     const { count, error: countError } = await withAdminRetry((client) =>
       client
         .from("apartment_owners")
         .select("id", { count: "exact", head: true })
-        .eq("status", "active")
     );
 
     if (countError) {

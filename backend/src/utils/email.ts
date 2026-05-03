@@ -85,7 +85,7 @@ export function maintenanceRequestEmailHtml({
           </tr>
         </table>
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
-        <p style="margin: 0; color: #94a3b8; font-size: 12px; text-align: center;">PrimeLiving Property Management</p>
+        <p style="margin: 0; color: #94a3b8; font-size: 12px; text-align: center;">EAMS Property Management</p>
       </div>
     </div>
   `;
@@ -116,7 +116,7 @@ export function accountApprovedEmailHtml({
               <td style="padding:28px;">
                 <p style="margin:0 0 16px;font-size:15px;line-height:24px;">Hi ${name},</p>
                 <p style="margin:0 0 16px;font-size:15px;line-height:24px;">
-                  Great news! Your account has been <strong>verified and approved</strong> by the property owner. You can now log in to PrimeLiving and start using the system.
+                  Great news! Your account has been <strong>verified and approved</strong> by the property owner. You can now log in to EAMS and start using the system.
                 </p>
 
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;margin:16px 0;">
@@ -134,7 +134,7 @@ export function accountApprovedEmailHtml({
             </tr>
             <tr>
               <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 28px;">
-                <p style="margin:0;font-size:12px;line-height:18px;color:#64748b;">PrimeLiving Property Management</p>
+                <p style="margin:0;font-size:12px;line-height:18px;color:#64748b;">EAMS Property Management</p>
               </td>
             </tr>
           </table>
@@ -183,12 +183,12 @@ export function announcementEmailHtml({
                     </td>
                   </tr>
                 </table>
-                <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Log in to PrimeLiving to view the full announcement and reply.</p>
+                <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Log in to EAMS to view the full announcement and reply.</p>
               </td>
             </tr>
             <tr>
               <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 28px;">
-                <p style="margin:0;font-size:12px;color:#64748b;">PrimeLiving Property Management</p>
+                <p style="margin:0;font-size:12px;color:#64748b;">EAMS Property Management</p>
               </td>
             </tr>
           </table>
@@ -236,12 +236,12 @@ export function announcementReplyEmailHtml({
                     </td>
                   </tr>
                 </table>
-                <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Log in to PrimeLiving to view and respond in the announcements section.</p>
+                <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Log in to EAMS to view and respond in the announcements section.</p>
               </td>
             </tr>
             <tr>
               <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 28px;">
-                <p style="margin:0;font-size:12px;color:#64748b;">PrimeLiving Property Management</p>
+                <p style="margin:0;font-size:12px;color:#64748b;">EAMS Property Management</p>
               </td>
             </tr>
           </table>

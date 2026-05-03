@@ -12,6 +12,7 @@ import {
   getTenantsPerApartment,
   getAllUsers,
   getMaintenanceByMonth,
+  getMaintenanceSummary,
 } from "../controllers/analytics.controller";
 
 const router = Router();
@@ -23,6 +24,7 @@ router.get("/all-users", authorize("owner"), cacheResponse({ namespace: "analyti
 router.get("/user-distribution", authorize("owner"), cacheResponse({ namespace: "analytics", ttlSeconds: 20 }), getUserDistribution);
 router.get("/tenants-per-apartment", authorize("owner"), cacheResponse({ namespace: "analytics", ttlSeconds: 20 }), getTenantsPerApartment);
 router.get("/maintenance-by-month", authorize("owner"), cacheResponse({ namespace: "analytics", ttlSeconds: 30 }), getMaintenanceByMonth);
+router.get("/maintenance-summary", authorize("owner"), cacheResponse({ namespace: "analytics", ttlSeconds: 30 }), getMaintenanceSummary);
 router.get("/owner/:apartmentownerId/detail-stats", authorize("owner"), cacheResponse({ namespace: "analytics", ttlSeconds: 30 }), getOwnerDetailStats);
 router.get("/owner/:apartmentownerId", authorize("owner"), cacheResponse({ namespace: "analytics", ttlSeconds: 20 }), getOwnerStats);
 router.get("/manager/:managerId", authorize("owner", "manager"), cacheResponse({ namespace: "analytics", ttlSeconds: 20 }), getManagerStats);

@@ -14,7 +14,7 @@ function emailOtpHtml(code: string): string {
   return `
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto;">
       <div style="background:#1e3a5f;padding:24px 32px;border-radius:8px 8px 0 0;">
-        <h2 style="color:#fff;margin:0;font-size:20px;">PrimeLiving — Email Verification Code</h2>
+        <h2 style="color:#fff;margin:0;font-size:20px;">EAMS — Email Verification Code</h2>
       </div>
       <div style="background:#f4f7fb;padding:32px;border-radius:0 0 8px 8px;border:1px solid #dde3ee;">
         <p style="color:#374151;font-size:16px;margin-top:0;">
@@ -72,7 +72,7 @@ export async function sendEmailOtp(
     // Send email (non-blocking)
     sendEmail({
       to: email,
-      subject: "Your PrimeLiving Sign-In Code",
+      subject: "Your EAMS Sign-In Code",
       html: emailOtpHtml(code),
     }).catch((err) => console.error("Failed to send OTP email:", err));
 

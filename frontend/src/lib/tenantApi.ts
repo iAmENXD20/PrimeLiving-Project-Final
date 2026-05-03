@@ -34,8 +34,11 @@ export interface TenantMaintenanceRequest {
   category: 'plumbing' | 'electrical' | 'hvac' | 'structural' | 'appliances' | 'pest_control' | 'cleaning' | 'other'
   photo_url: string | null
   assigned_repairman_id: string | null
+  repairman_name: string | null
   review_rating: number | null
   review_comment: string | null
+  service_rating: number | null
+  service_comment: string | null
   reviewed_at: string | null
   created_at: string
   updated_at: string
@@ -194,8 +197,8 @@ export async function uploadMaintenancePhoto(file: File, tenantId: string): Prom
   return result.photo_url
 }
 
-export async function reviewMaintenanceRequest(id: string, rating: number, comment?: string): Promise<TenantMaintenanceRequest> {
-  return api.put<TenantMaintenanceRequest>(`/maintenance/${id}/review`, { rating, comment })
+export async function reviewMaintenanceRequest(id: string, rating: number, comment?: string, serviceRating?: number, serviceComment?: string): Promise<TenantMaintenanceRequest> {
+  return api.put<TenantMaintenanceRequest>(`/maintenance/${id}/review`, { rating, comment, serviceRating, serviceComment })
 }
 
 export async function updateMaintenanceStatus(id: string, status: TenantMaintenanceRequest['status']): Promise<TenantMaintenanceRequest> {
@@ -442,6 +445,18 @@ export async function endTenantContract(tenantId: string): Promise<void> {
 }
 
 // ── Announcement Replies ────────────────────────────────────
+export interface AnnouncementReply {
+  id: string
+  announcement_id: string
+  tenant_id: string | null    // null = owner/manager reply
+  tenant_name: string         // sender's display name
+  message: string
+  created_at: string
+}
+
+export async function getAnnouncementReplies(announcementId: string): Promise<AnnouncementReply[]> {
+  return api.get<AnnouncementReply[]>(`/announcements/${announcementId}/replies`)
+}
 export async function replyToAnnouncement(announcementId: string, message: string): Promise<void> {
   await api.post(`/announcements/${announcementId}/replies`, { message })
 }

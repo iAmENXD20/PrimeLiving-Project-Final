@@ -18,6 +18,8 @@ export interface MaintenanceRequest {
   assigned_repairman_id: string | null
   review_rating: number | null
   review_comment: string | null
+  service_rating: number | null
+  service_comment: string | null
   reviewed_at: string | null
   created_at: string
   updated_at: string
@@ -36,6 +38,8 @@ export interface Repairman {
   is_active: boolean
   created_at: string
   updated_at: string
+  avg_rating: number | null
+  total_reviews: number
 }
 
 export interface Revenue {
@@ -153,6 +157,20 @@ export async function getMaintenanceRequestsByMonth(ownerId: string) {
   return api.get<{ month: string; pending: number; resolved: number }[]>(
     `/analytics/maintenance-by-month?apartmentowner_id=${ownerId}`
   )
+}
+
+// ── Maintenance Summary Analytics ──────────────────────────
+export interface MaintenanceSummary {
+  total: number
+  statusBreakdown: { pending: number; in_progress: number; resolved: number; closed: number }
+  categoryBreakdown: { name: string; count: number }[]
+  avgRepairmanRating: number | null
+  avgServiceRating: number | null
+  totalReviewed: number
+}
+
+export async function getMaintenanceSummary(ownerId: string): Promise<MaintenanceSummary> {
+  return api.get<MaintenanceSummary>(`/analytics/maintenance-summary?apartmentowner_id=${ownerId}`)
 }
 
 // ── Owner Managers CRUD ────────────────────────────────────
@@ -690,4 +708,8 @@ export interface AnnouncementReply {
 
 export async function getAnnouncementReplies(announcementId: string): Promise<AnnouncementReply[]> {
   return api.get<AnnouncementReply[]>(`/announcements/${announcementId}/replies`)
+}
+
+export async function createOwnerAnnouncementReply(announcementId: string, message: string): Promise<void> {
+  await api.post(`/announcements/${announcementId}/replies`, { message })
 }

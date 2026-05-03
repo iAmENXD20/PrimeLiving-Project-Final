@@ -2,8 +2,6 @@ import { Response } from "express";
 import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError } from "../utils/helpers";
-import { sendSmsSemaphore } from "../utils/sms";
-import { env } from "../config/env";
 
 export async function getNotifications(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
@@ -139,26 +137,4 @@ export async function deleteAllNotifications(req: AuthenticatedRequest, res: Res
   }
 }
 
-export async function sendTestSms(req: AuthenticatedRequest, res: Response): Promise<void> {
-  try {
-    const { phone, message } = req.body as { phone?: string; message?: string };
-    if (!phone || !message) {
-      sendError(res, "phone and message are required", 400);
-      return;
-    }
 
-    await sendSmsSemaphore(phone, message);
-    sendSuccess(res, { phone }, "Test SMS sent");
-  } catch (err: any) {
-    sendError(res, err.message || "Failed to send test SMS", 500);
-  }
-}
-
-export async function getSmsConfigStatus(_req: AuthenticatedRequest, res: Response): Promise<void> {
-  sendSuccess(res, {
-    sms_enabled: env.SMS_ENABLED !== "false",
-    semaphore_api_key_configured: Boolean(env.SEMAPHORE_API_KEY),
-    semaphore_sender_name: env.SEMAPHORE_SENDER_NAME || null,
-    semaphore_api_url: env.SEMAPHORE_API_URL,
-  });
-}

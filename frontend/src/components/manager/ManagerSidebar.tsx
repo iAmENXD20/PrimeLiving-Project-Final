@@ -34,6 +34,7 @@ export default function ManagerSidebar({ activeTab, onTabChange, isOpen, onClose
     : ''
 
   const handleLogout = async () => {
+    sessionStorage.removeItem('app-session-active')
     await supabase.auth.signOut({ scope: 'local' })
     navigate('/login')
   }

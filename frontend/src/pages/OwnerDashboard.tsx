@@ -14,6 +14,8 @@ const OwnerMaintenanceTab = lazy(() => import('../components/owner/OwnerMaintena
 const OwnerPaymentsTab = lazy(() => import('../components/owner/OwnerPaymentsTab'))
 const OwnerApartmentLogsTab = lazy(() => import('../components/owner/OwnerApartmentLogsTab'))
 const OwnerAuditReportsTab = lazy(() => import('../components/owner/OwnerAuditReportsTab'))
+const OwnerAnnouncementsTab = lazy(() => import('../components/owner/OwnerAnnouncementsTab'))
+const OwnerAnalyticsTab = lazy(() => import('../components/owner/OwnerAnalyticsTab'))
 
 export default function OwnerDashboard() {
   const { isDark } = useTheme()
@@ -95,6 +97,10 @@ export default function OwnerDashboard() {
         return <OwnerPaymentsTab key={refreshKey} ownerId={owner.id} />
       case 'activity-logs':
         return <OwnerApartmentLogsTab key={refreshKey} ownerId={owner.id} />
+      case 'announcements':
+        return <OwnerAnnouncementsTab key={refreshKey} ownerId={owner.id} ownerName={`${owner.first_name} ${owner.last_name}`.trim()} />
+      case 'analytics':
+        return <OwnerAnalyticsTab key={refreshKey} ownerId={owner.id} />
       case 'audit-reports':
         return <OwnerAuditReportsTab key={refreshKey} ownerId={owner.id} />
       case 'account':

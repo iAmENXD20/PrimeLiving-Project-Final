@@ -1288,8 +1288,45 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
         })
 
         // ── Chunk toggle state (monthly / quarterly) ─────────
-        // We use a local variable derived from a ref since we are inside an IIFE render
         const chartData = analyticsChunkMode === 'quarterly' ? quarterlyChartData : monthlyChartData
+
+        // ── Maintenance analytics (aligned with year + chunk) ─
+        const maintenanceYearRequests = maintenanceRequests.filter(r =>
+          new Date(r.created_at).getFullYear() === selectedYear
+        )
+
+        const maintenanceStatusData = [
+          { name: 'Pending', count: maintenanceYearRequests.filter(r => r.status === 'pending').length, fill: '#EF4444' },
+          { name: 'In Progress', count: maintenanceYearRequests.filter(r => r.status === 'in_progress').length, fill: '#F59E0B' },
+          { name: 'Resolved', count: maintenanceYearRequests.filter(r => r.status === 'resolved').length, fill: '#3b82f6' },
+          { name: 'Closed', count: maintenanceYearRequests.filter(r => r.status === 'closed').length, fill: '#22C55E' },
+        ].filter(d => d.count > 0)
+
+        const maintenanceCategoryMap: Record<string, number> = {}
+        maintenanceYearRequests.forEach(r => {
+          if (r.category) maintenanceCategoryMap[r.category] = (maintenanceCategoryMap[r.category] || 0) + 1
+        })
+        const maintenanceCategoryData = Object.entries(maintenanceCategoryMap)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
+
+        const maintenanceMonthlyData = Array.from({ length: 12 }, (_, i) => ({
+          period: new Date(selectedYear, i).toLocaleString('default', { month: 'short' }),
+          count: maintenanceYearRequests.filter(r => new Date(r.created_at).getMonth() === i).length,
+        }))
+
+        const maintenanceQuarterlyData = [1, 2, 3, 4].map(q => {
+          const startMonth = (q - 1) * 3
+          const count = maintenanceYearRequests.filter(r => {
+            const m = new Date(r.created_at).getMonth()
+            return m >= startMonth && m < startMonth + 3
+          }).length
+          return { period: QUARTER_LABELS[q], count }
+        })
+
+        const maintenanceTrendData = analyticsChunkMode === 'quarterly'
+          ? maintenanceQuarterlyData
+          : maintenanceMonthlyData
 
         // ── Year-over-year comparison ────────────────────────
         const prevYear = selectedYear - 1
@@ -1658,6 +1695,86 @@ export default function OwnerAuditReportsTab({ ownerId }: OwnerAuditReportsTabPr
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+
+            {/* ── Maintenance Analytics ─────────────────────────── */}
+            <div className={`${cardClass} p-5`}>
+              <p className={`font-semibold mb-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>Maintenance Overview</p>
+              <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {selectedYear} maintenance metrics, synchronized with {analyticsChunkMode} view
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                {[
+                  { label: 'Total', value: maintenanceYearRequests.length, color: isDark ? 'text-white' : 'text-gray-900' },
+                  { label: 'Pending', value: maintenanceYearRequests.filter(r => r.status === 'pending').length, color: 'text-red-400' },
+                  { label: 'In Progress', value: maintenanceYearRequests.filter(r => r.status === 'in_progress').length, color: 'text-yellow-400' },
+                  { label: 'Closed', value: maintenanceYearRequests.filter(r => r.status === 'closed' || r.status === 'resolved').length, color: 'text-emerald-400' },
+                ].map(item => (
+                  <div key={item.label} className={`rounded-lg p-4 text-center border ${isDark ? 'bg-[#0A1628] border-[#1E293B]' : 'bg-gray-50 border-gray-200'}`}>
+                    <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{item.label}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Status bar chart */}
+                <div>
+                  <p className={`text-xs font-medium mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Requests by Status</p>
+                  {maintenanceStatusData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={180}>
+                        <BarChart data={maintenanceStatusData} layout="vertical" margin={{ left: 8, right: 16 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
+                          <XAxis type="number" tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <YAxis type="category" dataKey="name" tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} width={72} />
+                          <Tooltip contentStyle={tooltipStyle} />
+                          <Bar dataKey="count" name="Requests" radius={[0, 4, 4, 0]}>
+                            {maintenanceStatusData.map((d, i) => <Cell key={`ms-${d.name}-${i}`} fill={d.fill} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className={`text-sm text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No maintenance requests in {selectedYear}</p>
+                    )}
+                </div>
+                {/* Category bar chart */}
+                <div>
+                  <p className={`text-xs font-medium mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Requests by Category</p>
+                  {maintenanceCategoryData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={180}>
+                        <BarChart data={maintenanceCategoryData} layout="vertical" margin={{ left: 8, right: 16 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
+                          <XAxis type="number" tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <YAxis type="category" dataKey="name" tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} width={72} />
+                          <Tooltip contentStyle={tooltipStyle} />
+                          <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Requests" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className={`text-sm text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No category data in {selectedYear}</p>
+                    )}
+                </div>
+              </div>
+              {/* Trend chart synchronized with monthly/quarterly toggle */}
+              <div className="mt-4">
+                <p className={`text-xs font-medium mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Requests per {analyticsChunkMode === 'quarterly' ? 'Quarter' : 'Month'}
+                </p>
+                {maintenanceTrendData.some(d => d.count > 0) ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={maintenanceTrendData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+                      <XAxis dataKey="period" tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Requests" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className={`text-sm text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    No maintenance requests in {selectedYear}
+                  </p>
+                )}
               </div>
             </div>
 

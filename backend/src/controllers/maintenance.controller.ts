@@ -81,6 +81,25 @@ export async function getMaintenanceRequests(
       return;
     }
 
+    // Enrich with repairman names when assigned
+    if (data && data.length > 0) {
+      const repairmanIds = [...new Set((data as any[]).map((r: any) => r.assigned_repairman_id).filter(Boolean))];
+      if (repairmanIds.length > 0) {
+        const { data: repairmenData } = await supabaseAdmin
+          .from("repairmen")
+          .select("id, name")
+          .in("id", repairmanIds);
+        const repairmanMap: Record<string, string> = {};
+        for (const rep of repairmenData || []) repairmanMap[rep.id] = rep.name;
+        const enriched = (data as any[]).map((r: any) => ({
+          ...r,
+          repairman_name: r.assigned_repairman_id ? (repairmanMap[r.assigned_repairman_id] ?? null) : null,
+        }));
+        sendSuccess(res, enriched);
+        return;
+      }
+    }
+
     sendSuccess(res, data);
   } catch (err: any) {
     sendError(res, err.message, 500);
@@ -314,10 +333,15 @@ export async function reviewMaintenanceRequest(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const { rating, comment } = req.body;
+    const { rating, comment, serviceRating, serviceComment } = req.body;
 
     if (!rating || rating < 1 || rating > 5) {
       sendError(res, "Rating must be between 1 and 5", 400);
+      return;
+    }
+
+    if (!serviceRating || serviceRating < 1 || serviceRating > 5) {
+      sendError(res, "Service rating must be between 1 and 5", 400);
       return;
     }
 
@@ -343,6 +367,8 @@ export async function reviewMaintenanceRequest(
       .update({
         review_rating: rating,
         review_comment: comment || null,
+        service_rating: serviceRating,
+        service_comment: serviceComment || null,
         reviewed_at: new Date().toISOString(),
         status: "closed",
       })

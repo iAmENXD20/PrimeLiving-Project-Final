@@ -19,9 +19,9 @@ router.get("/:id", authorize("owner", "manager", "tenant"), getAnnouncementById)
 router.post("/", authorize("owner", "manager"), createAnnouncement);
 router.delete("/:id", authorize("owner", "manager"), deleteAnnouncement);
 
-// Two-way communication: tenant replies to an announcement
-router.post("/:id/replies", authorize("tenant"), createAnnouncementReply);
-// Owner/manager reads replies for an announcement
-router.get("/:id/replies", authorize("owner", "manager"), getAnnouncementReplies);
+// Two-way communication: any authenticated role can reply
+router.post("/:id/replies", authorize("owner", "manager", "tenant"), createAnnouncementReply);
+// Read thread replies
+router.get("/:id/replies", authorize("owner", "manager", "tenant"), getAnnouncementReplies);
 
 export default router;

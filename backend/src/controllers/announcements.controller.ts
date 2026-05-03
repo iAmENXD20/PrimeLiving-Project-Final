@@ -3,7 +3,6 @@ import { supabaseAdmin } from "../config/supabase";
 import { AuthenticatedRequest } from "../types";
 import { sendSuccess, sendError, getManagerScope } from "../utils/helpers";
 import { createNotifications, createNotification } from "../utils/notifications";
-import { sendSmsToMany } from "../utils/sms";
 import { logActivity, resolveActorName } from "../utils/activityLog";
 import { sendEmail, announcementEmailHtml, announcementReplyEmailHtml } from "../utils/email";
 
@@ -27,12 +26,22 @@ export async function getAnnouncements(
     }
 
     if (req.query.manager_id) {
-      const { apartmentIds } = await getManagerScope(req.query.manager_id as string);
-      if (apartmentIds.length === 0) {
+      const { apartmentIds, ownerId } = await getManagerScope(req.query.manager_id as string);
+      if (apartmentIds.length === 0 && !ownerId) {
         sendSuccess(res, []);
         return;
       }
-      query = query.in("apartment_id", apartmentIds);
+      if (ownerId && apartmentIds.length > 0) {
+        // Announcements for manager's apartments OR owner-wide announcements (no apartment_id)
+        query = query.or(
+          `apartment_id.in.(${apartmentIds.join(',')}),and(apartmentowner_id.eq.${ownerId},apartment_id.is.null)`
+        );
+      } else if (ownerId) {
+        // No apartments found, just show owner-wide announcements
+        query = query.eq("apartmentowner_id", ownerId).is("apartment_id", null);
+      } else {
+        query = query.in("apartment_id", apartmentIds);
+      }
     }
 
     if (req.query.tenant_id) {
@@ -185,18 +194,6 @@ export async function createAnnouncement(
 
       await createNotifications([...tenantNotifications, ...managerNotifications]);
 
-      // Send SMS to tenants with phone numbers
-      const tenantPhones = (tenants || [])
-        .map((t: any) => t.phone)
-        .filter(Boolean);
-
-      if (tenantPhones.length > 0) {
-        const smsMessage = `${title}\n\n${message}`;
-        sendSmsToMany(tenantPhones, smsMessage, { apartmentowner_id }).catch(
-          (err) => console.error("Announcement SMS failed:", err)
-        );
-      }
-
       // Send emails to tenants with email addresses
       const tenantEmailsQuery = supabaseAdmin
         .from("tenants")
@@ -303,7 +300,7 @@ export async function deleteAnnouncement(
 
 /**
  * POST /api/announcements/:id/replies
- * Tenant replies to an announcement
+ * Any authenticated user (owner, manager, tenant) can reply to an announcement
  */
 export async function createAnnouncementReply(
   req: AuthenticatedRequest,
@@ -312,25 +309,47 @@ export async function createAnnouncementReply(
   try {
     const { id: announcementId } = req.params;
     const { message } = req.body;
+    const role = req.user?.role;
 
     if (!message?.trim()) {
       sendError(res, "Reply message is required", 400);
       return;
     }
 
-    // Get tenant profile from auth user
-    const { data: tenant, error: tenantErr } = await supabaseAdmin
-      .from("tenants")
-      .select("id, first_name, last_name")
-      .eq("auth_user_id", req.user!.id)
-      .maybeSingle();
+    // Resolve sender name and tenant_id based on role
+    let senderName = "Unknown";
+    let tenantId: string | null = null;
 
-    if (tenantErr || !tenant) {
-      sendError(res, "Tenant profile not found", 404);
+    if (role === "tenant") {
+      const { data: tenant, error: tenantErr } = await supabaseAdmin
+        .from("tenants")
+        .select("id, first_name, last_name")
+        .eq("auth_user_id", req.user!.id)
+        .maybeSingle();
+      if (tenantErr || !tenant) {
+        sendError(res, "Tenant profile not found", 404);
+        return;
+      }
+      tenantId = tenant.id;
+      senderName = `${tenant.first_name} ${tenant.last_name}`.trim();
+    } else if (role === "owner") {
+      const { data: owner } = await supabaseAdmin
+        .from("apartment_owners")
+        .select("first_name, last_name")
+        .eq("auth_user_id", req.user!.id)
+        .maybeSingle();
+      senderName = owner ? `${owner.first_name} ${owner.last_name}`.trim() : "Owner";
+    } else if (role === "manager") {
+      const { data: manager } = await supabaseAdmin
+        .from("apartment_managers")
+        .select("first_name, last_name")
+        .eq("auth_user_id", req.user!.id)
+        .maybeSingle();
+      senderName = manager ? `${manager.first_name} ${manager.last_name}`.trim() : "Manager";
+    } else {
+      sendError(res, "Unauthorized role", 403);
       return;
     }
-
-    const tenantFullName = `${tenant.first_name} ${tenant.last_name}`.trim();
 
     // Get the announcement details
     const { data: announcement, error: annErr } = await supabaseAdmin
@@ -344,13 +363,13 @@ export async function createAnnouncementReply(
       return;
     }
 
-    // Insert the reply
+    // Insert the reply (tenant_id is null for owner/manager replies)
     const { data: reply, error: replyErr } = await supabaseAdmin
       .from("announcement_replies")
       .insert({
         announcement_id: announcementId,
-        tenant_id: tenant.id,
-        tenant_name: tenantFullName,
+        tenant_id: tenantId,
+        tenant_name: senderName,
         message: message.trim(),
       })
       .select()
@@ -363,58 +382,90 @@ export async function createAnnouncementReply(
 
     sendSuccess(res, reply, "Reply sent successfully", 201);
 
-    // Notify all active managers for this owner
     const ownerId = announcement.apartmentowner_id;
-    const { data: managers } = await supabaseAdmin
-      .from("apartment_managers")
-      .select("id, email, first_name, last_name")
-      .eq("apartmentowner_id", ownerId)
-      .eq("status", "active");
 
-    const { data: owner } = await supabaseAdmin
-      .from("apartment_owners")
-      .select("id, first_name, last_name, email")
-      .eq("id", ownerId)
-      .maybeSingle();
+    if (role === "tenant") {
+      // Tenant replied → notify owner and managers
+      const { data: managers } = await supabaseAdmin
+        .from("apartment_managers")
+        .select("id, email, first_name, last_name")
+        .eq("apartmentowner_id", ownerId)
+        .eq("status", "active");
 
-    const notifTitle = `${tenantFullName} replied to your announcement`;
-    const notifMsg = `"${announcement.title}"\n\nReply: ${message.trim()}`;
+      const { data: owner } = await supabaseAdmin
+        .from("apartment_owners")
+        .select("id, first_name, last_name, email")
+        .eq("id", ownerId)
+        .maybeSingle();
 
-    // In-app notifications for managers
-    const managerNotifs = (managers || []).map((mgr: any) => ({
-      apartmentowner_id: ownerId,
-      recipient_role: "manager" as const,
-      recipient_id: mgr.id,
-      type: "announcement_reply",
-      title: notifTitle,
-      message: notifMsg,
-      entity_id: announcementId,
-    }));
+      const notifTitle = `${senderName} replied to your announcement`;
+      const notifMsg = `"${announcement.title}"\n\nReply: ${message.trim()}`;
 
-    if (managerNotifs.length > 0) {
-      createNotifications(managerNotifs).catch((err) =>
-        console.error("Failed to create reply notifications:", err)
-      );
-    }
+      const managerNotifs = (managers || []).map((mgr: any) => ({
+        apartmentowner_id: ownerId,
+        recipient_role: "manager" as const,
+        recipient_id: mgr.id,
+        type: "announcement_reply",
+        title: notifTitle,
+        message: notifMsg,
+        entity_id: announcementId,
+      }));
+      if (managerNotifs.length > 0) {
+        createNotifications(managerNotifs).catch((err) =>
+          console.error("Failed to create reply notifications:", err)
+        );
+      }
 
-    // Email managers and owner
-    const emailRecipients: { name: string; email: string }[] = [];
-    if (owner?.email) emailRecipients.push({ name: `${owner.first_name} ${owner.last_name}`.trim(), email: owner.email });
-    for (const mgr of managers || []) {
-      if (mgr.email) emailRecipients.push({ name: `${mgr.first_name} ${mgr.last_name}`.trim(), email: mgr.email });
-    }
+      const emailRecipients: { name: string; email: string }[] = [];
+      if (owner?.email) emailRecipients.push({ name: `${owner.first_name} ${owner.last_name}`.trim(), email: owner.email });
+      for (const mgr of managers || []) {
+        if (mgr.email) emailRecipients.push({ name: `${mgr.first_name} ${mgr.last_name}`.trim(), email: mgr.email });
+      }
+      for (const recipient of emailRecipients) {
+        sendEmail({
+          to: recipient.email,
+          subject: `Tenant Reply: ${announcement.title}`,
+          html: announcementReplyEmailHtml({
+            recipientName: recipient.name || recipient.email,
+            tenantName: senderName,
+            announcementTitle: announcement.title,
+            replyMessage: message.trim(),
+          }),
+        }).catch((err) => console.error("Reply email failed:", err));
+      }
+    } else {
+      // Owner/Manager replied → notify tenants in this announcement
+      const recipientTenantIds: string[] | null = await supabaseAdmin
+        .from("announcements")
+        .select("recipient_tenant_ids")
+        .eq("id", announcementId)
+        .single()
+        .then(({ data }) => data?.recipient_tenant_ids ?? null);
 
-    for (const recipient of emailRecipients) {
-      sendEmail({
-        to: recipient.email,
-        subject: `Tenant Reply: ${announcement.title}`,
-        html: announcementReplyEmailHtml({
-          recipientName: recipient.name || recipient.email,
-          tenantName: tenantFullName,
-          announcementTitle: announcement.title,
-          replyMessage: message.trim(),
-        }),
-      }).catch((err) => console.error("Reply email failed:", err));
+      let tenantQuery = supabaseAdmin
+        .from("tenants")
+        .select("id, email, first_name, last_name")
+        .eq("apartmentowner_id", ownerId)
+        .eq("status", "active");
+
+      if (Array.isArray(recipientTenantIds) && recipientTenantIds.length > 0) {
+        tenantQuery = tenantQuery.in("id", recipientTenantIds);
+      }
+
+      const { data: tenants } = await tenantQuery;
+
+      const tenantNotifs = (tenants || []).map((t: any) => ({
+        apartmentowner_id: ownerId,
+        recipient_role: "tenant" as const,
+        recipient_id: t.id,
+        type: "announcement_reply",
+        title: `${senderName} replied to an announcement`,
+        message: `"${announcement.title}"\n\nReply: ${message.trim()}`,
+        entity_id: announcementId,
+      }));
+      if (tenantNotifs.length > 0) {
+        createNotifications(tenantNotifs).catch(() => {});
+      }
     }
   } catch (err: any) {
     sendError(res, err.message, 500);
