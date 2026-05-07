@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, Wrench, PhilippinePeso, Settings, LogOut, X, ClipboardList, Users, ScrollText, Megaphone, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, Building2, Wrench, PhilippinePeso, Settings, LogOut, X, ClipboardList, Users, ScrollText, Megaphone } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { supabase } from '../../lib/supabase'
@@ -19,7 +19,6 @@ const navItems = [
   { id: 'maintenance', label: 'Maintenance Request', icon: Wrench },
   { id: 'announcements', label: 'Announcements', icon: Megaphone },
   { id: 'payments', label: 'Payment History', icon: PhilippinePeso },
-  { id: 'analytics', label: 'Analytics', icon: BarChart2 },
   { id: 'activity-logs', label: 'Activity Logs', icon: ScrollText },
   { id: 'audit-reports', label: 'Audit Reports', icon: ClipboardList },
   { id: 'account', label: 'Account Settings', icon: Settings },

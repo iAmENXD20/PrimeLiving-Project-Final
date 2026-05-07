@@ -44,7 +44,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<HistoryItem | null>(null)
   const pageSize = 10
   const today = new Date()
-  const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1)
+  const [selectedMonth, setSelectedMonth] = useState<number>(0)
   const [selectedYear, setSelectedYear] = useState(today.getFullYear())
 
   const yearOptions = Array.from({ length: 5 }, (_, i) => today.getFullYear() - i)
@@ -157,7 +157,7 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
     : `${monthOptions.find((m) => m.value === selectedMonth)?.label} ${selectedYear}`
 
   const statCards = useMemo(() => [
-    { label: 'Total Income', value: (stats.totalRevenue || 0).toLocaleString(), icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: `${monthOptions.find((m) => m.value === today.getMonth() + 1)?.label} ${today.getFullYear()}` },
+    { label: 'Total Income', value: (stats.totalRevenue || 0).toLocaleString(), icon: PhilippinePeso, color: 'text-primary', bg: 'bg-primary/15', subtitle: selectedPeriodLabel },
     { label: 'Paid Tenants', value: `${paidTenantCount || 0}/${stats.activeTenants || 0}`, icon: CreditCard, color: 'text-cyan-400', bg: 'bg-cyan-500/15', subtitle: monthOptions.find((m) => m.value === today.getMonth() + 1)?.label },
     { label: 'Pending Maintenance', value: stats.pendingMaintenance || 0, icon: Wrench, color: 'text-red-400', bg: 'bg-red-500/15' },
     { label: 'Active Tenants', value: stats.activeTenants || 0, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
@@ -376,14 +376,24 @@ export default function OwnerOverviewTab({ ownerId, ownerName }: OwnerOverviewTa
         {/* Right: Calendar */}
         <CalendarWidget
           className="h-full"
-          deadlines={allPayments
-            .filter((p) => p.period_to && p.tenant_name && p.tenant_name !== '\u2014')
-            .map((p) => ({
-              tenantName: p.tenant_name || 'Tenant',
-              unitName: p.apartment_name || 'Unit',
-              dueDate: p.period_to!,
-              status: p.status,
-            }))}
+          deadlines={Array.from(
+            allPayments
+              .filter((p) => p.period_to && p.tenant_name && p.tenant_name !== '\u2014')
+              .reduce((map, p) => {
+                const key = `${p.tenant_id}-${p.unit_id}`
+                const existing = map.get(key)
+                if (!existing || new Date(p.period_to!) > new Date(existing.period_to!)) {
+                  map.set(key, p)
+                }
+                return map
+              }, new Map<string, (typeof allPayments)[0]>())
+              .values()
+          ).map((p) => ({
+            tenantName: p.tenant_name || 'Tenant',
+            unitName: p.apartment_name || 'Unit',
+            dueDate: p.period_to!,
+            status: p.status,
+          }))}
         />
       </div>
 

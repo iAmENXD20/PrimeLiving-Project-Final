@@ -1161,7 +1161,7 @@ export async function checkLeaseExpiry(
 
 /**
  * PUT /api/tenants/:id/renew
- * Tenant requests contract renewal.
+ * Tenant requests contract renewal. Accepts optional durationMonths in body.
  */
 export async function renewTenantContract(
   req: AuthenticatedRequest,
@@ -1169,6 +1169,7 @@ export async function renewTenantContract(
 ): Promise<void> {
   try {
     const { id } = req.params;
+    const durationMonths: number = Number(req.body?.durationMonths) || 12;
 
     const { data: tenant, error: fetchErr } = await supabaseAdmin
       .from("tenants")
@@ -1181,18 +1182,38 @@ export async function renewTenantContract(
       return;
     }
 
-    const { error } = await supabaseAdmin
+    // Compute new lease dates
+    const newStart = new Date();
+    const newEnd = new Date(newStart);
+    newEnd.setMonth(newEnd.getMonth() + durationMonths);
+    const newStartStr = newStart.toISOString().slice(0, 10);
+    const newEndStr = newEnd.toISOString().slice(0, 10);
+
+    // Update tenant contract status
+    const { error: tenantErr } = await supabaseAdmin
       .from("tenants")
       .update({
         contract_status: "renewed",
-        renewal_date: new Date().toISOString().slice(0, 10),
+        renewal_date: newStartStr,
         renewal_count: (tenant.renewal_count || 0) + 1,
       })
       .eq("id", id);
 
-    if (error) {
-      sendError(res, error.message, 500);
+    if (tenantErr) {
+      sendError(res, tenantErr.message, 500);
       return;
+    }
+
+    // Update unit with new lease dates and duration
+    if (tenant.unit_id) {
+      await supabaseAdmin
+        .from("units")
+        .update({
+          lease_start: newStartStr,
+          lease_end: newEndStr,
+          contract_duration: durationMonths,
+        })
+        .eq("id", tenant.unit_id);
     }
 
     // Notify the manager about the renewal
@@ -1210,12 +1231,11 @@ export async function renewTenantContract(
           recipient_id: unit.manager_id,
           type: "lease_renewed",
           title: "Tenant Contract Renewed",
-          message: `${tenant.first_name} ${tenant.last_name} has renewed their contract for ${unit.name}.`,
+          message: `${tenant.first_name} ${tenant.last_name} has renewed their contract for ${unit.name} — ${durationMonths} month${durationMonths > 1 ? "s" : ""} (until ${newEndStr}).`,
           unit_id: tenant.unit_id,
         });
       }
 
-      // Log to owner's activity logs (Recent Histories)
       logActivity({
         apartmentowner_id: tenant.apartmentowner_id,
         actor_id: id,
@@ -1224,12 +1244,12 @@ export async function renewTenantContract(
         action: "contract_renewed",
         entity_type: "tenant",
         entity_id: id,
-        description: `${tenant.first_name} ${tenant.last_name} renewed their contract for ${unit?.name || "a unit"}`,
-        metadata: { unit_id: tenant.unit_id, tenant_id: id, first_name: tenant.first_name, last_name: tenant.last_name },
+        description: `${tenant.first_name} ${tenant.last_name} renewed their contract for ${unit?.name || "a unit"} — ${durationMonths} months (until ${newEndStr})`,
+        metadata: { unit_id: tenant.unit_id, tenant_id: id, durationMonths, lease_end: newEndStr },
       });
     }
 
-    sendSuccess(res, { renewed: true }, "Contract renewed successfully");
+    sendSuccess(res, { renewed: true, lease_end: newEndStr, durationMonths }, "Contract renewed successfully");
   } catch (err: any) {
     sendError(res, err.message, 500);
   }
@@ -1237,7 +1257,8 @@ export async function renewTenantContract(
 
 /**
  * PUT /api/tenants/:id/end-contract
- * Tenant chooses not to renew — triggers countdown notifications
+ * Tenant chooses not to renew — sets contract_status to end_contract.
+ * Actual account deactivation is handled by the lease expiry cron on the expiry date.
  */
 export async function endTenantContract(
   req: AuthenticatedRequest,
@@ -1267,7 +1288,7 @@ export async function endTenantContract(
       return;
     }
 
-    // Notify manager
+    // Notify manager and log activity
     if (tenant.unit_id) {
       const { data: unit } = await supabaseAdmin
         .from("units")
@@ -1282,12 +1303,11 @@ export async function endTenantContract(
           recipient_id: unit.manager_id,
           type: "contract_ended",
           title: "Tenant Ending Contract",
-          message: `${tenant.first_name} ${tenant.last_name} has decided to end their contract for ${unit.name}.`,
+          message: `${tenant.first_name} ${tenant.last_name} has decided not to renew their contract for ${unit.name}. Their account will be deactivated on the contract end date.`,
           unit_id: tenant.unit_id,
         });
       }
 
-      // Log to owner's activity logs
       logActivity({
         apartmentowner_id: tenant.apartmentowner_id,
         actor_id: id,
@@ -1296,12 +1316,12 @@ export async function endTenantContract(
         action: "contract_ended",
         entity_type: "tenant",
         entity_id: id,
-        description: `${tenant.first_name} ${tenant.last_name} chose to end their contract for ${unit?.name || "a unit"}`,
+        description: `${tenant.first_name} ${tenant.last_name} chose not to renew their contract for ${unit?.name || "a unit"}`,
         metadata: { unit_id: tenant.unit_id, tenant_id: id, first_name: tenant.first_name, last_name: tenant.last_name },
       });
     }
 
-    sendSuccess(res, { ended: true }, "Contract end request recorded");
+    sendSuccess(res, { ended: true }, "Contract end recorded. Account will be deactivated on the contract end date.");
   } catch (err: any) {
     sendError(res, err.message, 500);
   }

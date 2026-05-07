@@ -376,7 +376,12 @@ export async function createAnnouncementReply(
       .single();
 
     if (replyErr) {
-      sendError(res, replyErr.message, 500);
+      // FK violation means announcement was deleted
+      if (replyErr.code === '23503') {
+        sendError(res, "Announcement no longer exists", 404);
+      } else {
+        sendError(res, replyErr.message, 500);
+      }
       return;
     }
 

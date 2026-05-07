@@ -44,10 +44,15 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<HistoryItem | null>(null)
   const [loading, setLoading] = useState(true)
   const initialLoadDone = useRef(false)
+  const leaseModalShownRef = useRef(false)
   const [page, setPage] = useState(1)
   const [renewing, setRenewing] = useState(false)
   const [ending, setEnding] = useState(false)
   const [showContractDetails, setShowContractDetails] = useState(false)
+  const [showLeaseExpiryModal, setShowLeaseExpiryModal] = useState(false)
+  const [showRenewalConfigModal, setShowRenewalConfigModal] = useState(false)
+  const [selectedRenewalMonths, setSelectedRenewalMonths] = useState(12)
+  const [renewError, setRenewError] = useState<string | null>(null)
   const pageSize = 10
 
   const loadAll = useCallback(async () => {
@@ -114,17 +119,41 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
     { table: 'units', ...(apartmentId ? { filter: `id=eq.${apartmentId}` } : {}), onChanged: loadAll },
   ])
 
+  // Show lease expiry modal when contract is about to expire (within 2 days)
+  useEffect(() => {
+    if (!apartmentInfo?.lease_end) return
+    if (leaseModalShownRef.current) return
+    const blockStatuses = ['renewed', 'end_contract', 'closed']
+    if (blockStatuses.includes(contractStatus ?? '')) return
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const leaseEnd = new Date(apartmentInfo.lease_end)
+    leaseEnd.setHours(0, 0, 0, 0)
+    const daysUntilExpiry = Math.ceil((leaseEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+    if (daysUntilExpiry <= 2) {
+      leaseModalShownRef.current = true
+      setShowLeaseExpiryModal(true)
+    }
+  }, [apartmentInfo?.lease_end, contractStatus])
+
   const cardClass = `rounded-xl p-6 border ${
     isDark ? 'bg-navy-card border-[#1E293B]' : 'bg-white border-gray-200 shadow-sm'
   }`
 
-  async function handleRenew() {
+  async function handleRenew(durationMonths?: number): Promise<boolean> {
     setRenewing(true)
+    setRenewError(null)
     try {
-      await renewTenantContract(tenantId)
+      await renewTenantContract(tenantId, durationMonths)
+      await loadAll()
       onRenewed?.()
-    } catch (err) {
+      return true
+    } catch (err: any) {
       console.error('Failed to renew contract:', err)
+      setRenewError(err?.message || 'Renewal failed. Please try again.')
+      return false
     } finally {
       setRenewing(false)
     }
@@ -149,9 +178,23 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
   ]
 
   // Build history from notifications
+  const maintenanceMap = new Map(recentMaintenance.map((m) => [m.id, m]))
+  const maintenanceByTitle = new Map(recentMaintenance.map((m) => [m.title?.toLowerCase(), m]))
+
   const historyItems: HistoryItem[] = notifications.map((n) => {
-    const isPayment = n.type === 'payment'
-    const isMaintenance = n.type === 'maintenance'
+    const isPayment = n.type === 'payment_reminder' || n.type === 'payment'
+    const isMaintenance = n.type?.startsWith('maintenance')
+    // Try to find matching maintenance record for photo — first by entity_id, then by title keyword
+    let matchedMaintenance = isMaintenance && n.entity_id ? maintenanceMap.get(n.entity_id) : null
+    if (!matchedMaintenance && isMaintenance) {
+      // Extract title from notification title or message
+      for (const [title, m] of maintenanceByTitle.entries()) {
+        if (n.title?.toLowerCase().includes(title) || n.message?.toLowerCase().includes(title)) {
+          matchedMaintenance = m
+          break
+        }
+      }
+    }
     return {
       id: n.id,
       type: isPayment ? 'payment' as const : 'maintenance' as const,
@@ -164,6 +207,7 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
         : isMaintenance
         ? 'bg-orange-500/15 text-orange-400'
         : 'bg-blue-500/15 text-blue-400',
+      photo_url: matchedMaintenance?.photo_url ?? null,
     }
   })
 
@@ -537,9 +581,180 @@ export default function TenantOverviewTab({ tenantId, apartmentId, tenantName, o
         />
       </div>
 
+      {/* ── Lease Expiry Popup Modal ────────────────────────────────────── */}
+      {showLeaseExpiryModal && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div
+            className={`relative w-full max-w-md mx-4 rounded-2xl border p-8 shadow-2xl text-center ${isDark ? 'bg-[#0F1A2E] border-[#1E293B]' : 'bg-white border-gray-200'}`}
+          >
+            {/* Warning icon */}
+            <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-amber-500/15 flex items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-amber-500" />
+            </div>
+
+            <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Contract Expiring Soon
+            </h2>
+
+            <p className={`text-sm mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              Your lease for <strong>{apartmentInfo?.name}</strong> expires on:
+            </p>
+            <p className="text-base font-semibold text-amber-400 mb-4">
+              {apartmentInfo?.lease_end
+                ? new Date(apartmentInfo.lease_end).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                : '—'}
+            </p>
+
+            <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Would you like to <strong>renew your contract</strong> and continue staying?
+              <br />
+              <span className="text-red-400 text-xs">If you choose not to renew, your account will be automatically deactivated.</span>
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  setShowLeaseExpiryModal(false)
+                  await handleEndContract()
+                }}
+                disabled={ending}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 ${
+                  isDark ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                }`}
+              >
+                {ending ? 'Processing...' : "No, Don't Renew"}
+              </button>
+              <button
+                onClick={async () => {
+                  setShowLeaseExpiryModal(false)
+                  setSelectedRenewalMonths(12)
+                  setShowRenewalConfigModal(true)
+                }}
+                disabled={renewing}
+                className="flex-1 py-3 px-4 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {renewing ? 'Renewing...' : 'Yes, Renew Contract'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Renewal Config Modal ────────────────────────────────────────── */}
+      {showRenewalConfigModal && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div
+            className={`relative w-full max-w-md mx-4 rounded-2xl border p-8 shadow-2xl text-center ${isDark ? 'bg-[#0F1A2E] border-[#1E293B]' : 'bg-white border-gray-200'}`}
+          >
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/15 flex items-center justify-center">
+              <RefreshCw className="w-7 h-7 text-primary" />
+            </div>
+
+            <h2 className={`text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Renew Contract
+            </h2>
+            <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Select the duration for your new contract:
+            </p>
+
+            {/* Duration selector */}
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <button
+                onClick={() => setSelectedRenewalMonths((m) => Math.max(1, m - 1))}
+                className={`w-10 h-10 rounded-xl text-xl font-bold transition-colors ${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                −
+              </button>
+              <div className="flex flex-col items-center">
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={selectedRenewalMonths}
+                  onChange={(e) => {
+                    const val = Math.max(1, Math.min(120, Number(e.target.value) || 1))
+                    setSelectedRenewalMonths(val)
+                  }}
+                  className={`w-20 text-center text-2xl font-bold rounded-xl border-2 py-2 focus:outline-none focus:border-primary transition-colors ${
+                    isDark ? 'bg-white/5 border-[#1E293B] text-white' : 'bg-gray-50 border-gray-200 text-gray-900'
+                  }`}
+                />
+                <span className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>months</span>
+              </div>
+              <button
+                onClick={() => setSelectedRenewalMonths((m) => Math.min(120, m + 1))}
+                className={`w-10 h-10 rounded-xl text-xl font-bold transition-colors ${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                +
+              </button>
+            </div>
+
+            {/* Quick presets */}
+            <div className="flex gap-2 justify-center mb-6">
+              {[3, 6, 12, 24].map((months) => (
+                <button
+                  key={months}
+                  onClick={() => setSelectedRenewalMonths(months)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedRenewalMonths === months
+                      ? 'border-primary bg-primary text-white'
+                      : isDark
+                        ? 'border-[#1E293B] bg-white/5 text-gray-400 hover:border-primary/50'
+                        : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-primary/50'
+                  }`}
+                >
+                  {months}mo
+                </button>
+              ))}
+            </div>
+
+            {/* Summary */}
+            <div className={`rounded-xl p-3 mb-6 text-sm ${isDark ? 'bg-white/5 text-gray-300' : 'bg-gray-50 text-gray-700'}`}>
+              New contract: <strong>{selectedRenewalMonths} month{selectedRenewalMonths > 1 ? 's' : ''}</strong>
+              {' '}→ Ends{' '}
+              <strong>
+                {(() => {
+                  const d = new Date()
+                  d.setMonth(d.getMonth() + selectedRenewalMonths)
+                  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                })()}
+              </strong>
+            </div>
+
+            {renewError && (
+              <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center">
+                {renewError}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowRenewalConfigModal(false); setRenewError(null) }}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-colors ${
+                  isDark ? 'bg-white/10 text-gray-300 hover:bg-white/15' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Back
+              </button>
+              <button
+                onClick={async () => {
+                  const success = await handleRenew(selectedRenewalMonths)
+                  if (success) setShowRenewalConfigModal(false)
+                }}
+                disabled={renewing}
+                className="flex-1 py-3 px-4 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {renewing ? 'Renewing...' : 'Confirm Renewal'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* History Detail Modal */}
-      {selectedHistoryItem && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSelectedHistoryItem(null)}>
+      {selectedHistoryItem && createPortal(        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSelectedHistoryItem(null)}>
           <div
             className={`relative w-full max-w-md mx-4 rounded-xl border p-6 shadow-2xl ${isDark ? 'bg-[#0F1A2E] border-[#1E293B]' : 'bg-white border-gray-200'}`}
             onClick={(e) => e.stopPropagation()}

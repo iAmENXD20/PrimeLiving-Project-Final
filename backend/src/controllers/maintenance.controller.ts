@@ -229,6 +229,7 @@ export async function createMaintenanceRequest(
         type: "maintenance_request_created",
         title: "New Maintenance Request",
         message: `${tenantName} submitted: ${title}`,
+        entity_id: data.id,
       }))
     );
 
@@ -296,6 +297,7 @@ export async function updateMaintenanceStatus(
           type: "maintenance_status_updated",
           title: "Maintenance Update",
           message: `Your request "${data.title}" is now ${status.replace("_", " ")}.`,
+          entity_id: data.id,
         })
       }
     }

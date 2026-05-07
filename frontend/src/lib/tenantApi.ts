@@ -436,8 +436,8 @@ export async function uploadOccupantIdPhoto(file: File, tenantId: string): Promi
 }
 
 // ── Lease Renewal ───────────────────────────────
-export async function renewTenantContract(tenantId: string): Promise<void> {
-  await api.put(`/tenants/${tenantId}/renew`, {})
+export async function renewTenantContract(tenantId: string, durationMonths?: number): Promise<void> {
+  await api.put(`/tenants/${tenantId}/renew`, { durationMonths: durationMonths ?? 12 })
 }
 
 export async function endTenantContract(tenantId: string): Promise<void> {

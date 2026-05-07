@@ -139,6 +139,7 @@ export default function TenantNotificationsTab({ tenantId, ownerId, onRead }: Te
       setTimeout(() => setReplySuccess(null), 3000)
     } catch (err) {
       console.error('Failed to send reply:', err)
+      alert('Failed to send reply. The announcement may have been deleted.')
     } finally {
       setReplySubmitting(false)
     }
